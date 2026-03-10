@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	iofs "io/fs"
-	"log"
 	"net/http"
 	"os"
 	"strings"
@@ -12,6 +11,7 @@ import (
 	"github.com/ushopal/rss-reader/internal/config"
 	"github.com/ushopal/rss-reader/internal/database"
 	"github.com/ushopal/rss-reader/internal/handlers"
+	"github.com/ushopal/rss-reader/internal/logger"
 	"github.com/ushopal/rss-reader/internal/middleware"
 	"github.com/ushopal/rss-reader/internal/scheduler"
 	"github.com/ushopal/rss-reader/internal/services"
@@ -27,11 +27,12 @@ func main() {
 	}
 	cfg, err := config.Load(cfgPath)
 	if err != nil {
-		log.Fatalf("load config: %v", err)
+		logger.Fatalf("load config: %v", err)
 	}
+	logger.Init(cfg.Log.Level)
 	db, err := database.Init(cfg.Database.DSN)
 	if err != nil {
-		log.Fatalf("init db: %v", err)
+		logger.Fatalf("init db: %v", err)
 	}
 	authSvc := services.NewAuthService(db, cfg.JWT.Secret, cfg.JWT.ExpireHours, cfg.SuperAdmin.Username)
 	rssSvc := services.NewRSSService(db)
@@ -49,8 +50,16 @@ func main() {
 	sched.Start()
 	defer sched.Stop()
 
-	r := gin.Default()
-	r.Use(gin.Recovery())
+	if !cfg.Server.Debug {
+		gin.SetMode(gin.ReleaseMode)
+	}
+	var r *gin.Engine
+	if cfg.Server.Debug {
+		r = gin.Default() // 含 Logger + Recovery，会输出请求日志
+	} else {
+		r = gin.New()
+		r.Use(gin.Recovery()) // 仅 Recovery，不输出请求日志
+	}
 	// 避免 Gin 的自动路径重定向（在部分环境下会对 "/" 返回 Location: "./" 导致循环重定向）
 	r.RedirectTrailingSlash = false
 	r.RedirectFixedPath = false
@@ -101,9 +110,9 @@ func main() {
 	registerStatic(r)
 
 	addr := ":" + fmt.Sprint(cfg.Server.Port)
-	log.Printf("server listening on %s", addr)
+	logger.Info("server listening on %s", addr)
 	if err := r.Run(addr); err != nil {
-		log.Fatal(err)
+		logger.Fatal(err)
 	}
 }
 

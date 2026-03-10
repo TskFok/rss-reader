@@ -1,5 +1,10 @@
 server:
   port: 8080
+  # 是否开启 Gin debug 模式（输出 GIN-debug 路由等），正式环境建议 false
+  debug: false
+# 日志等级：debug, info, warn, error。正式环境建议设为 error 以关闭非异常日志
+log:
+  level: info
 database:
   dsn: "rss_user:rss_pass@tcp(localhost:3306)/rss_reader?charset=utf8mb4&parseTime=True"
 jwt:

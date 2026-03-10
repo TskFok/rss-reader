@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"strconv"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -14,11 +15,19 @@ type Config struct {
 	JWT        JWTConfig        `yaml:"jwt"`
 	SuperAdmin SuperAdminConfig `yaml:"super_admin"`
 	Feishu     FeishuConfig     `yaml:"feishu"`
+	Log        LogConfig        `yaml:"log"`
+}
+
+// LogConfig 日志配置
+type LogConfig struct {
+	// Level 日志等级：debug, info, warn, error。正式环境建议设为 error 以关闭非异常日志
+	Level string `yaml:"level"`
 }
 
 // ServerConfig 服务配置
 type ServerConfig struct {
-	Port int `yaml:"port"`
+	Port  int  `yaml:"port"`
+	Debug bool `yaml:"debug"` // 是否开启 Gin debug 模式（会输出 GIN-debug 路由等信息），正式环境建议关闭
 }
 
 // DatabaseConfig 数据库配置
@@ -59,6 +68,9 @@ func Load(path string) (*Config, error) {
 }
 
 func applyEnvOverrides(cfg *Config) {
+	if cfg.Log.Level == "" {
+		cfg.Log.Level = "info"
+	}
 	if v := os.Getenv("DB_DSN"); v != "" {
 		cfg.Database.DSN = v
 	}
@@ -70,6 +82,9 @@ func applyEnvOverrides(cfg *Config) {
 			cfg.Server.Port = p
 		}
 	}
+	if v := os.Getenv("GIN_DEBUG"); v != "" {
+		cfg.Server.Debug = v == "1" || strings.EqualFold(v, "true") || v == "on"
+	}
 	if v := os.Getenv("FEISHU_APP_ID"); v != "" {
 		cfg.Feishu.AppID = v
 	}
@@ -78,5 +93,8 @@ func applyEnvOverrides(cfg *Config) {
 	}
 	if v := os.Getenv("FEISHU_REDIRECT"); v != "" {
 		cfg.Feishu.Redirect = v
+	}
+	if v := os.Getenv("LOG_LEVEL"); v != "" {
+		cfg.Log.Level = v
 	}
 }
