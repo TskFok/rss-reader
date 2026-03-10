@@ -1,0 +1,81 @@
+# 二进制与构建产物
+rss-reader
+dist/
+*.exe
+*.dll
+*.so
+*.dylib
+cmd/server/static/
+
+# 配置文件（含敏感信息）
+config.yaml
+config.*.local.yaml
+.env
+.env.local
+.env.*.local
+.env.development
+.env.production
+*.pem
+*.key
+
+# 数据库文件（本地开发/测试）
+*.sqlite
+*.sqlite3
+*.db
+
+# Go
+vendor/
+*.test
+coverage.out
+coverage/
+*.cover
+*.coverprofile
+
+# Web / Node
+node_modules/
+web/node_modules/
+web/dist/
+.npm
+.eslintcache
+*.tsbuildinfo
+.pnp
+.pnp.js
+.yarn/cache
+.yarn/unplugged
+.yarn/install-state.gz
+.yarn/build-state.yml
+.pnp.cjs
+
+# Vite / 前端构建缓存
+.vite/
+.turbo/
+
+# 日志与临时文件
+*.log
+*.tmp
+*.temp
+.cache/
+tmp/
+temp/
+
+# IDE / 编辑器
+.idea/
+.vscode/
+.cursor/
+*.swp
+*.swo
+*~
+project.xcworkspace/
+xcuserdata/
+
+# 包管理器调试日志
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# 系统
+.DS_Store
+Thumbs.db
+
+.history

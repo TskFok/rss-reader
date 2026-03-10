@@ -1,0 +1,15 @@
+server:
+  port: 8080
+database:
+  dsn: "rss_user:rss_pass@tcp(localhost:3306)/rss_reader?charset=utf8mb4&parseTime=True"
+jwt:
+  secret: "your-secret-key-change-in-production"
+  expire_hours: 168  # 7 天
+super_admin:
+  # 可选：指定超级管理员用户名，否则首个注册用户为超级管理员
+  username: ""
+feishu:
+  app_id: ""
+  app_secret: ""
+  # 飞书回调地址，需在飞书控制台配置一致
+  redirect: "http://localhost:8080/api/auth/feishu/callback"
