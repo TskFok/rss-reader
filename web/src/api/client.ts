@@ -115,12 +115,14 @@ export const feedsApi = {
     id: number,
     update_interval_minutes: number,
     proxy_id?: number | null,
-    expire_days?: number
+    expire_days?: number,
+    category_id?: number | null
   ) =>
     client.put<Feed>(`/feeds/${id}`, {
       update_interval_minutes,
       proxy_id: proxy_id ?? null,
       ...(expire_days !== undefined && { expire_days }),
+      ...(category_id !== undefined && { category_id }),
     }),
   delete: (id: number) => client.delete(`/feeds/${id}`),
 };

@@ -110,9 +110,10 @@ func (s *FeedService) GetByID(userID uint, id uint) (*models.Feed, error) {
 
 // UpdateFeedRequest 更新订阅请求
 type UpdateFeedRequest struct {
+	CategoryID            *uint `json:"category_id"`             // nil 表示不修改
 	UpdateIntervalMinutes int   `json:"update_interval_minutes" binding:"required,min=5,max=10080"`
-	ProxyID               *uint  `json:"proxy_id"`
-	ExpireDays            *int   `json:"expire_days"` // 0=永不过期，nil 表示不修改
+	ProxyID               *uint `json:"proxy_id"`
+	ExpireDays            *int  `json:"expire_days"` // 0=永不过期，nil 表示不修改
 }
 
 // Update 更新订阅设置
@@ -120,6 +121,17 @@ func (s *FeedService) Update(userID uint, id uint, req UpdateFeedRequest) (*mode
 	feed, err := s.GetByID(userID, id)
 	if err != nil {
 		return nil, err
+	}
+	if req.CategoryID != nil {
+		if *req.CategoryID > 0 {
+			var cat models.FeedCategory
+			if err := s.db.Where("user_id = ? AND id = ?", userID, *req.CategoryID).First(&cat).Error; err != nil {
+				if errors.Is(err, gorm.ErrRecordNotFound) {
+					return nil, errors.New("分类不存在")
+				}
+				return nil, err
+			}
+		}
 	}
 	if req.ProxyID != nil && *req.ProxyID > 0 {
 		var p models.Proxy
@@ -143,13 +155,20 @@ func (s *FeedService) Update(userID uint, id uint, req UpdateFeedRequest) (*mode
 	if req.ProxyID == nil {
 		_ = s.db.Model(feed).Update("proxy_id", nil)
 	}
-	feed.UpdateIntervalMinutes = req.UpdateIntervalMinutes
-	feed.ProxyID = req.ProxyID
-	if req.ExpireDays != nil {
-		feed.ExpireDays = *req.ExpireDays
+	if req.CategoryID != nil {
+		var catVal interface{} = nil
+		if *req.CategoryID > 0 {
+			catVal = *req.CategoryID
+		}
+		if err := s.db.Table("feeds").Where("id = ? AND user_id = ?", feed.ID, userID).Update("category_id", catVal).Error; err != nil {
+			return nil, err
+		}
 	}
-	s.db.Preload("Proxy").First(feed, feed.ID)
-	return feed, nil
+	var result models.Feed
+	if err := s.db.Preload("Category").Preload("Proxy").First(&result, feed.ID).Error; err != nil {
+		return nil, err
+	}
+	return &result, nil
 }
 
 // Delete 删除订阅

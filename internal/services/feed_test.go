@@ -132,3 +132,50 @@ func TestFeedService_Update_WithProxy(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 30, updated2.ExpireDays)
 }
+
+func TestFeedService_Update_Category(t *testing.T) {
+	db := setupFeedDB(t)
+	rss := NewRSSService(db)
+	svc := NewFeedService(db, rss)
+	catSvc := NewCategoryService(db)
+
+	cat1, err := catSvc.Create(1, CreateCategoryRequest{Name: "分类1"})
+	require.NoError(t, err)
+	cat2, err := catSvc.Create(1, CreateCategoryRequest{Name: "分类2"})
+	require.NoError(t, err)
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/xml; charset=utf-8")
+		_, _ = fmt.Fprint(w, `<?xml version="1.0"?><rss version="2.0"><channel><title>F</title></channel></rss>`)
+	}))
+	defer ts.Close()
+
+	feed, err := svc.Create(1, CreateFeedRequest{URL: ts.URL, CategoryID: cat1.ID, UpdateIntervalMinutes: 60})
+	require.NoError(t, err)
+	assert.Equal(t, cat1.ID, *feed.CategoryID)
+
+	// 更新分类
+	updated, err := svc.Update(1, feed.ID, UpdateFeedRequest{
+		UpdateIntervalMinutes: 60,
+		CategoryID:            &cat2.ID,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, cat2.ID, *updated.CategoryID)
+
+	// 分类不存在应失败
+	badCatID := uint(999)
+	_, err = svc.Update(1, feed.ID, UpdateFeedRequest{
+		UpdateIntervalMinutes: 60,
+		CategoryID:            &badCatID,
+	})
+	assert.Equal(t, "分类不存在", err.Error())
+
+	// 清空分类（category_id=0）
+	zero := uint(0)
+	updated2, err := svc.Update(1, feed.ID, UpdateFeedRequest{
+		UpdateIntervalMinutes: 60,
+		CategoryID:            &zero,
+	})
+	require.NoError(t, err)
+	assert.Nil(t, updated2.CategoryID)
+}

@@ -22,6 +22,7 @@ export default function Feeds() {
   const [editing, setEditing] = useState<number | null>(null);
   const [editInterval, setEditInterval] = useState(60);
   const [editExpireDays, setEditExpireDays] = useState(90);
+  const [editCategoryId, setEditCategoryId] = useState<number | ''>('');
   const [catName, setCatName] = useState('');
   const [catError, setCatError] = useState('');
   const [catLoading, setCatLoading] = useState(false);
@@ -195,7 +196,8 @@ export default function Feeds() {
         id,
         editInterval,
         editProxyId === '' ? null : editProxyId,
-        editExpireDays
+        editExpireDays,
+        editCategoryId === '' ? 0 : editCategoryId
       );
       setEditing(null);
       loadFeeds();
@@ -617,7 +619,26 @@ export default function Feeds() {
                               <div className="feeds-table-sub">{f.url}</div>
                             </div>
                           </td>
-                          <td>{f.category?.name || '未分类'}</td>
+                          <td>
+                            {isEditing ? (
+                              <select
+                                value={editCategoryId}
+                                onChange={(e) =>
+                                  setEditCategoryId(e.target.value === '' ? '' : Number(e.target.value))
+                                }
+                                title="分类"
+                              >
+                                <option value="">未分类</option>
+                                {categories.map((c) => (
+                                  <option key={c.id} value={c.id}>
+                                    {c.name}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : (
+                              f.category?.name || '未分类'
+                            )}
+                          </td>
                           <td>
                             {isEditing ? (
                               <select
@@ -693,6 +714,7 @@ export default function Feeds() {
                                 setEditInterval(f.update_interval_minutes);
                                 setEditExpireDays(f.expire_days ?? 90);
                                 setEditProxyId(f.proxy_id ?? '');
+                                setEditCategoryId(f.category_id ?? '');
                               }}
                                   >
                                     编辑

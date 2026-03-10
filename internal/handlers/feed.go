@@ -80,6 +80,10 @@ func (h *FeedHandler) Update(c *gin.Context) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "订阅不存在"})
 			return
 		}
+		if err.Error() == "分类不存在" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "分类不存在"})
+			return
+		}
 		if err.Error() == "代理不存在" {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "代理不存在"})
 			return
