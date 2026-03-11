@@ -13,11 +13,12 @@ import (
 type SummaryHandler struct {
 	articleSvc *services.ArticleService
 	aiModelSvc *services.AIModelService
+	errLogSvc  *services.ErrorLogService
 }
 
 // NewSummaryHandler 创建总结处理器
-func NewSummaryHandler(articleSvc *services.ArticleService, aiModelSvc *services.AIModelService) *SummaryHandler {
-	return &SummaryHandler{articleSvc: articleSvc, aiModelSvc: aiModelSvc}
+func NewSummaryHandler(articleSvc *services.ArticleService, aiModelSvc *services.AIModelService, errLogSvc *services.ErrorLogService) *SummaryHandler {
+	return &SummaryHandler{articleSvc: articleSvc, aiModelSvc: aiModelSvc, errLogSvc: errLogSvc}
 }
 
 // SummarizeRequest 总结请求
@@ -100,5 +101,18 @@ func (h *SummaryHandler) Summarize(c *gin.Context) {
 	if err != nil {
 		c.SSEvent("", map[string]string{"error": err.Error()})
 		c.Writer.Flush()
+		// SSE 返回 200，不会被 HTTP 错误日志中间件捕获，这里额外落库记录
+		if h.errLogSvc != nil {
+			uid := userID
+			_ = h.errLogSvc.Create(services.CreateErrorLogRequest{
+				UserID:   &uid,
+				Level:    "error",
+				Message:  err.Error(),
+				Location: "POST /api/articles/summarize",
+				Method:   "POST",
+				Path:     "/api/articles/summarize",
+				Status:   200,
+			})
+		}
 	}
 }

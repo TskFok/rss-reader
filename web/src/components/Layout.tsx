@@ -7,6 +7,7 @@ const mainNavItems: { to: string; label: string }[] = [
   { to: '/', label: '首页' },
   { to: '/favorites', label: '收藏' },
   { to: '/summary-history', label: '总结历史' },
+  { to: '/feeds?tab=ai-summary', label: 'AI 总结' },
 ];
 
 const feedsTabItems: { tab: string; label: string; icon: string; superAdminOnly?: boolean }[] = [
@@ -14,7 +15,6 @@ const feedsTabItems: { tab: string; label: string; icon: string; superAdminOnly?
   { tab: 'feeds', label: '订阅列表', icon: '订' },
   { tab: 'proxies', label: '代理', icon: '代' },
   { tab: 'ai-models', label: 'AI 模型', icon: '模' },
-  { tab: 'ai-summary', label: 'AI 总结', icon: '总' },
   { tab: 'ai-summary-schedule', label: '定时总结', icon: '时' },
   { tab: 'users', label: '用户管理', icon: '用', superAdminOnly: true },
 ];
@@ -68,6 +68,13 @@ export default function Layout() {
               {!sidebarCollapsed && <span>{label}</span>}
             </Link>
           ))}
+          <Link
+            to="/error-logs"
+            className={`nice-admin-sidebar-link ${location.pathname.startsWith('/error-logs') ? 'active' : ''}`}
+          >
+            <span className="nice-admin-sidebar-icon">错</span>
+            {!sidebarCollapsed && <span>错误日志</span>}
+          </Link>
         </nav>
         <button
           type="button"
@@ -91,7 +98,9 @@ export default function Layout() {
             </button>
             <span className="nice-admin-header-breadcrumb">
               {location.pathname === '/feeds' && feedsTab
-                ? (feedsNavItems.find((i) => i.tab === feedsTab)?.label ?? '系统设置')
+                ? (feedsTab === 'ai-summary'
+                  ? 'AI 总结'
+                  : (feedsNavItems.find((i) => i.tab === feedsTab)?.label ?? '系统设置'))
                 : mainNavItems.find((i) => i.to === location.pathname || (i.to !== '/' && location.pathname.startsWith(i.to)))?.label ?? '首页'}
             </span>
           </div>

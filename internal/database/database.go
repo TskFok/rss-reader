@@ -22,6 +22,7 @@ func Init(dsn string) (*gorm.DB, error) {
 		&models.AIModel{},
 		&models.AISummaryHistory{},
 		&models.AISummarySchedule{},
+		&models.ErrorLog{},
 	); err != nil {
 		return nil, err
 	}

@@ -127,6 +127,19 @@ export interface SummarySchedule {
   updated_at: string;
 }
 
+export interface ErrorLogItem {
+  id: number;
+  user_id?: number | null;
+  level: string;
+  message: string;
+  location: string;
+  method: string;
+  path: string;
+  status: number;
+  stack: string;
+  created_at: string;
+}
+
 export const authApi = {
   register: (username: string, password: string) =>
     client.post('/auth/register', { username, password }),
@@ -336,6 +349,12 @@ export const summarySchedulesApi = {
   update: (id: number, params: { ai_model_id: number; feed_ids?: number[]; run_at: string; page_size?: number; order?: 'desc' | 'asc'; enabled?: boolean }) =>
     client.put<SummarySchedule>(`/summary-schedules/${id}`, params),
   delete: (id: number) => client.delete(`/summary-schedules/${id}`),
+};
+
+export const errorLogsApi = {
+  list: (params?: { page?: number; page_size?: number }) =>
+    client.get<{ items: ErrorLogItem[]; total: number }>('/error-logs', { params }),
+  delete: (id: number) => client.delete(`/error-logs/${id}`),
 };
 
 export const adminApi = {

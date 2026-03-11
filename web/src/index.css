@@ -1090,8 +1090,12 @@ a:hover {
   justify-content: space-between;
   padding: 10px 12px;
   border-radius: 8px;
-  background: transparent;
-  border: 1px solid var(--nice-admin-card-border);
+  background: #fbfbfb;
+  border: none;
+}
+
+[data-theme="dark"] .feeds-category-list li {
+  background: rgba(255, 255, 255, 0.04);
 }
 
 .feeds-category-list-draggable li {
@@ -1441,6 +1445,7 @@ a:hover {
   background: transparent;
   color: var(--nice-admin-text);
   font-size: 0.8rem;
+  white-space: nowrap;
   cursor: pointer;
 }
 

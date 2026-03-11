@@ -7,6 +7,7 @@ import Home from './pages/Home';
 import Favorites from './pages/Favorites';
 import Feeds from './pages/Feeds';
 import SummaryHistory from './pages/SummaryHistory';
+import ErrorLogs from './pages/ErrorLogs';
 import Layout from './components/Layout';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -36,6 +37,7 @@ function AppRoutes() {
         <Route path="favorites" element={<Favorites />} />
         <Route path="feeds" element={<Feeds />} />
         <Route path="summary-history" element={<SummaryHistory />} />
+        <Route path="error-logs" element={<ErrorLogs />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

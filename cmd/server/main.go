@@ -43,6 +43,7 @@ func main() {
 	articleSvc := services.NewArticleService(db)
 	summaryHistorySvc := services.NewSummaryHistoryService(db)
 	summaryScheduleSvc := services.NewSummaryScheduleService(db)
+	errorLogSvc := services.NewErrorLogService(db)
 	adminSvc := services.NewAdminService(db)
 	opmlHandler := handlers.NewOPMLHandler(feedSvc, categorySvc)
 	feishuAPI := services.NewFeishuHTTPClient(cfg.Feishu.AppID, cfg.Feishu.AppSecret, cfg.Feishu.Redirect)
@@ -58,10 +59,12 @@ func main() {
 	}
 	var r *gin.Engine
 	if cfg.Server.Debug {
-		r = gin.Default() // 含 Logger + Recovery，会输出请求日志
+		r = gin.New()
+		r.Use(gin.Logger())
+		r.Use(middleware.ErrorLog(errorLogSvc))
 	} else {
 		r = gin.New()
-		r.Use(gin.Recovery()) // 仅 Recovery，不输出请求日志
+		r.Use(middleware.ErrorLog(errorLogSvc)) // 仅记录错误与 panic
 	}
 	// 避免 Gin 的自动路径重定向（在部分环境下会对 "/" 返回 Location: "./" 导致循环重定向）
 	r.RedirectTrailingSlash = false
@@ -107,7 +110,7 @@ func main() {
 			auth.GET("/articles", handlers.NewArticleHandler(articleSvc).List)
 			auth.PUT("/articles/:id/read", handlers.NewArticleHandler(articleSvc).MarkRead)
 			auth.PUT("/articles/:id/favorite", handlers.NewArticleHandler(articleSvc).ToggleFavorite)
-			auth.POST("/articles/summarize", handlers.NewSummaryHandler(articleSvc, aiModelSvc).Summarize)
+			auth.POST("/articles/summarize", handlers.NewSummaryHandler(articleSvc, aiModelSvc, errorLogSvc).Summarize)
 
 			auth.GET("/summary-histories", handlers.NewSummaryHistoryHandler(summaryHistorySvc).List)
 			auth.POST("/summary-histories", handlers.NewSummaryHistoryHandler(summaryHistorySvc).Create)
@@ -117,6 +120,9 @@ func main() {
 			auth.POST("/summary-schedules", handlers.NewSummaryScheduleHandler(summaryScheduleSvc).Create)
 			auth.PUT("/summary-schedules/:id", handlers.NewSummaryScheduleHandler(summaryScheduleSvc).Update)
 			auth.DELETE("/summary-schedules/:id", handlers.NewSummaryScheduleHandler(summaryScheduleSvc).Delete)
+
+			auth.GET("/error-logs", handlers.NewErrorLogHandler(errorLogSvc).List)
+			auth.DELETE("/error-logs/:id", handlers.NewErrorLogHandler(errorLogSvc).Delete)
 
 			admin := auth.Group("/admin")
 			admin.Use(middleware.RequireSuperAdmin(db))
