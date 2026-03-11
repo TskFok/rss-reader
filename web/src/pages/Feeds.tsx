@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { feedsApi, categoriesApi, opmlApi, proxiesApi, aiModelsApi, articlesApi, summarySchedulesApi, summaryHistoriesApi } from '../api/client';
+import { feedsApi, categoriesApi, opmlApi, proxiesApi, aiModelsApi, articlesApi, summarySchedulesApi, summaryHistoriesApi, userSettingsApi } from '../api/client';
 import type { Feed, FeedCategory, Proxy, AIModel, SummarySchedule } from '../api/client';
 import { useAuth } from '../contexts/AuthContext';
 import Modal from '../components/Modal';
@@ -8,7 +8,7 @@ import Admin from './Admin';
 
 const PAGE_SIZE_OPTIONS = [5, 8, 10, 20, 50] as const;
 const SUMMARY_PAGE_SIZE_OPTIONS = [10, 20, 50, 100] as const;
-const TAB_OPTIONS = ['categories', 'feeds', 'proxies', 'ai-models', 'ai-summary', 'ai-summary-schedule', 'users'] as const;
+const TAB_OPTIONS = ['categories', 'feeds', 'proxies', 'ai-models', 'ai-summary', 'ai-summary-schedule', 'feishu', 'users'] as const;
 type TabType = (typeof TAB_OPTIONS)[number];
 
 /** 上海时区当日的 YYYY-MM-DD */
@@ -135,6 +135,16 @@ export default function Feeds() {
   const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
   const [editingScheduleId, setEditingScheduleId] = useState<number | null>(null);
 
+  // 飞书机器人配置（Webhook 或服务端 API 二选一，API 模式使用 config 的 app_id/app_secret，接收者为 users.feishu_id）
+  const [feishuNotifyType, setFeishuNotifyType] = useState<'webhook' | 'api' | ''>('');
+  const [feishuWebhook, setFeishuWebhook] = useState('');
+  const [feishuId, setFeishuId] = useState('');
+  const [feishuWebhookLoading, setFeishuWebhookLoading] = useState(false);
+  const [feishuWebhookError, setFeishuWebhookError] = useState('');
+  const [feishuWebhookSuccess, setFeishuWebhookSuccess] = useState('');
+  const [feishuTestLoading, setFeishuTestLoading] = useState(false);
+  const [feishuTestError, setFeishuTestError] = useState('');
+
   const totalCategoryPages = Math.max(1, Math.ceil(categories.length / categoryPageSize));
   const totalFeedsPages = Math.max(1, Math.ceil(feeds.length / feedsPageSize));
   const paginatedCategories = categories.slice((categoryPage - 1) * categoryPageSize, categoryPage * categoryPageSize);
@@ -204,6 +214,29 @@ export default function Feeds() {
         if (!cancelled) {
           // 默认选择模型
           if (scheduleAiModelId === '' && aiModels.length > 0) setScheduleAiModelId(aiModels[0].id);
+        }
+      })();
+      return () => { cancelled = true; };
+    }
+    if (activeTab === 'feishu') {
+      let cancelled = false;
+      (async () => {
+        try {
+          const r = await userSettingsApi.get();
+          if (!cancelled) {
+            const d = r.data;
+            let nt = (d.feishu_notify_type || '') as 'webhook' | 'api' | '';
+            if (!nt && d.feishu_bot_webhook) nt = 'webhook';
+            setFeishuNotifyType(nt);
+            setFeishuWebhook(d.feishu_bot_webhook || '');
+            setFeishuId(d.feishu_id || '');
+          }
+        } catch {
+          if (!cancelled) {
+            setFeishuNotifyType('');
+            setFeishuWebhook('');
+            setFeishuId('');
+          }
         }
       })();
       return () => { cancelled = true; };
@@ -755,6 +788,39 @@ export default function Feeds() {
   const formatDate = (s: string | null) => {
     if (!s) return '从未';
     return new Date(s).toLocaleString('zh-CN');
+  };
+
+  const handleSaveFeishuConfig = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setFeishuWebhookError('');
+    setFeishuWebhookSuccess('');
+    setFeishuWebhookLoading(true);
+    try {
+      await userSettingsApi.update({
+        feishu_notify_type: feishuNotifyType,
+        feishu_bot_webhook: feishuWebhook,
+      });
+      setFeishuWebhookSuccess('保存成功');
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      setFeishuWebhookError(msg || '保存失败');
+    } finally {
+      setFeishuWebhookLoading(false);
+    }
+  };
+
+  const handleTestFeishuBot = async () => {
+    setFeishuTestError('');
+    setFeishuTestLoading(true);
+    try {
+      await userSettingsApi.testFeishuBot();
+      setFeishuWebhookSuccess('测试消息已发送，请检查飞书群');
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      setFeishuTestError(msg || '发送失败');
+    } finally {
+      setFeishuTestLoading(false);
+    }
   };
 
   const handleExportOPML = async () => {
@@ -1805,6 +1871,74 @@ export default function Feeds() {
                 )}
               </ul>
             </div>
+          </section>
+        )}
+
+        {activeTab === 'feishu' && (
+          <section className="feeds-card">
+            <div className="feeds-card-header">
+              <div>
+                <h2>飞书机器人</h2>
+                <p>配置后，定时总结任务失败时会自动发送告警。支持 Webhook 或飞书开放平台服务端 API 两种方式</p>
+              </div>
+            </div>
+            {feishuWebhookError && <p className="error">{feishuWebhookError}</p>}
+            {feishuWebhookSuccess && <p className="bind-msg-success">{feishuWebhookSuccess}</p>}
+            {feishuTestError && <p className="error">{feishuTestError}</p>}
+            <form onSubmit={handleSaveFeishuConfig} className="feeds-modal-form" style={{ maxWidth: '600px' }}>
+              <div className="feeds-modal-row">
+                <label>通知方式</label>
+                <select
+                  value={feishuNotifyType}
+                  onChange={(e) =>
+                    setFeishuNotifyType((e.target.value || '') as 'webhook' | 'api' | '')
+                  }
+                >
+                  <option value="">不通知</option>
+                  <option value="webhook">Webhook（自定义机器人）</option>
+                  <option value="api">服务端 API（飞书开放平台）</option>
+                </select>
+              </div>
+              {feishuNotifyType === 'webhook' && (
+                <>
+                  <div className="feeds-modal-row">
+                    <label>Webhook URL</label>
+                    <input
+                      type="url"
+                      placeholder="https://open.feishu.cn/open-apis/bot/v2/hook/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                      value={feishuWebhook}
+                      onChange={(e) => setFeishuWebhook(e.target.value)}
+                    />
+                  </div>
+                  <p className="feeds-summary-hint" style={{ marginTop: '-0.5rem', marginBottom: '1rem' }}>
+                    在飞书群中添加「自定义机器人」，选择「Webhook」方式即可获取地址
+                  </p>
+                </>
+              )}
+              {feishuNotifyType === 'api' && (
+                <p className="feeds-summary-hint" style={{ marginTop: '-0.5rem', marginBottom: '1rem' }}>
+                  使用配置的飞书应用，告警将发送到您绑定的飞书账号私聊。请先在「用户管理」中由管理员绑定飞书。
+                  {feishuId ? ' 当前已绑定。' : ' 当前未绑定。'}
+                </p>
+              )}
+              <div className="feeds-modal-actions">
+                <button type="submit" disabled={feishuWebhookLoading}>
+                  {feishuWebhookLoading ? '保存中...' : '保存'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleTestFeishuBot}
+                  disabled={
+                    feishuTestLoading ||
+                    !feishuNotifyType ||
+                    (feishuNotifyType === 'webhook' && !feishuWebhook.trim()) ||
+                    (feishuNotifyType === 'api' && !feishuId.trim())
+                  }
+                >
+                  {feishuTestLoading ? '发送中...' : '测试发送'}
+                </button>
+              </div>
+            </form>
           </section>
         )}
 

@@ -14,17 +14,18 @@ import (
 
 // Scheduler 定时更新调度器
 type Scheduler struct {
-	db          *gorm.DB
-	rssSvc      *services.RSSService
-	articleSvc  *services.ArticleService
-	aiModelSvc  *services.AIModelService
-	historySvc  *services.SummaryHistoryService
-	cron        *cron.Cron
-	workers     int
+	db           *gorm.DB
+	rssSvc       *services.RSSService
+	articleSvc   *services.ArticleService
+	aiModelSvc   *services.AIModelService
+	historySvc   *services.SummaryHistoryService
+	feishuBot    services.FeishuBotClient
+	cron         *cron.Cron
+	workers      int
 }
 
 // New 创建调度器
-func New(db *gorm.DB, rssSvc *services.RSSService, articleSvc *services.ArticleService, aiModelSvc *services.AIModelService, historySvc *services.SummaryHistoryService, workers int) *Scheduler {
+func New(db *gorm.DB, rssSvc *services.RSSService, articleSvc *services.ArticleService, aiModelSvc *services.AIModelService, historySvc *services.SummaryHistoryService, feishuBot services.FeishuBotClient, workers int) *Scheduler {
 	if workers <= 0 {
 		workers = 3
 	}
@@ -34,6 +35,7 @@ func New(db *gorm.DB, rssSvc *services.RSSService, articleSvc *services.ArticleS
 		articleSvc: articleSvc,
 		aiModelSvc: aiModelSvc,
 		historySvc: historySvc,
+		feishuBot:  feishuBot,
 		cron:       cron.New(),
 		workers:    workers,
 	}
@@ -173,6 +175,8 @@ func (s *Scheduler) runSummarySchedules() {
 				schedule.Order,
 				now,
 				loc,
+				s.feishuBot,
+				s.db,
 			)
 			if err != nil {
 				logger.Error("scheduler: run summary schedule %d error: %v", schedule.ID, err)

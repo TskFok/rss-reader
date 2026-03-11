@@ -45,12 +45,14 @@ func main() {
 	summaryScheduleSvc := services.NewSummaryScheduleService(db)
 	errorLogSvc := services.NewErrorLogService(db)
 	adminSvc := services.NewAdminService(db)
+	userSettingSvc := services.NewUserSettingService(db)
 	opmlHandler := handlers.NewOPMLHandler(feedSvc, categorySvc)
 	feishuAPI := services.NewFeishuHTTPClient(cfg.Feishu.AppID, cfg.Feishu.AppSecret, cfg.Feishu.Redirect)
 	feishuAuthSvc := services.NewFeishuAuthService(db)
 	feishuHandler := handlers.NewFeishuHandler(&cfg.Feishu, feishuAPI, authSvc, feishuAuthSvc)
 
-	sched := scheduler.New(db, rssSvc, articleSvc, aiModelSvc, summaryHistorySvc, 3)
+	feishuBotSvc := services.NewFeishuBotService(&cfg.Feishu)
+	sched := scheduler.New(db, rssSvc, articleSvc, aiModelSvc, summaryHistorySvc, feishuBotSvc, 3)
 	sched.Start()
 	defer sched.Stop()
 
@@ -123,6 +125,11 @@ func main() {
 
 			auth.GET("/error-logs", handlers.NewErrorLogHandler(errorLogSvc).List)
 			auth.DELETE("/error-logs/:id", handlers.NewErrorLogHandler(errorLogSvc).Delete)
+
+			userSettingHandler := handlers.NewUserSettingHandler(userSettingSvc, feishuBotSvc)
+			auth.GET("/users/me/settings", userSettingHandler.GetSettings)
+			auth.PUT("/users/me/settings", userSettingHandler.UpdateSettings)
+			auth.POST("/users/me/feishu-bot/test", userSettingHandler.TestFeishuBot)
 
 			admin := auth.Group("/admin")
 			admin.Use(middleware.RequireSuperAdmin(db))

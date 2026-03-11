@@ -16,6 +16,7 @@ const feedsTabItems: { tab: string; label: string; icon: string; superAdminOnly?
   { tab: 'proxies', label: '代理', icon: '代' },
   { tab: 'ai-models', label: 'AI 模型', icon: '模' },
   { tab: 'ai-summary-schedule', label: '定时总结', icon: '时' },
+  { tab: 'feishu', label: '飞书机器人', icon: '飞' },
   { tab: 'users', label: '用户管理', icon: '用', superAdminOnly: true },
 ];
 

@@ -371,4 +371,16 @@ export const adminApi = {
     client.get<{ url: string; goto?: string }>(`/admin/users/${id}/feishu/bind-url`),
 };
 
+export interface UserSettings {
+  feishu_notify_type: string;
+  feishu_bot_webhook: string;
+  feishu_id: string;
+}
+
+export const userSettingsApi = {
+  get: () => client.get<UserSettings>('/users/me/settings'),
+  update: (data: Partial<UserSettings>) => client.put<{ message: string }>('/users/me/settings', data),
+  testFeishuBot: () => client.post<{ message: string }>('/users/me/feishu-bot/test'),
+};
+
 export default client;

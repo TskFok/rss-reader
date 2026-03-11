@@ -2,11 +2,22 @@ package services
 
 import (
 	"errors"
+	"fmt"
+	"strconv"
+	"strings"
 	"time"
+	"unicode/utf8"
+
+	"github.com/ushopal/rss-reader/internal/logger"
+	"github.com/ushopal/rss-reader/internal/models"
+	"gorm.io/gorm"
 )
+
+const feishuAlertErrMaxLen = 500
 
 // RunDailySummaryForYesterday 执行一次“昨天”的分页总结，直到某页文章数为 0。
 // 每页生成一条总结历史记录。
+// feishuBot 为 nil 时不发送飞书告警；db 在 feishuBot 非 nil 时用于查询用户 Webhook 和模型信息。
 func RunDailySummaryForYesterday(
 	userID uint,
 	aiModelSvc *AIModelService,
@@ -18,6 +29,8 @@ func RunDailySummaryForYesterday(
 	order string,
 	now time.Time,
 	loc *time.Location,
+	feishuBot FeishuBotClient,
+	db *gorm.DB,
 ) error {
 	if loc != nil {
 		now = now.In(loc)
@@ -47,6 +60,7 @@ func RunDailySummaryForYesterday(
 				Content:      "",
 				Error:        err.Error(),
 			})
+			trySendFeishuAlert(feishuBot, db, userID, aiModelID, startStr, endStr, page, pageSize, order, 0, err.Error())
 			return err
 		}
 		if len(items) == 0 {
@@ -74,11 +88,13 @@ func RunDailySummaryForYesterday(
 
 		// 模型失败时不再继续翻页，避免连续失败刷屏
 		if sumErr != nil {
+			trySendFeishuAlert(feishuBot, db, userID, aiModelID, startStr, endStr, page, pageSize, order, len(items), sumErr.Error())
 			return sumErr
 		}
 		page++
 		// 安全阈值：避免意外无限循环
 		if page > 1000 {
+			errMsg := "分页次数过多，已中止"
 			_, _ = historySvc.Create(userID, CreateSummaryHistoryRequest{
 				AIModelID: aiModelID,
 				FeedIDs:   feedIDs,
@@ -87,12 +103,80 @@ func RunDailySummaryForYesterday(
 				Page:      page,
 				PageSize:  pageSize,
 				Order:     order,
-				Error:     "分页次数过多，已中止",
+				Error:     errMsg,
 				Content:   "",
 			})
-			return errors.New("分页次数过多，已中止")
+			trySendFeishuAlert(feishuBot, db, userID, aiModelID, startStr, endStr, page, pageSize, order, 0, errMsg)
+			return errors.New(errMsg)
 		}
 	}
 	return nil
 }
+
+// trySendFeishuAlert 在定时总结失败时尝试发送飞书告警，仅当用户配置了 Webhook 时发送。
+// 发送失败不影响主流程，仅记录日志。
+func trySendFeishuAlert(
+	feishuBot FeishuBotClient,
+	db *gorm.DB,
+	userID uint,
+	aiModelID uint,
+	startStr, endStr string,
+	page, pageSize int,
+	order string,
+	articleCount int,
+	errMsg string,
+) {
+	if feishuBot == nil || db == nil {
+		return
+	}
+	var user models.User
+	if err := db.Select("username", "feishu_bot_webhook", "feishu_notify_type", "feishu_id").
+		Where("id = ?", userID).First(&user).Error; err != nil {
+		return
+	}
+	notifyType := strings.TrimSpace(user.FeishuNotifyType)
+	webhook := strings.TrimSpace(user.FeishuBotWebhook)
+	if notifyType == "" && webhook != "" {
+		notifyType = "webhook"
+	}
+	if notifyType == "" {
+		return
+	}
+	modelName := ""
+	var model models.AIModel
+	if err := db.Select("name").Where("user_id = ? AND id = ?", userID, aiModelID).First(&model).Error; err == nil {
+		modelName = model.Name
+	}
+	if modelName == "" {
+		modelName = "(未知)"
+	}
+	truncated := truncateString(errMsg, feishuAlertErrMaxLen)
+	title := "[RSS Reader 定时总结失败告警]"
+	content := strings.Join([]string{
+		"用户：" + user.Username + " (ID: " + strconv.FormatUint(uint64(userID), 10) + ")",
+		"模型：" + modelName + " (ID: " + strconv.FormatUint(uint64(aiModelID), 10) + ")",
+		"时间范围：" + startStr + " ~ " + endStr,
+		"页码：" + fmt.Sprintf("%d", page) + " / page_size=" + fmt.Sprintf("%d", pageSize) + ", order=" + order,
+		"文章数：" + fmt.Sprintf("%d", articleCount),
+		"错误：" + truncated,
+	}, "\n")
+	var sendErr error
+	if notifyType == "webhook" && webhook != "" {
+		sendErr = feishuBot.SendText(webhook, title, content)
+	} else if notifyType == "api" && user.FeishuID != nil && strings.TrimSpace(*user.FeishuID) != "" {
+		sendErr = feishuBot.SendToUserByOpenID(strings.TrimSpace(*user.FeishuID), title, content)
+	}
+	if sendErr != nil {
+		logger.Warn("飞书告警发送失败 (user=%d): %v", userID, sendErr)
+	}
+}
+
+func truncateString(s string, maxRunes int) string {
+	if utf8.RuneCountInString(s) <= maxRunes {
+		return s
+	}
+	runes := []rune(s)
+	return string(runes[:maxRunes]) + "..."
+}
+
 
