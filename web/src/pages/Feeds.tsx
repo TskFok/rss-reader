@@ -3,9 +3,10 @@ import { useSearchParams } from 'react-router-dom';
 import { feedsApi, categoriesApi, opmlApi, proxiesApi, aiModelsApi, articlesApi } from '../api/client';
 import type { Feed, FeedCategory, Proxy, AIModel } from '../api/client';
 import { useAuth } from '../contexts/AuthContext';
+import Modal from '../components/Modal';
 import Admin from './Admin';
 
-const PAGE_SIZE = 8;
+const PAGE_SIZE_OPTIONS = [5, 8, 10, 20, 50] as const;
 const TAB_OPTIONS = ['categories', 'feeds', 'proxies', 'ai-models', 'ai-summary', 'users'] as const;
 type TabType = (typeof TAB_OPTIONS)[number];
 
@@ -26,17 +27,24 @@ export default function Feeds() {
   const [expireDays, setExpireDays] = useState(90);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [feedAddOpen, setFeedAddOpen] = useState(false);
   const [editing, setEditing] = useState<number | null>(null);
+  const [editError, setEditError] = useState('');
   const [editInterval, setEditInterval] = useState(60);
   const [editExpireDays, setEditExpireDays] = useState(90);
   const [editCategoryId, setEditCategoryId] = useState<number | ''>('');
   const [catName, setCatName] = useState('');
   const [catError, setCatError] = useState('');
   const [catLoading, setCatLoading] = useState(false);
+  const [catAddOpen, setCatAddOpen] = useState(false);
   const [editingCat, setEditingCat] = useState<number | null>(null);
   const [editCatName, setEditCatName] = useState('');
   const [categoryPage, setCategoryPage] = useState(1);
+  const [categoryPageSize, setCategoryPageSize] = useState(8);
   const [feedsPage, setFeedsPage] = useState(1);
+  const [feedsPageSize, setFeedsPageSize] = useState(8);
+  const [draggedCategoryId, setDraggedCategoryId] = useState<number | null>(null);
+  const [dragOverCategoryId, setDragOverCategoryId] = useState<number | null>(null);
   const urlInputRef = useRef<HTMLInputElement | null>(null);
   const [proxyId, setProxyId] = useState<number | ''>('');
   const [editProxyId, setEditProxyId] = useState<number | ''>('');
@@ -75,6 +83,7 @@ export default function Feeds() {
   const [proxyUrl, setProxyUrl] = useState('');
   const [proxyError, setProxyError] = useState('');
   const [proxyLoading, setProxyLoading] = useState(false);
+  const [proxyAddOpen, setProxyAddOpen] = useState(false);
   const [editingProxy, setEditingProxy] = useState<number | null>(null);
   const [editProxyName, setEditProxyName] = useState('');
   const [editProxyUrl, setEditProxyUrl] = useState('');
@@ -85,6 +94,7 @@ export default function Feeds() {
   const [aiModelError, setAiModelError] = useState('');
   const [aiModelSuccess, setAiModelSuccess] = useState('');
   const [aiModelLoading, setAiModelLoading] = useState(false);
+  const [aiModelAddOpen, setAiModelAddOpen] = useState(false);
   const [editingAiModel, setEditingAiModel] = useState<number | null>(null);
   const [editAiModelName, setEditAiModelName] = useState('');
   const [editAiModelBaseUrl, setEditAiModelBaseUrl] = useState('');
@@ -104,10 +114,10 @@ export default function Feeds() {
   const [summaryArticleCount, setSummaryArticleCount] = useState(0);
   const [summaryPanelOpen, setSummaryPanelOpen] = useState(true);
 
-  const totalCategoryPages = Math.max(1, Math.ceil(categories.length / PAGE_SIZE));
-  const totalFeedsPages = Math.max(1, Math.ceil(feeds.length / PAGE_SIZE));
-  const paginatedCategories = categories.slice((categoryPage - 1) * PAGE_SIZE, categoryPage * PAGE_SIZE);
-  const paginatedFeeds = feeds.slice((feedsPage - 1) * PAGE_SIZE, feedsPage * PAGE_SIZE);
+  const totalCategoryPages = Math.max(1, Math.ceil(categories.length / categoryPageSize));
+  const totalFeedsPages = Math.max(1, Math.ceil(feeds.length / feedsPageSize));
+  const paginatedCategories = categories.slice((categoryPage - 1) * categoryPageSize, categoryPage * categoryPageSize);
+  const paginatedFeeds = feeds.slice((feedsPage - 1) * feedsPageSize, feedsPage * feedsPageSize);
 
   // 仅在当前 tab 下请求对应接口；订阅列表页串行请求，避免同时请求导致数据库 unexpected EOF
   useEffect(() => {
@@ -177,13 +187,13 @@ export default function Feeds() {
     }
   }, [activeTab]);
 
-  // 数据变少时若当前页超出范围则回到第 1 页
+  // 数据或每页条数变化时，若当前页超出范围则回到第 1 页
   useEffect(() => {
     if (categoryPage > totalCategoryPages) setCategoryPage(1);
-  }, [categories.length, categoryPage, totalCategoryPages]);
+  }, [categories.length, categoryPage, categoryPageSize, totalCategoryPages]);
   useEffect(() => {
     if (feedsPage > totalFeedsPages) setFeedsPage(1);
-  }, [feeds.length, feedsPage, totalFeedsPages]);
+  }, [feeds.length, feedsPage, feedsPageSize, totalFeedsPages]);
 
   // AI 总结：有模型列表且未选择时，默认选第一个
   useEffect(() => {
@@ -227,6 +237,7 @@ export default function Feeds() {
       setUrl('');
       setCategoryId('');
       setProxyId('');
+      setFeedAddOpen(false);
       loadFeeds();
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
@@ -244,6 +255,7 @@ export default function Feeds() {
       const { data } = await categoriesApi.create(catName);
       setCatName('');
       setCategories((prev) => [data, ...prev]);
+      setCatAddOpen(false);
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
       setCatError(msg || '创建失败');
@@ -253,11 +265,15 @@ export default function Feeds() {
   };
 
   const handleUpdateCategory = async (id: number) => {
+    setCatError('');
     try {
       const { data } = await categoriesApi.update(id, editCatName);
       setCategories((prev) => prev.map((c) => (c.id === id ? data : c)));
       setEditingCat(null);
-    } catch {}
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      setCatError(msg || '更新失败');
+    }
   };
 
   const handleDeleteCategory = async (id: number) => {
@@ -270,7 +286,41 @@ export default function Feeds() {
     } catch {}
   };
 
+  const handleCategoryDragStart = (e: React.DragEvent, id: number) => {
+    setDraggedCategoryId(id);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', String(id));
+  };
+
+  const handleCategoryDragEnd = () => {
+    setDraggedCategoryId(null);
+    setDragOverCategoryId(null);
+  };
+
+  const handleCategoryDragOver = (e: React.DragEvent, id: number) => {
+    e.preventDefault();
+    if (draggedCategoryId === null || draggedCategoryId === id) return;
+    setDragOverCategoryId(id);
+  };
+
+  const handleCategoryDrop = (e: React.DragEvent, targetId: number) => {
+    e.preventDefault();
+    setDraggedCategoryId(null);
+    setDragOverCategoryId(null);
+    if (draggedCategoryId === null || draggedCategoryId === targetId) return;
+    const fromIdx = categories.findIndex((c) => c.id === draggedCategoryId);
+    const toIdx = categories.findIndex((c) => c.id === targetId);
+    if (fromIdx === -1 || toIdx === -1) return;
+    const next = [...categories];
+    const [removed] = next.splice(fromIdx, 1);
+    next.splice(toIdx, 0, removed);
+    const idList = next.map((c) => c.id);
+    setCategories(next);
+    categoriesApi.reorder(idList).catch(() => loadCategories());
+  };
+
   const handleUpdate = async (id: number) => {
+    setEditError('');
     try {
       await feedsApi.update(
         id,
@@ -281,7 +331,10 @@ export default function Feeds() {
       );
       setEditing(null);
       loadFeeds();
-    } catch {}
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      setEditError(msg || '更新失败');
+    }
   };
 
   const handleDelete = async (id: number) => {
@@ -300,6 +353,7 @@ export default function Feeds() {
       await proxiesApi.create(proxyName, proxyUrl);
       setProxyName('');
       setProxyUrl('');
+      setProxyAddOpen(false);
       loadProxies();
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
@@ -338,6 +392,7 @@ export default function Feeds() {
       setAiModelName('');
       setAiModelBaseUrl('');
       setAiModelApiKey('');
+      setAiModelAddOpen(false);
       loadAiModels();
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
@@ -521,66 +576,9 @@ export default function Feeds() {
     }
   };
 
-  const tabTitle =
-    activeTab === 'categories'
-      ? '订阅分类'
-      : activeTab === 'feeds'
-      ? '订阅列表'
-      : activeTab === 'proxies'
-      ? '代理'
-      : activeTab === 'ai-models'
-      ? 'AI 模型'
-      : activeTab === 'ai-summary'
-      ? 'AI 总结'
-      : '用户管理';
-  const tabDesc =
-    activeTab === 'categories'
-      ? '用于对订阅进行分组管理'
-      : activeTab === 'feeds'
-      ? '当前账号下的所有订阅源'
-      : activeTab === 'proxies'
-      ? '配置 RSS 抓取时使用的代理服务器'
-      : activeTab === 'ai-models'
-      ? '配置 AI 模型调用地址与 API 密钥，支持 OpenAI 兼容接口'
-      : activeTab === 'ai-summary'
-      ? '使用 AI 对指定订阅和时间范围内的内容生成中文总结'
-      : '管理系统用户与账号状态';
-
   return (
     <div className="feeds-page">
       <section className="settings-main">
-        <div className="feeds-header-card">
-          <div className="feeds-header-main">
-            <h1>{tabTitle}</h1>
-            <p>{tabDesc}</p>
-          </div>
-          {activeTab === 'feeds' && (
-            <div className="feeds-header-side">
-              <span className="feeds-header-pill">订阅总数 {feeds.length}</span>
-            </div>
-          )}
-          {activeTab === 'categories' && (
-            <div className="feeds-header-side">
-              <span className="feeds-header-pill">{categories.length} 个分类</span>
-            </div>
-          )}
-          {activeTab === 'proxies' && (
-            <div className="feeds-header-side">
-              <span className="feeds-header-pill">{proxies.length} 个代理</span>
-            </div>
-          )}
-          {activeTab === 'ai-models' && (
-            <div className="feeds-header-side">
-              <span className="feeds-header-pill">{aiModels.length} 个模型</span>
-            </div>
-          )}
-          {activeTab === 'ai-summary' && (
-            <div className="feeds-header-side">
-              <span className="feeds-header-pill">生成订阅内容总结</span>
-            </div>
-          )}
-        </div>
-
         {activeTab === 'categories' && (
           <section className="feeds-card feeds-card-categories">
             <div className="feeds-card-header">
@@ -588,69 +586,98 @@ export default function Feeds() {
                 <h2>订阅分类</h2>
                 <p>用于对订阅进行分组管理</p>
               </div>
-              <span className="feeds-card-sub">{categories.length} 个分类</span>
+              <div className="feeds-card-header-right">
+                <span className="feeds-card-sub">{categories.length} 个分类</span>
+                <button type="button" className="feeds-primary-btn" onClick={() => { setCatAddOpen(true); setCatError(''); }}>
+                  新建分类
+                </button>
+              </div>
             </div>
 
-            <form onSubmit={handleAddCategory} className="feeds-inline-form">
-              <input
-                type="text"
-                placeholder="输入分类名称"
-                value={catName}
-                onChange={(e) => setCatName(e.target.value)}
-                required
-              />
-              <button type="submit" disabled={catLoading}>
-                {catLoading ? '创建中...' : '新建分类'}
-              </button>
-            </form>
-            {catError && <p className="error">{catError}</p>}
+            <Modal open={catAddOpen} onClose={() => { setCatAddOpen(false); setCatError(''); }} title="新建分类">
+              <form onSubmit={handleAddCategory} className="feeds-modal-form">
+                {catError && <p className="error">{catError}</p>}
+                <div className="feeds-modal-row">
+                  <label>分类名称</label>
+                  <input
+                    type="text"
+                    placeholder="输入分类名称"
+                    value={catName}
+                    onChange={(e) => setCatName(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="feeds-modal-actions">
+                  <button type="button" onClick={() => { setCatAddOpen(false); setCatError(''); }}>取消</button>
+                  <button type="submit" disabled={catLoading}>{catLoading ? '创建中...' : '确定'}</button>
+                </div>
+              </form>
+            </Modal>
+
+            <Modal open={editingCat !== null} onClose={() => { setEditingCat(null); setCatError(''); }} title="编辑分类">
+              <form onSubmit={(e) => { e.preventDefault(); if (editingCat !== null) handleUpdateCategory(editingCat); }} className="feeds-modal-form">
+                {catError && <p className="error">{catError}</p>}
+                <div className="feeds-modal-row">
+                  <label>分类名称</label>
+                  <input
+                    type="text"
+                    placeholder="输入分类名称"
+                    value={editCatName}
+                    onChange={(e) => setEditCatName(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="feeds-modal-actions">
+                  <button type="button" onClick={() => setEditingCat(null)}>取消</button>
+                  <button type="submit">保存</button>
+                </div>
+              </form>
+            </Modal>
 
             {categories.length === 0 ? (
               <div className="feeds-empty-card">暂无分类，请先创建分类。</div>
             ) : (
               <>
                 <div className="feeds-list-scroll">
-                  <ul className="feeds-category-list">
+                  <ul className="feeds-category-list feeds-category-list-draggable">
                     {paginatedCategories.map((c) => (
-                    <li key={c.id}>
+                    <li
+                      key={c.id}
+                      draggable
+                      onDragStart={(e) => handleCategoryDragStart(e, c.id)}
+                      onDragEnd={handleCategoryDragEnd}
+                      onDragOver={(e) => handleCategoryDragOver(e, c.id)}
+                      onDrop={(e) => handleCategoryDrop(e, c.id)}
+                      className={
+                        draggedCategoryId === c.id
+                          ? 'feeds-category-dragging'
+                          : dragOverCategoryId === c.id
+                            ? 'feeds-category-drag-over'
+                            : ''
+                      }
+                    >
+                      <span className="feeds-drag-handle" title="拖动排序">⋮⋮</span>
                       <div className="feeds-category-main">
                         <span className="feeds-category-name">{c.name}</span>
                       </div>
                       <div className="feeds-category-actions">
-                        {editingCat === c.id ? (
-                          <>
-                            <input
-                              type="text"
-                              value={editCatName}
-                              onChange={(e) => setEditCatName(e.target.value)}
-                            />
-                            <button type="button" onClick={() => handleUpdateCategory(c.id)}>
-                              保存
-                            </button>
-                            <button type="button" onClick={() => setEditingCat(null)}>
-                              取消
-                            </button>
-                          </>
-                        ) : (
-                          <>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setEditingCat(c.id);
-                                setEditCatName(c.name);
-                              }}
-                            >
-                              编辑
-                            </button>
-                            <button
-                              type="button"
-                              className="danger"
-                              onClick={() => handleDeleteCategory(c.id)}
-                            >
-                              删除
-                            </button>
-                          </>
-                        )}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingCat(c.id);
+                            setEditCatName(c.name);
+                            setCatError('');
+                          }}
+                        >
+                          编辑
+                        </button>
+                        <button
+                          type="button"
+                          className="danger"
+                          onClick={() => handleDeleteCategory(c.id)}
+                        >
+                          删除
+                        </button>
                       </div>
                     </li>
                   ))}
@@ -667,6 +694,22 @@ export default function Feeds() {
                   <span className="feeds-pagination-info">
                     第 {categoryPage} / {totalCategoryPages} 页（共 {categories.length} 条）
                   </span>
+                  <label className="feeds-pagination-size">
+                    每页
+                    <select
+                      value={categoryPageSize}
+                      onChange={(e) => {
+                        const v = Number(e.target.value);
+                        setCategoryPageSize(v);
+                        setCategoryPage(1);
+                      }}
+                    >
+                      {PAGE_SIZE_OPTIONS.map((n) => (
+                        <option key={n} value={n}>{n}</option>
+                      ))}
+                    </select>
+                    条
+                  </label>
                   <button
                     type="button"
                     disabled={categoryPage >= totalCategoryPages}
@@ -687,69 +730,142 @@ export default function Feeds() {
                 <h2>订阅列表</h2>
                 <p>当前账号下的所有订阅源</p>
               </div>
+              <div className="feeds-card-header-right">
+                <button type="button" className="feeds-primary-btn" onClick={() => { setFeedAddOpen(true); setError(''); }}>
+                  添加订阅
+                </button>
+              </div>
             </div>
 
-            <form onSubmit={handleAdd} className="feeds-inline-form feeds-inline-main-form">
-              <input
-                ref={urlInputRef}
-                type="url"
-                placeholder="RSS 地址，例如 https://example.com/feed"
-                value={url}
-                onChange={(e) => setUrl(e.target.value)}
-                required
-              />
-              <select
-                value={categoryId}
-                onChange={(e) => setCategoryId(e.target.value === '' ? '' : Number(e.target.value))}
-                required
-                title="分类"
-              >
-                <option value="">选择分类</option>
-                {categories.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-              <select
-                value={interval}
-                onChange={(e) => setInterval(Number(e.target.value))}
-              >
-                <option value={30}>30 分钟</option>
-                <option value={60}>1 小时</option>
-                <option value={120}>2 小时</option>
-                <option value={360}>6 小时</option>
-                <option value={720}>12 小时</option>
-                <option value={1440}>24 小时</option>
-              </select>
-              <select
-                value={expireDays}
-                onChange={(e) => setExpireDays(Number(e.target.value))}
-                title="内容保留"
-              >
-                <option value={0}>永不过期</option>
-                <option value={30}>30 天</option>
-                <option value={90}>3 个月</option>
-                <option value={180}>6 个月</option>
-                <option value={365}>1 年</option>
-              </select>
-              <select
-                value={proxyId}
-                onChange={(e) => setProxyId(e.target.value === '' ? '' : Number(e.target.value))}
-                title="代理"
-              >
-                <option value="">无代理</option>
-                {proxies.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name || p.url}
-                  </option>
-                ))}
-              </select>
-              <button type="submit" disabled={loading}>
-                {loading ? '添加中...' : '添加订阅'}
-              </button>
-            </form>
-            {error && <p className="error">{error}</p>}
+            <Modal open={feedAddOpen} onClose={() => { setFeedAddOpen(false); setError(''); }} title="添加订阅">
+              <form onSubmit={handleAdd} className="feeds-modal-form">
+                {error && <p className="error">{error}</p>}
+                <div className="feeds-modal-row">
+                  <label>RSS 地址</label>
+                  <input
+                    ref={urlInputRef}
+                    type="url"
+                    placeholder="https://example.com/feed"
+                    value={url}
+                    onChange={(e) => setUrl(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="feeds-modal-row">
+                  <label>分类</label>
+                  <select
+                    value={categoryId}
+                    onChange={(e) => setCategoryId(e.target.value === '' ? '' : Number(e.target.value))}
+                    required
+                  >
+                    <option value="">选择分类</option>
+                    {categories.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="feeds-modal-row">
+                  <label>更新间隔</label>
+                  <select value={interval} onChange={(e) => setInterval(Number(e.target.value))}>
+                    <option value={30}>30 分钟</option>
+                    <option value={60}>1 小时</option>
+                    <option value={120}>2 小时</option>
+                    <option value={360}>6 小时</option>
+                    <option value={720}>12 小时</option>
+                    <option value={1440}>24 小时</option>
+                  </select>
+                </div>
+                <div className="feeds-modal-row">
+                  <label>内容保留</label>
+                  <select value={expireDays} onChange={(e) => setExpireDays(Number(e.target.value))}>
+                    <option value={0}>永不过期</option>
+                    <option value={30}>30 天</option>
+                    <option value={90}>3 个月</option>
+                    <option value={180}>6 个月</option>
+                    <option value={365}>1 年</option>
+                  </select>
+                </div>
+                <div className="feeds-modal-row">
+                  <label>代理</label>
+                  <select
+                    value={proxyId}
+                    onChange={(e) => setProxyId(e.target.value === '' ? '' : Number(e.target.value))}
+                  >
+                    <option value="">无代理</option>
+                    {proxies.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name || p.url}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="feeds-modal-actions">
+                  <button type="button" onClick={() => { setFeedAddOpen(false); setError(''); }}>取消</button>
+                  <button type="submit" disabled={loading}>{loading ? '添加中...' : '确定'}</button>
+                </div>
+              </form>
+            </Modal>
+
+            <Modal open={editing !== null} onClose={() => { setEditing(null); setEditError(''); }} title="编辑订阅">
+              <form onSubmit={(e) => { e.preventDefault(); if (editing !== null) handleUpdate(editing); }} className="feeds-modal-form">
+                {editError && <p className="error">{editError}</p>}
+                <div className="feeds-modal-row">
+                  <label>分类</label>
+                  <select
+                    value={editCategoryId}
+                    onChange={(e) => setEditCategoryId(e.target.value === '' ? '' : Number(e.target.value))}
+                  >
+                    <option value="">未分类</option>
+                    {categories.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="feeds-modal-row">
+                  <label>代理</label>
+                  <select
+                    value={editProxyId}
+                    onChange={(e) => setEditProxyId(e.target.value === '' ? '' : Number(e.target.value))}
+                  >
+                    <option value="">无代理</option>
+                    {proxies.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name || p.url}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="feeds-modal-row">
+                  <label>更新间隔</label>
+                  <select value={editInterval} onChange={(e) => setEditInterval(Number(e.target.value))}>
+                    <option value={30}>30 分钟</option>
+                    <option value={60}>1 小时</option>
+                    <option value={120}>2 小时</option>
+                    <option value={360}>6 小时</option>
+                    <option value={720}>12 小时</option>
+                    <option value={1440}>24 小时</option>
+                  </select>
+                </div>
+                <div className="feeds-modal-row">
+                  <label>内容保留</label>
+                  <select value={editExpireDays} onChange={(e) => setEditExpireDays(Number(e.target.value))}>
+                    <option value={0}>永不过期</option>
+                    <option value={30}>30 天</option>
+                    <option value={90}>3 个月</option>
+                    <option value={180}>6 个月</option>
+                    <option value={365}>1 年</option>
+                  </select>
+                </div>
+                <div className="feeds-modal-actions">
+                  <button type="button" onClick={() => { setEditing(null); setEditError(''); }}>取消</button>
+                  <button type="submit">保存</button>
+                </div>
+              </form>
+            </Modal>
 
             <div className="feeds-opml-row">
               <div className="feeds-opml-text">OPML 导入 / 导出</div>
@@ -794,9 +910,7 @@ export default function Feeds() {
                       </tr>
                     </thead>
                     <tbody>
-                      {paginatedFeeds.map((f) => {
-                      const isEditing = editing === f.id;
-                      return (
+                      {paginatedFeeds.map((f) => (
                         <tr key={f.id}>
                           <td>
                             <div className="feeds-table-title">
@@ -804,120 +918,32 @@ export default function Feeds() {
                               <div className="feeds-table-sub">{f.url}</div>
                             </div>
                           </td>
-                          <td>
-                            {isEditing ? (
-                              <select
-                                value={editCategoryId}
-                                onChange={(e) =>
-                                  setEditCategoryId(e.target.value === '' ? '' : Number(e.target.value))
-                                }
-                                title="分类"
-                              >
-                                <option value="">未分类</option>
-                                {categories.map((c) => (
-                                  <option key={c.id} value={c.id}>
-                                    {c.name}
-                                  </option>
-                                ))}
-                              </select>
-                            ) : (
-                              f.category?.name || '未分类'
-                            )}
-                          </td>
-                          <td>
-                            {isEditing ? (
-                              <select
-                                value={editProxyId}
-                                onChange={(e) =>
-                                  setEditProxyId(e.target.value === '' ? '' : Number(e.target.value))
-                                }
-                                title="代理"
-                              >
-                                <option value="">无代理</option>
-                                {proxies.map((p) => (
-                                  <option key={p.id} value={p.id}>
-                                    {p.name || p.url}
-                                  </option>
-                                ))}
-                              </select>
-                            ) : (
-                              f.proxy ? (f.proxy.name || f.proxy.url) : '无'
-                            )}
-                          </td>
-                          <td>
-                            {isEditing ? (
-                              <select
-                                value={editInterval}
-                                onChange={(e) => setEditInterval(Number(e.target.value))}
-                              >
-                                <option value={30}>30 分钟</option>
-                                <option value={60}>1 小时</option>
-                                <option value={120}>2 小时</option>
-                                <option value={360}>6 小时</option>
-                                <option value={720}>12 小时</option>
-                                <option value={1440}>24 小时</option>
-                              </select>
-                            ) : (
-                              `${f.update_interval_minutes} 分钟`
-                            )}
-                          </td>
-                          <td>
-                            {isEditing ? (
-                              <select
-                                value={editExpireDays}
-                                onChange={(e) => setEditExpireDays(Number(e.target.value))}
-                                title="内容保留"
-                              >
-                                <option value={0}>永不过期</option>
-                                <option value={30}>30 天</option>
-                                <option value={90}>3 个月</option>
-                                <option value={180}>6 个月</option>
-                                <option value={365}>1 年</option>
-                              </select>
-                            ) : (
-                              f.expire_days === 0 ? '永不过期' : `${f.expire_days} 天`
-                            )}
-                          </td>
+                          <td>{f.category?.name || '未分类'}</td>
+                          <td>{f.proxy ? (f.proxy.name || f.proxy.url) : '无'}</td>
+                          <td>{f.update_interval_minutes} 分钟</td>
+                          <td>{f.expire_days === 0 ? '永不过期' : `${f.expire_days} 天`}</td>
                           <td>{formatDate(f.last_fetched_at)}</td>
                           <td>
                             <div className="feeds-row-actions">
-                              {isEditing ? (
-                                <>
-                                  <button type="button" onClick={() => handleUpdate(f.id)}>
-                                    保存
-                                  </button>
-                                  <button type="button" onClick={() => setEditing(null)}>
-                                    取消
-                                  </button>
-                                </>
-                              ) : (
-                                <>
-                                  <button
-                                    type="button"
-                              onClick={() => {
-                                setEditing(f.id);
-                                setEditInterval(f.update_interval_minutes);
-                                setEditExpireDays(f.expire_days ?? 90);
-                                setEditProxyId(f.proxy_id ?? '');
-                                setEditCategoryId(f.category_id ?? '');
-                              }}
-                                  >
-                                    编辑
-                                  </button>
-                                  <button
-                                    type="button"
-                                    className="danger"
-                                    onClick={() => handleDelete(f.id)}
-                                  >
-                                    删除
-                                  </button>
-                                </>
-                              )}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditing(f.id);
+                                  setEditInterval(f.update_interval_minutes);
+                                  setEditExpireDays(f.expire_days ?? 90);
+                                  setEditProxyId(f.proxy_id ?? '');
+                                  setEditCategoryId(f.category_id ?? '');
+                                }}
+                              >
+                                编辑
+                              </button>
+                              <button type="button" className="danger" onClick={() => handleDelete(f.id)}>
+                                删除
+                              </button>
                             </div>
                           </td>
                         </tr>
-                      );
-                      })}
+                      ))}
                     </tbody>
                   </table>
                   </div>
@@ -933,6 +959,22 @@ export default function Feeds() {
                   <span className="feeds-pagination-info">
                     第 {feedsPage} / {totalFeedsPages} 页（共 {feeds.length} 条）
                   </span>
+                  <label className="feeds-pagination-size">
+                    每页
+                    <select
+                      value={feedsPageSize}
+                      onChange={(e) => {
+                        const v = Number(e.target.value);
+                        setFeedsPageSize(v);
+                        setFeedsPage(1);
+                      }}
+                    >
+                      {PAGE_SIZE_OPTIONS.map((n) => (
+                        <option key={n} value={n}>{n}</option>
+                      ))}
+                    </select>
+                    条
+                  </label>
                   <button
                     type="button"
                     disabled={feedsPage >= totalFeedsPages}
@@ -953,28 +995,71 @@ export default function Feeds() {
                 <h2>代理列表</h2>
                 <p>配置 RSS 抓取时使用的代理服务器，支持 http、https、socks5 协议</p>
               </div>
-              <span className="feeds-card-sub">{proxies.length} 个代理</span>
+              <div className="feeds-card-header-right">
+                <span className="feeds-card-sub">{proxies.length} 个代理</span>
+                <button type="button" className="feeds-primary-btn" onClick={() => { setProxyAddOpen(true); setProxyError(''); }}>
+                  添加代理
+                </button>
+              </div>
             </div>
 
-            <form onSubmit={handleAddProxy} className="feeds-inline-form">
-              <input
-                type="text"
-                placeholder="名称（可选）"
-                value={proxyName}
-                onChange={(e) => setProxyName(e.target.value)}
-              />
-              <input
-                type="text"
-                placeholder="代理地址，如 http://127.0.0.1:7890"
-                value={proxyUrl}
-                onChange={(e) => setProxyUrl(e.target.value)}
-                required
-              />
-              <button type="submit" disabled={proxyLoading}>
-                {proxyLoading ? '添加中...' : '添加代理'}
-              </button>
-            </form>
-            {proxyError && <p className="error">{proxyError}</p>}
+            <Modal open={proxyAddOpen} onClose={() => { setProxyAddOpen(false); setProxyError(''); }} title="添加代理">
+              <form onSubmit={handleAddProxy} className="feeds-modal-form">
+                {proxyError && <p className="error">{proxyError}</p>}
+                <div className="feeds-modal-row">
+                  <label>名称（可选）</label>
+                  <input
+                    type="text"
+                    placeholder="名称"
+                    value={proxyName}
+                    onChange={(e) => setProxyName(e.target.value)}
+                  />
+                </div>
+                <div className="feeds-modal-row">
+                  <label>代理地址</label>
+                  <input
+                    type="text"
+                    placeholder="如 http://127.0.0.1:7890"
+                    value={proxyUrl}
+                    onChange={(e) => setProxyUrl(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="feeds-modal-actions">
+                  <button type="button" onClick={() => { setProxyAddOpen(false); setProxyError(''); }}>取消</button>
+                  <button type="submit" disabled={proxyLoading}>{proxyLoading ? '添加中...' : '确定'}</button>
+                </div>
+              </form>
+            </Modal>
+
+            <Modal open={editingProxy !== null} onClose={() => { setEditingProxy(null); setProxyError(''); }} title="编辑代理">
+              <form onSubmit={(e) => { e.preventDefault(); if (editingProxy !== null) handleUpdateProxy(editingProxy); }} className="feeds-modal-form">
+                {proxyError && <p className="error">{proxyError}</p>}
+                <div className="feeds-modal-row">
+                  <label>名称（可选）</label>
+                  <input
+                    type="text"
+                    placeholder="名称"
+                    value={editProxyName}
+                    onChange={(e) => setEditProxyName(e.target.value)}
+                  />
+                </div>
+                <div className="feeds-modal-row">
+                  <label>代理地址</label>
+                  <input
+                    type="text"
+                    placeholder="如 http://127.0.0.1:7890"
+                    value={editProxyUrl}
+                    onChange={(e) => setEditProxyUrl(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="feeds-modal-actions">
+                  <button type="button" onClick={() => { setEditingProxy(null); setProxyError(''); }}>取消</button>
+                  <button type="submit">保存</button>
+                </div>
+              </form>
+            </Modal>
 
             {proxies.length === 0 ? (
               <div className="feeds-empty-card">暂无代理，请先添加代理。</div>
@@ -988,49 +1073,20 @@ export default function Feeds() {
                         {p.name && <span className="feeds-proxy-url">{p.url}</span>}
                       </div>
                       <div className="feeds-category-actions">
-                        {editingProxy === p.id ? (
-                          <>
-                            <input
-                              type="text"
-                              placeholder="名称"
-                              value={editProxyName}
-                              onChange={(e) => setEditProxyName(e.target.value)}
-                            />
-                            <input
-                              type="text"
-                              placeholder="代理地址"
-                              value={editProxyUrl}
-                              onChange={(e) => setEditProxyUrl(e.target.value)}
-                            />
-                            <button type="button" onClick={() => handleUpdateProxy(p.id)}>
-                              保存
-                            </button>
-                            <button type="button" onClick={() => setEditingProxy(null)}>
-                              取消
-                            </button>
-                          </>
-                        ) : (
-                          <>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setEditingProxy(p.id);
-                                setEditProxyName(p.name);
-                                setEditProxyUrl(p.url);
-                                setProxyError('');
-                              }}
-                            >
-                              编辑
-                            </button>
-                            <button
-                              type="button"
-                              className="danger"
-                              onClick={() => handleDeleteProxy(p.id)}
-                            >
-                              删除
-                            </button>
-                          </>
-                        )}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingProxy(p.id);
+                            setEditProxyName(p.name);
+                            setEditProxyUrl(p.url);
+                            setProxyError('');
+                          }}
+                        >
+                          编辑
+                        </button>
+                        <button type="button" className="danger" onClick={() => handleDeleteProxy(p.id)}>
+                          删除
+                        </button>
                       </div>
                     </li>
                   ))}
@@ -1047,36 +1103,93 @@ export default function Feeds() {
                 <h2>AI 模型列表</h2>
                 <p>配置 AI 模型名称、调用地址与 API 密钥，支持 OpenAI 兼容接口（如 OpenAI、Azure、Ollama 等）</p>
               </div>
-              <span className="feeds-card-sub">{aiModels.length} 个模型</span>
+              <div className="feeds-card-header-right">
+                <span className="feeds-card-sub">{aiModels.length} 个模型</span>
+                <button type="button" className="feeds-primary-btn" onClick={() => { setAiModelAddOpen(true); setAiModelError(''); setAiModelSuccess(''); }}>
+                  添加模型
+                </button>
+              </div>
             </div>
-
-            <form onSubmit={handleAddAiModel} className="feeds-inline-form">
-              <input
-                type="text"
-                placeholder="模型名称（如 gpt-4o-mini）"
-                value={aiModelName}
-                onChange={(e) => setAiModelName(e.target.value)}
-                required
-              />
-              <input
-                type="text"
-                placeholder="调用地址（如 https://api.openai.com/v1）"
-                value={aiModelBaseUrl}
-                onChange={(e) => setAiModelBaseUrl(e.target.value)}
-                required
-              />
-              <input
-                type="password"
-                placeholder="API 密钥（可选）"
-                value={aiModelApiKey}
-                onChange={(e) => setAiModelApiKey(e.target.value)}
-              />
-              <button type="submit" disabled={aiModelLoading}>
-                {aiModelLoading ? '添加中...' : '添加模型'}
-              </button>
-            </form>
             {aiModelError && <p className="error">{aiModelError}</p>}
             {aiModelSuccess && <p className="bind-msg-success">{aiModelSuccess}</p>}
+
+            <Modal open={aiModelAddOpen} onClose={() => { setAiModelAddOpen(false); setAiModelError(''); setAiModelSuccess(''); }} title="添加 AI 模型">
+              <form onSubmit={handleAddAiModel} className="feeds-modal-form">
+                {aiModelError && <p className="error">{aiModelError}</p>}
+                <div className="feeds-modal-row">
+                  <label>模型名称</label>
+                  <input
+                    type="text"
+                    placeholder="如 gpt-4o-mini"
+                    value={aiModelName}
+                    onChange={(e) => setAiModelName(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="feeds-modal-row">
+                  <label>调用地址</label>
+                  <input
+                    type="text"
+                    placeholder="如 https://api.openai.com/v1"
+                    value={aiModelBaseUrl}
+                    onChange={(e) => setAiModelBaseUrl(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="feeds-modal-row">
+                  <label>API 密钥（可选）</label>
+                  <input
+                    type="password"
+                    placeholder="留空则不设置"
+                    value={aiModelApiKey}
+                    onChange={(e) => setAiModelApiKey(e.target.value)}
+                  />
+                </div>
+                <div className="feeds-modal-actions">
+                  <button type="button" onClick={() => { setAiModelAddOpen(false); setAiModelError(''); setAiModelSuccess(''); }}>取消</button>
+                  <button type="submit" disabled={aiModelLoading}>{aiModelLoading ? '添加中...' : '确定'}</button>
+                </div>
+              </form>
+            </Modal>
+
+            <Modal open={editingAiModel !== null} onClose={() => { setEditingAiModel(null); setEditAiModelApiKey(''); setAiModelError(''); setAiModelSuccess(''); }} title="编辑 AI 模型">
+              <form onSubmit={(e) => { e.preventDefault(); if (editingAiModel !== null) handleUpdateAiModel(editingAiModel); }} className="feeds-modal-form">
+                {aiModelError && <p className="error">{aiModelError}</p>}
+                <div className="feeds-modal-row">
+                  <label>模型名称</label>
+                  <input
+                    type="text"
+                    placeholder="如 gpt-4o-mini"
+                    value={editAiModelName}
+                    onChange={(e) => setEditAiModelName(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="feeds-modal-row">
+                  <label>调用地址</label>
+                  <input
+                    type="text"
+                    placeholder="如 https://api.openai.com/v1"
+                    value={editAiModelBaseUrl}
+                    onChange={(e) => setEditAiModelBaseUrl(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="feeds-modal-row">
+                  <label>API 密钥（留空保持不变）</label>
+                  <input
+                    type="password"
+                    placeholder="留空则不修改"
+                    value={editAiModelApiKey}
+                    onChange={(e) => setEditAiModelApiKey(e.target.value)}
+                  />
+                </div>
+                <div className="feeds-modal-actions">
+                  <button type="button" onClick={() => { setEditingAiModel(null); setEditAiModelApiKey(''); setAiModelError(''); setAiModelSuccess(''); }}>取消</button>
+                  <button type="submit">保存</button>
+                </div>
+              </form>
+            </Modal>
 
             {aiModels.length === 0 ? (
               <div className="feeds-empty-card">暂无 AI 模型，请先添加模型。</div>
@@ -1105,64 +1218,33 @@ export default function Feeds() {
                         <span className="feeds-proxy-url">{m.base_url}</span>
                       </div>
                       <div className="feeds-category-actions">
-                        {editingAiModel === m.id ? (
-                          <>
-                            <input
-                              type="text"
-                              placeholder="模型名称"
-                              value={editAiModelName}
-                              onChange={(e) => setEditAiModelName(e.target.value)}
-                            />
-                            <input
-                              type="text"
-                              placeholder="调用地址"
-                              value={editAiModelBaseUrl}
-                              onChange={(e) => setEditAiModelBaseUrl(e.target.value)}
-                            />
-                            <input
-                              type="password"
-                              placeholder="API 密钥（留空保持不变）"
-                              value={editAiModelApiKey}
-                              onChange={(e) => setEditAiModelApiKey(e.target.value)}
-                            />
-                            <button type="button" onClick={() => handleUpdateAiModel(m.id)}>
-                              保存
-                            </button>
-                            <button type="button" onClick={() => { setEditingAiModel(null); setEditAiModelApiKey(''); setAiModelError(''); setAiModelSuccess(''); }}>
-                              取消
-                            </button>
-                          </>
-                        ) : (
-                          <>
-                            <button
-                              type="button"
-                              onClick={() => handleTestAiModel(m.id)}
-                              disabled={testingAiModel === m.id}
-                            >
-                              {testingAiModel === m.id ? '检测中...' : '检测'}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setEditingAiModel(m.id);
-                                setEditAiModelName(m.name);
-                                setEditAiModelBaseUrl(m.base_url);
-                                setEditAiModelApiKey('');
-                                setAiModelError('');
-                                setAiModelSuccess('');
-                              }}
-                            >
-                              编辑
-                            </button>
-                            <button
-                              type="button"
-                              className="danger"
-                              onClick={() => handleDeleteAiModel(m.id)}
-                            >
-                              删除
-                            </button>
-                          </>
-                        )}
+                        <button
+                          type="button"
+                          onClick={() => handleTestAiModel(m.id)}
+                          disabled={testingAiModel === m.id}
+                        >
+                          {testingAiModel === m.id ? '检测中...' : '检测'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingAiModel(m.id);
+                            setEditAiModelName(m.name);
+                            setEditAiModelBaseUrl(m.base_url);
+                            setEditAiModelApiKey('');
+                            setAiModelError('');
+                            setAiModelSuccess('');
+                          }}
+                        >
+                          编辑
+                        </button>
+                        <button
+                          type="button"
+                          className="danger"
+                          onClick={() => handleDeleteAiModel(m.id)}
+                        >
+                          删除
+                        </button>
                       </div>
                     </li>
                   ))}

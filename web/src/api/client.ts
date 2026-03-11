@@ -59,6 +59,7 @@ export interface FeedCategory {
   id: number;
   user_id: number;
   name: string;
+  sort_order?: number;
   created_at: string;
   updated_at: string;
 }
@@ -156,6 +157,8 @@ export const categoriesApi = {
   create: (name: string) => client.post<FeedCategory>('/categories', { name }),
   update: (id: number, name: string) => client.put<FeedCategory>(`/categories/${id}`, { name }),
   delete: (id: number) => client.delete(`/categories/${id}`),
+  reorder: (id_list: number[]) =>
+    client.put<{ message: string }>('/categories/reorder', { id_list }),
 };
 
 export const proxiesApi = {

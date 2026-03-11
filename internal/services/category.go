@@ -35,7 +35,7 @@ func normalizeCategoryName(s string) string {
 
 func (s *CategoryService) List(userID uint) ([]models.FeedCategory, error) {
 	var items []models.FeedCategory
-	err := s.db.Where("user_id = ?", userID).Order("created_at DESC").Find(&items).Error
+	err := s.db.Where("user_id = ?", userID).Order("sort_order ASC, id ASC").Find(&items).Error
 	return items, err
 }
 
@@ -49,9 +49,12 @@ func (s *CategoryService) Create(userID uint, req CreateCategoryRequest) (*model
 	if exists > 0 {
 		return nil, ErrCategoryNameExists
 	}
+	var maxOrder int
+	s.db.Model(&models.FeedCategory{}).Where("user_id = ?", userID).Select("COALESCE(MAX(sort_order), -1)").Scan(&maxOrder)
 	cat := &models.FeedCategory{
-		UserID: userID,
-		Name:   name,
+		UserID:    userID,
+		Name:      name,
+		SortOrder: maxOrder + 1,
 	}
 	if err := s.db.Create(cat).Error; err != nil {
 		return nil, err
@@ -99,5 +102,16 @@ func (s *CategoryService) Delete(userID uint, id uint) error {
 		return ErrCategoryNotFound
 	}
 	return res.Error
+}
+
+// Reorder 按 id_list 顺序更新 sort_order（id_list 为当前用户下的分类 id 有序列表）
+func (s *CategoryService) Reorder(userID uint, idList []uint) error {
+	for i, id := range idList {
+		res := s.db.Model(&models.FeedCategory{}).Where("user_id = ? AND id = ?", userID, id).Update("sort_order", i)
+		if res.Error != nil {
+			return res.Error
+		}
+	}
+	return nil
 }
 

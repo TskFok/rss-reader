@@ -965,6 +965,13 @@ a:hover {
   color: var(--nice-admin-text-muted);
 }
 
+.feeds-card-header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
 .feeds-card-sub {
   font-size: 0.8rem;
   color: var(--nice-admin-text-muted);
@@ -1079,11 +1086,13 @@ a:hover {
   cursor: grabbing;
 }
 
-.feeds-ai-model-dragging {
+.feeds-ai-model-dragging,
+.feeds-category-dragging {
   opacity: 0.6;
 }
 
-.feeds-ai-model-drag-over {
+.feeds-ai-model-drag-over,
+.feeds-category-drag-over {
   outline: 2px solid var(--nice-admin-primary);
   outline-offset: -2px;
 }
@@ -1484,6 +1493,23 @@ a:hover {
   color: var(--nice-admin-text-muted);
 }
 
+.feeds-pagination-size {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  color: var(--nice-admin-text-muted);
+}
+
+.feeds-pagination-size select {
+  padding: 4px 8px;
+  border: 1px solid var(--nice-admin-input-border);
+  border-radius: 6px;
+  background: var(--nice-admin-input-bg);
+  color: var(--nice-admin-text);
+  font-size: 0.85rem;
+}
+
 .feeds-row-actions button {
   padding: 6px 12px;
   border-radius: 8px;
@@ -1675,6 +1701,131 @@ a:hover {
 }
 
 /* 绑定飞书弹窗 */
+/* 系统设置添加/编辑弹窗 */
+.feeds-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 24px;
+}
+
+.feeds-modal {
+  background: var(--nice-admin-card-bg);
+  border: 1px solid var(--nice-admin-card-border);
+  border-radius: 12px;
+  box-shadow: var(--nice-admin-shadow-md);
+  max-width: 480px;
+  width: 100%;
+  max-height: calc(100vh - 48px);
+  display: flex;
+  flex-direction: column;
+}
+
+.feeds-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--nice-admin-card-border);
+  flex-shrink: 0;
+}
+
+.feeds-modal-title {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--nice-admin-text);
+}
+
+.feeds-modal-close {
+  padding: 4px 10px;
+  border: none;
+  background: transparent;
+  color: var(--nice-admin-text-muted);
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+  border-radius: 6px;
+}
+
+.feeds-modal-close:hover {
+  background: #f1f5f9;
+  color: var(--nice-admin-text);
+}
+
+.feeds-modal-body {
+  padding: 20px;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.feeds-modal-form .feeds-modal-row {
+  margin-bottom: 16px;
+}
+
+.feeds-modal-form .feeds-modal-row:last-child {
+  margin-bottom: 0;
+}
+
+.feeds-modal-form label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--nice-admin-text-muted);
+  margin-bottom: 6px;
+}
+
+.feeds-modal-form input,
+.feeds-modal-form select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--nice-admin-input-border);
+  border-radius: 8px;
+  background: var(--nice-admin-input-bg);
+  color: var(--nice-admin-text);
+  font-size: 0.95rem;
+  box-sizing: border-box;
+}
+
+.feeds-modal-form .feeds-modal-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--nice-admin-card-border);
+}
+
+.feeds-modal-form .feeds-modal-actions button {
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.feeds-modal-form .feeds-modal-actions button[type="button"]:not(.danger) {
+  border: 1px solid var(--nice-admin-input-border);
+  background: var(--nice-admin-card-bg);
+  color: var(--nice-admin-text);
+}
+
+.feeds-modal-form .feeds-modal-actions button[type="submit"],
+.feeds-modal-form .feeds-modal-actions button.primary {
+  border: none;
+  background: var(--nice-admin-primary);
+  color: #fff;
+}
+
+.feeds-modal-form .feeds-modal-actions button.danger {
+  border: 1px solid var(--nice-admin-danger);
+  color: var(--nice-admin-danger);
+  background: transparent;
+}
+
 .bind-feishu-overlay {
   position: fixed;
   inset: 0;

@@ -53,3 +53,28 @@ func TestCategoryService_CRUD(t *testing.T) {
 	assert.ErrorIs(t, err, ErrCategoryNotFound)
 }
 
+func TestCategoryService_Reorder(t *testing.T) {
+	db := setupCategoryDB(t)
+	svc := NewCategoryService(db)
+
+	c1, _ := svc.Create(1, CreateCategoryRequest{Name: "A"})
+	c2, _ := svc.Create(1, CreateCategoryRequest{Name: "B"})
+	c3, _ := svc.Create(1, CreateCategoryRequest{Name: "C"})
+
+	items, _ := svc.List(1)
+	require.Len(t, items, 3)
+	assert.Equal(t, "A", items[0].Name)
+	assert.Equal(t, "B", items[1].Name)
+	assert.Equal(t, "C", items[2].Name)
+
+	// 反序：C, B, A
+	err := svc.Reorder(1, []uint{c3.ID, c2.ID, c1.ID})
+	require.NoError(t, err)
+
+	items, _ = svc.List(1)
+	require.Len(t, items, 3)
+	assert.Equal(t, "C", items[0].Name)
+	assert.Equal(t, "B", items[1].Name)
+	assert.Equal(t, "A", items[2].Name)
+}
+

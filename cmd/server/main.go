@@ -82,6 +82,7 @@ func main() {
 
 			auth.GET("/categories", handlers.NewCategoryHandler(categorySvc).List)
 			auth.POST("/categories", handlers.NewCategoryHandler(categorySvc).Create)
+			auth.PUT("/categories/reorder", handlers.NewCategoryHandler(categorySvc).Reorder)
 			auth.PUT("/categories/:id", handlers.NewCategoryHandler(categorySvc).Update)
 			auth.DELETE("/categories/:id", handlers.NewCategoryHandler(categorySvc).Delete)
 

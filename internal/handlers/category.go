@@ -99,3 +99,24 @@ func (h *CategoryHandler) Delete(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "删除成功"})
 }
 
+// CategoryReorderRequest 分类排序请求
+type CategoryReorderRequest struct {
+	IDList []uint `json:"id_list" binding:"required"`
+}
+
+// Reorder 拖动排序
+// PUT /api/categories/reorder
+func (h *CategoryHandler) Reorder(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+	var req CategoryReorderRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误: " + err.Error()})
+		return
+	}
+	if err := h.svc.Reorder(userID, req.IDList); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "排序失败"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "排序已更新"})
+}
+
