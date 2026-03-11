@@ -26,15 +26,17 @@ func NewAIModelService(db *gorm.DB) *AIModelService {
 }
 
 type CreateAIModelRequest struct {
-	Name   string `json:"name" binding:"required,min=1,max=128"`
-	BaseURL string `json:"base_url" binding:"required,min=1,max=512"`
-	APIKey  string `json:"api_key"`
+	Name          string `json:"name" binding:"required,min=1,max=128"`
+	BaseURL       string `json:"base_url" binding:"required,min=1,max=512"`
+	APIKey        string `json:"api_key"`
+	BackupModelID *uint  `json:"backup_model_id"`
 }
 
 type UpdateAIModelRequest struct {
-	Name    string  `json:"name" binding:"required,min=1,max=128"`
-	BaseURL string  `json:"base_url" binding:"required,min=1,max=512"`
-	APIKey  *string `json:"api_key"` // nil 表示不修改，空字符串表示清空
+	Name          string  `json:"name" binding:"required,min=1,max=128"`
+	BaseURL       string  `json:"base_url" binding:"required,min=1,max=512"`
+	APIKey        *string `json:"api_key"` // nil 表示不修改，空字符串表示清空
+	BackupModelID *uint   `json:"backup_model_id"`
 }
 
 func normalizeURL(s string) string {
@@ -52,14 +54,26 @@ func (s *AIModelService) Create(userID uint, req CreateAIModelRequest) (*models.
 	if baseURL == "" {
 		return nil, errors.New("调用地址不能为空")
 	}
+	var backupID *uint
+	if req.BackupModelID != nil && *req.BackupModelID != 0 {
+		var backup models.AIModel
+		if err := s.db.Where("user_id = ? AND id = ?", userID, *req.BackupModelID).First(&backup).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil, errors.New("备用模型不存在或不属于当前用户")
+			}
+			return nil, err
+		}
+		backupID = &backup.ID
+	}
 	var maxOrder int
 	s.db.Model(&models.AIModel{}).Where("user_id = ?", userID).Select("COALESCE(MAX(sort_order), -1)").Scan(&maxOrder)
 	m := &models.AIModel{
-		UserID:    userID,
-		Name:      strings.TrimSpace(req.Name),
-		BaseURL:   baseURL,
-		APIKey:    strings.TrimSpace(req.APIKey),
-		SortOrder: maxOrder + 1,
+		UserID:        userID,
+		Name:          strings.TrimSpace(req.Name),
+		BaseURL:       baseURL,
+		APIKey:        strings.TrimSpace(req.APIKey),
+		BackupModelID: backupID,
+		SortOrder:     maxOrder + 1,
 	}
 	if err := s.db.Create(m).Error; err != nil {
 		return nil, err
@@ -82,6 +96,22 @@ func (s *AIModelService) Update(userID uint, id uint, req UpdateAIModelRequest) 
 	m, err := s.GetByID(userID, id)
 	if err != nil {
 		return nil, err
+	}
+	if req.BackupModelID != nil {
+		if *req.BackupModelID == 0 {
+			m.BackupModelID = nil
+		} else if *req.BackupModelID == id {
+			return nil, errors.New("备用模型不能是自己")
+		} else {
+			var backup models.AIModel
+			if err := s.db.Where("user_id = ? AND id = ?", userID, *req.BackupModelID).First(&backup).Error; err != nil {
+				if errors.Is(err, gorm.ErrRecordNotFound) {
+					return nil, errors.New("备用模型不存在或不属于当前用户")
+				}
+				return nil, err
+			}
+			m.BackupModelID = &backup.ID
+		}
 	}
 	baseURL := normalizeURL(req.BaseURL)
 	if baseURL == "" {

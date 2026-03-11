@@ -78,6 +78,7 @@ export interface AIModel {
   user_id: number;
   name: string;
   base_url: string;
+  backup_model_id?: number | null;
   sort_order?: number;
   created_at: string;
   updated_at: string;
@@ -215,13 +216,19 @@ export const proxiesApi = {
 
 export const aiModelsApi = {
   list: () => client.get<AIModel[]>('/ai-models'),
-  create: (name: string, base_url: string, api_key?: string) =>
-    client.post<AIModel>('/ai-models', { name, base_url, api_key: api_key ?? '' }),
-  update: (id: number, name: string, base_url: string, api_key?: string | null) =>
+  create: (name: string, base_url: string, api_key?: string, backup_model_id?: number | null) =>
+    client.post<AIModel>('/ai-models', {
+      name,
+      base_url,
+      api_key: api_key ?? '',
+      ...(backup_model_id !== undefined && { backup_model_id: backup_model_id ?? 0 }),
+    }),
+  update: (id: number, name: string, base_url: string, api_key?: string | null, backup_model_id?: number | null) =>
     client.put<AIModel>(`/ai-models/${id}`, {
       name,
       base_url,
       ...(api_key !== undefined && { api_key: api_key ?? '' }),
+      ...(backup_model_id !== undefined && { backup_model_id: backup_model_id ?? 0 }),
     }),
   delete: (id: number) => client.delete(`/ai-models/${id}`),
   test: (id: number) =>

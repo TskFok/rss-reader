@@ -92,6 +92,7 @@ export default function Feeds() {
   const [aiModelName, setAiModelName] = useState('');
   const [aiModelBaseUrl, setAiModelBaseUrl] = useState('');
   const [aiModelApiKey, setAiModelApiKey] = useState('');
+  const [aiModelBackupId, setAiModelBackupId] = useState<number | ''>('');
   const [aiModelError, setAiModelError] = useState('');
   const [aiModelSuccess, setAiModelSuccess] = useState('');
   const [aiModelLoading, setAiModelLoading] = useState(false);
@@ -100,6 +101,7 @@ export default function Feeds() {
   const [editAiModelName, setEditAiModelName] = useState('');
   const [editAiModelBaseUrl, setEditAiModelBaseUrl] = useState('');
   const [editAiModelApiKey, setEditAiModelApiKey] = useState('');
+  const [editAiModelBackupId, setEditAiModelBackupId] = useState<number | ''>('');
   const [testingAiModel, setTestingAiModel] = useState<number | null>(null);
   const [draggedAiModelId, setDraggedAiModelId] = useState<number | null>(null);
   const [dragOverAiModelId, setDragOverAiModelId] = useState<number | null>(null);
@@ -552,10 +554,16 @@ export default function Feeds() {
     setAiModelSuccess('');
     setAiModelLoading(true);
     try {
-      await aiModelsApi.create(aiModelName, aiModelBaseUrl, aiModelApiKey || undefined);
+      await aiModelsApi.create(
+        aiModelName,
+        aiModelBaseUrl,
+        aiModelApiKey || undefined,
+        aiModelBackupId === '' ? undefined : aiModelBackupId
+      );
       setAiModelName('');
       setAiModelBaseUrl('');
       setAiModelApiKey('');
+      setAiModelBackupId('');
       setAiModelAddOpen(false);
       loadAiModels();
     } catch (err: unknown) {
@@ -574,10 +582,12 @@ export default function Feeds() {
         id,
         editAiModelName,
         editAiModelBaseUrl,
-        editAiModelApiKey === '' ? undefined : editAiModelApiKey
+        editAiModelApiKey === '' ? undefined : editAiModelApiKey,
+        editAiModelBackupId === '' ? undefined : editAiModelBackupId
       );
       setEditingAiModel(null);
       setEditAiModelApiKey('');
+      setEditAiModelBackupId('');
       loadAiModels();
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
@@ -1355,6 +1365,22 @@ export default function Feeds() {
                     onChange={(e) => setAiModelApiKey(e.target.value)}
                   />
                 </div>
+                <div className="feeds-modal-row">
+                  <label>备用模型（可选）</label>
+                  <select
+                    value={aiModelBackupId}
+                    onChange={(e) =>
+                      setAiModelBackupId(e.target.value === '' ? '' : Number(e.target.value))
+                    }
+                  >
+                    <option value="">不设置</option>
+                    {aiModels.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
                 <div className="feeds-modal-actions">
                   <button type="button" onClick={() => { setAiModelAddOpen(false); setAiModelError(''); setAiModelSuccess(''); }}>取消</button>
                   <button type="submit" disabled={aiModelLoading}>{aiModelLoading ? '添加中...' : '确定'}</button>
@@ -1362,7 +1388,7 @@ export default function Feeds() {
               </form>
             </Modal>
 
-            <Modal open={editingAiModel !== null} onClose={() => { setEditingAiModel(null); setEditAiModelApiKey(''); setAiModelError(''); setAiModelSuccess(''); }} title="编辑 AI 模型">
+            <Modal open={editingAiModel !== null} onClose={() => { setEditingAiModel(null); setEditAiModelApiKey(''); setEditAiModelBackupId(''); setAiModelError(''); setAiModelSuccess(''); }} title="编辑 AI 模型">
               <form onSubmit={(e) => { e.preventDefault(); if (editingAiModel !== null) handleUpdateAiModel(editingAiModel); }} className="feeds-modal-form">
                 {aiModelError && <p className="error">{aiModelError}</p>}
                 <div className="feeds-modal-row">
@@ -1393,6 +1419,26 @@ export default function Feeds() {
                     value={editAiModelApiKey}
                     onChange={(e) => setEditAiModelApiKey(e.target.value)}
                   />
+                </div>
+                <div className="feeds-modal-row">
+                  <label>备用模型（可选）</label>
+                  <select
+                    value={editAiModelBackupId}
+                    onChange={(e) =>
+                      setEditAiModelBackupId(
+                        e.target.value === '' ? '' : Number(e.target.value)
+                      )
+                    }
+                  >
+                    <option value="">不设置</option>
+                    {aiModels
+                      .filter((item) => editingAiModel === null || item.id !== editingAiModel)
+                      .map((m) => (
+                        <option key={m.id} value={m.id}>
+                          {m.name}
+                        </option>
+                      ))}
+                  </select>
                 </div>
                 <div className="feeds-modal-actions">
                   <button type="button" onClick={() => { setEditingAiModel(null); setEditAiModelApiKey(''); setAiModelError(''); setAiModelSuccess(''); }}>取消</button>
@@ -1426,6 +1472,11 @@ export default function Feeds() {
                       <div className="feeds-category-main">
                         <span className="feeds-category-name">{m.name}</span>
                         <span className="feeds-proxy-url">{m.base_url}</span>
+                        {m.backup_model_id != null && m.backup_model_id !== 0 && (
+                          <span className="feeds-proxy-url">
+                            备用：{aiModels.find((x) => x.id === m.backup_model_id)?.name ?? `ID ${m.backup_model_id}`}
+                          </span>
+                        )}
                       </div>
                       <div className="feeds-category-actions">
                         <button
@@ -1442,6 +1493,7 @@ export default function Feeds() {
                             setEditAiModelName(m.name);
                             setEditAiModelBaseUrl(m.base_url);
                             setEditAiModelApiKey('');
+                            setEditAiModelBackupId(m.backup_model_id ?? '');
                             setAiModelError('');
                             setAiModelSuccess('');
                           }}
