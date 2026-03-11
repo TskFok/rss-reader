@@ -1697,7 +1697,7 @@ export default function Feeds() {
                     <option value="asc">从旧到新</option>
                   </select>
                 </div>
-                <div className="feeds-modal-row">
+                <div className="feeds-modal-row feeds-modal-row-inline">
                   <label>订阅源（不选表示全部订阅）</label>
                   <div className="feeds-summary-feeds" style={{ maxHeight: '220px' }}>
                     {feeds.length === 0 ? (
