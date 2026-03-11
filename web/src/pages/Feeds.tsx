@@ -1,11 +1,18 @@
 import { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { feedsApi, categoriesApi, opmlApi, proxiesApi } from '../api/client';
-import type { Feed, FeedCategory, Proxy } from '../api/client';
+import { feedsApi, categoriesApi, opmlApi, proxiesApi, aiModelsApi, articlesApi } from '../api/client';
+import type { Feed, FeedCategory, Proxy, AIModel } from '../api/client';
 import { useAuth } from '../contexts/AuthContext';
 import Admin from './Admin';
 
 const PAGE_SIZE = 8;
+const TAB_OPTIONS = ['categories', 'feeds', 'proxies', 'ai-models', 'ai-summary', 'users'] as const;
+type TabType = (typeof TAB_OPTIONS)[number];
+
+/** 上海时区当日的 YYYY-MM-DD */
+function getTodayShanghai(): string {
+  return new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Shanghai' });
+}
 
 export default function Feeds() {
   const { user } = useAuth();
@@ -34,12 +41,12 @@ export default function Feeds() {
   const [proxyId, setProxyId] = useState<number | ''>('');
   const [editProxyId, setEditProxyId] = useState<number | ''>('');
   const [searchParams, setSearchParams] = useSearchParams();
-  const initialTabParam = (searchParams.get('tab') || 'feeds') as 'categories' | 'feeds' | 'proxies' | 'users';
-  const [activeTab, setActiveTabState] = useState<'categories' | 'feeds' | 'proxies' | 'users'>(() => {
+  const initialTabParam = (searchParams.get('tab') || 'feeds') as TabType;
+  const [activeTab, setActiveTabState] = useState<TabType>(() => {
     if (initialTabParam === 'users' && !isSuperAdmin) {
       return 'feeds';
     }
-    if (initialTabParam === 'categories' || initialTabParam === 'feeds' || initialTabParam === 'proxies' || initialTabParam === 'users') {
+    if (TAB_OPTIONS.includes(initialTabParam)) {
       return initialTabParam;
     }
     return 'feeds';
@@ -47,9 +54,9 @@ export default function Feeds() {
 
   // URL 变化时同步 activeTab（如刷新、浏览器前进/后退）
   useEffect(() => {
-    const tab = (searchParams.get('tab') || 'feeds') as 'categories' | 'feeds' | 'proxies' | 'users';
+    const tab = (searchParams.get('tab') || 'feeds') as TabType;
     const next = tab === 'users' && !isSuperAdmin ? 'feeds' : tab;
-    if (['categories', 'feeds', 'proxies', 'users'].includes(next)) {
+    if (TAB_OPTIONS.includes(next)) {
       setActiveTabState(next);
     }
   }, [searchParams, isSuperAdmin]);
@@ -64,6 +71,29 @@ export default function Feeds() {
   const [editingProxy, setEditingProxy] = useState<number | null>(null);
   const [editProxyName, setEditProxyName] = useState('');
   const [editProxyUrl, setEditProxyUrl] = useState('');
+  const [aiModels, setAiModels] = useState<AIModel[]>([]);
+  const [aiModelName, setAiModelName] = useState('');
+  const [aiModelBaseUrl, setAiModelBaseUrl] = useState('');
+  const [aiModelApiKey, setAiModelApiKey] = useState('');
+  const [aiModelError, setAiModelError] = useState('');
+  const [aiModelSuccess, setAiModelSuccess] = useState('');
+  const [aiModelLoading, setAiModelLoading] = useState(false);
+  const [editingAiModel, setEditingAiModel] = useState<number | null>(null);
+  const [editAiModelName, setEditAiModelName] = useState('');
+  const [editAiModelBaseUrl, setEditAiModelBaseUrl] = useState('');
+  const [editAiModelApiKey, setEditAiModelApiKey] = useState('');
+  const [testingAiModel, setTestingAiModel] = useState<number | null>(null);
+
+  // AI 总结（默认时间范围：上海时区当日）
+  const [summaryAiModelId, setSummaryAiModelId] = useState<number | ''>('');
+  const [summaryFeedIds, setSummaryFeedIds] = useState<Set<number>>(new Set());
+  const [summaryStartDate, setSummaryStartDate] = useState(getTodayShanghai);
+  const [summaryEndDate, setSummaryEndDate] = useState(getTodayShanghai);
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [summaryResult, setSummaryResult] = useState('');
+  const [summaryError, setSummaryError] = useState('');
+  const [summaryArticleCount, setSummaryArticleCount] = useState(0);
+  const [summaryPanelOpen, setSummaryPanelOpen] = useState(true);
 
   const totalCategoryPages = Math.max(1, Math.ceil(categories.length / PAGE_SIZE));
   const totalFeedsPages = Math.max(1, Math.ceil(feeds.length / PAGE_SIZE));
@@ -79,6 +109,36 @@ export default function Feeds() {
     if (activeTab === 'proxies') {
       loadProxies();
       return;
+    }
+    if (activeTab === 'ai-models') {
+      loadAiModels();
+      return;
+    }
+    if (activeTab === 'ai-summary') {
+      let cancelled = false;
+      (async () => {
+        try {
+          const fr = await feedsApi.list();
+          if (!cancelled) setFeeds(fr.data);
+        } catch {
+          if (!cancelled) setFeeds([]);
+        }
+        try {
+          const cr = await categoriesApi.list();
+          if (!cancelled) setCategories(cr.data);
+        } catch {
+          if (!cancelled) setCategories([]);
+        }
+        try {
+          const mr = await aiModelsApi.list();
+          if (!cancelled) setAiModels(mr.data);
+        } catch {
+          if (!cancelled) setAiModels([]);
+        }
+      })();
+      return () => {
+        cancelled = true;
+      };
     }
     if (activeTab === 'feeds') {
       let cancelled = false;
@@ -116,6 +176,13 @@ export default function Feeds() {
     if (feedsPage > totalFeedsPages) setFeedsPage(1);
   }, [feeds.length, feedsPage, totalFeedsPages]);
 
+  // AI 总结：有模型列表且未选择时，默认选第一个
+  useEffect(() => {
+    if (activeTab === 'ai-summary' && aiModels.length > 0 && summaryAiModelId === '') {
+      setSummaryAiModelId(aiModels[0].id);
+    }
+  }, [activeTab, aiModels, summaryAiModelId]);
+
   const loadFeeds = () => {
     feedsApi.list().then((r) => setFeeds(r.data)).catch(() => setFeeds([]));
   };
@@ -126,6 +193,10 @@ export default function Feeds() {
 
   const loadProxies = () => {
     proxiesApi.list().then((r) => setProxies(r.data)).catch(() => setProxies([]));
+  };
+
+  const loadAiModels = () => {
+    aiModelsApi.list().then((r) => setAiModels(r.data)).catch(() => setAiModels([]));
   };
 
   const handleAdd = async (e: React.FormEvent) => {
@@ -248,6 +319,117 @@ export default function Feeds() {
     } catch {}
   };
 
+  const handleAddAiModel = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAiModelError('');
+    setAiModelSuccess('');
+    setAiModelLoading(true);
+    try {
+      await aiModelsApi.create(aiModelName, aiModelBaseUrl, aiModelApiKey || undefined);
+      setAiModelName('');
+      setAiModelBaseUrl('');
+      setAiModelApiKey('');
+      loadAiModels();
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      setAiModelError(msg || '添加失败');
+    } finally {
+      setAiModelLoading(false);
+    }
+  };
+
+  const handleUpdateAiModel = async (id: number) => {
+    setAiModelError('');
+    setAiModelSuccess('');
+    try {
+      await aiModelsApi.update(
+        id,
+        editAiModelName,
+        editAiModelBaseUrl,
+        editAiModelApiKey === '' ? undefined : editAiModelApiKey
+      );
+      setEditingAiModel(null);
+      setEditAiModelApiKey('');
+      loadAiModels();
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      setAiModelError(msg || '更新失败');
+    }
+  };
+
+  const handleDeleteAiModel = async (id: number) => {
+    if (!confirm('确定删除此 AI 模型？')) return;
+    try {
+      await aiModelsApi.delete(id);
+      loadAiModels();
+    } catch {}
+  };
+
+  const handleTestAiModel = async (id: number) => {
+    setTestingAiModel(id);
+    setAiModelError('');
+    setAiModelSuccess('');
+    try {
+      await aiModelsApi.test(id);
+      const modelName = aiModels.find((m) => m.id === id)?.name ?? '模型';
+      setAiModelSuccess(`${modelName} 可用`);
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      setAiModelError(msg || '检测失败');
+    } finally {
+      setTestingAiModel(null);
+    }
+  };
+
+  const handleSummary = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSummaryError('');
+    setSummaryResult('');
+    if (summaryAiModelId === '') {
+      setSummaryError('请选择 AI 模型');
+      return;
+    }
+    setSummaryLoading(true);
+    try {
+      const params: {
+        ai_model_id: number;
+        feed_ids?: number[];
+        start_time?: string;
+        end_time?: string;
+      } = { ai_model_id: summaryAiModelId };
+      if (summaryFeedIds.size > 0) {
+        params.feed_ids = [...summaryFeedIds];
+      }
+      if (summaryStartDate) params.start_time = summaryStartDate;
+      if (summaryEndDate) params.end_time = summaryEndDate;
+      await articlesApi.summarizeStream(params, {
+        onMeta: (count) => setSummaryArticleCount(count),
+        onChunk: (delta) =>
+          setSummaryResult((prev) => prev + delta),
+        onError: (msg) => setSummaryError(msg),
+      });
+    } catch (err: unknown) {
+      const msg =
+        (err as { response?: { data?: { error?: string } } })?.response?.data?.error ??
+        (err as Error)?.message;
+      setSummaryError(msg || '生成总结失败');
+    } finally {
+      setSummaryLoading(false);
+    }
+  };
+
+  const toggleSummaryFeed = (feedId: number) => {
+    setSummaryFeedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(feedId)) {
+        next.delete(feedId);
+      } else {
+        next.add(feedId);
+      }
+      return next;
+    });
+  };
+
   const formatDate = (s: string | null) => {
     if (!s) return '从未';
     return new Date(s).toLocaleString('zh-CN');
@@ -299,6 +481,10 @@ export default function Feeds() {
       ? '订阅列表'
       : activeTab === 'proxies'
       ? '代理'
+      : activeTab === 'ai-models'
+      ? 'AI 模型'
+      : activeTab === 'ai-summary'
+      ? 'AI 总结'
       : '用户管理';
   const tabDesc =
     activeTab === 'categories'
@@ -307,6 +493,10 @@ export default function Feeds() {
       ? '当前账号下的所有订阅源'
       : activeTab === 'proxies'
       ? '配置 RSS 抓取时使用的代理服务器'
+      : activeTab === 'ai-models'
+      ? '配置 AI 模型调用地址与 API 密钥，支持 OpenAI 兼容接口'
+      : activeTab === 'ai-summary'
+      ? '使用 AI 对指定订阅和时间范围内的内容生成中文总结'
       : '管理系统用户与账号状态';
 
   return (
@@ -355,6 +545,34 @@ export default function Feeds() {
         >
           代理
         </button>
+        <button
+          type="button"
+          className={`settings-sidebar-item ${activeTab === 'ai-models' ? 'active' : ''}`}
+          onClick={() => {
+            setActiveTabState('ai-models');
+            setSearchParams((prev) => {
+              const p = new URLSearchParams(prev);
+              p.set('tab', 'ai-models');
+              return p;
+            });
+          }}
+        >
+          AI 模型
+        </button>
+        <button
+          type="button"
+          className={`settings-sidebar-item ${activeTab === 'ai-summary' ? 'active' : ''}`}
+          onClick={() => {
+            setActiveTabState('ai-summary');
+            setSearchParams((prev) => {
+              const p = new URLSearchParams(prev);
+              p.set('tab', 'ai-summary');
+              return p;
+            });
+          }}
+        >
+          AI 总结
+        </button>
         {isSuperAdmin && (
           <button
             type="button"
@@ -392,6 +610,16 @@ export default function Feeds() {
           {activeTab === 'proxies' && (
             <div className="feeds-header-side">
               <span className="feeds-header-pill">{proxies.length} 个代理</span>
+            </div>
+          )}
+          {activeTab === 'ai-models' && (
+            <div className="feeds-header-side">
+              <span className="feeds-header-pill">{aiModels.length} 个模型</span>
+            </div>
+          )}
+          {activeTab === 'ai-summary' && (
+            <div className="feeds-header-side">
+              <span className="feeds-header-pill">生成订阅内容总结</span>
             </div>
           )}
         </div>
@@ -852,6 +1080,238 @@ export default function Feeds() {
                 </ul>
               </div>
             )}
+          </section>
+        )}
+
+        {activeTab === 'ai-models' && (
+          <section className="feeds-card feeds-card-proxies">
+            <div className="feeds-card-header">
+              <div>
+                <h2>AI 模型列表</h2>
+                <p>配置 AI 模型名称、调用地址与 API 密钥，支持 OpenAI 兼容接口（如 OpenAI、Azure、Ollama 等）</p>
+              </div>
+              <span className="feeds-card-sub">{aiModels.length} 个模型</span>
+            </div>
+
+            <form onSubmit={handleAddAiModel} className="feeds-inline-form">
+              <input
+                type="text"
+                placeholder="模型名称（如 gpt-4o-mini）"
+                value={aiModelName}
+                onChange={(e) => setAiModelName(e.target.value)}
+                required
+              />
+              <input
+                type="text"
+                placeholder="调用地址（如 https://api.openai.com/v1）"
+                value={aiModelBaseUrl}
+                onChange={(e) => setAiModelBaseUrl(e.target.value)}
+                required
+              />
+              <input
+                type="password"
+                placeholder="API 密钥（可选）"
+                value={aiModelApiKey}
+                onChange={(e) => setAiModelApiKey(e.target.value)}
+              />
+              <button type="submit" disabled={aiModelLoading}>
+                {aiModelLoading ? '添加中...' : '添加模型'}
+              </button>
+            </form>
+            {aiModelError && <p className="error">{aiModelError}</p>}
+            {aiModelSuccess && <p className="bind-msg-success">{aiModelSuccess}</p>}
+
+            {aiModels.length === 0 ? (
+              <div className="feeds-empty-card">暂无 AI 模型，请先添加模型。</div>
+            ) : (
+              <div className="feeds-list-scroll">
+                <ul className="feeds-category-list">
+                  {aiModels.map((m) => (
+                    <li key={m.id}>
+                      <div className="feeds-category-main">
+                        <span className="feeds-category-name">{m.name}</span>
+                        <span className="feeds-proxy-url">{m.base_url}</span>
+                      </div>
+                      <div className="feeds-category-actions">
+                        {editingAiModel === m.id ? (
+                          <>
+                            <input
+                              type="text"
+                              placeholder="模型名称"
+                              value={editAiModelName}
+                              onChange={(e) => setEditAiModelName(e.target.value)}
+                            />
+                            <input
+                              type="text"
+                              placeholder="调用地址"
+                              value={editAiModelBaseUrl}
+                              onChange={(e) => setEditAiModelBaseUrl(e.target.value)}
+                            />
+                            <input
+                              type="password"
+                              placeholder="API 密钥（留空保持不变）"
+                              value={editAiModelApiKey}
+                              onChange={(e) => setEditAiModelApiKey(e.target.value)}
+                            />
+                            <button type="button" onClick={() => handleUpdateAiModel(m.id)}>
+                              保存
+                            </button>
+                            <button type="button" onClick={() => { setEditingAiModel(null); setEditAiModelApiKey(''); setAiModelError(''); setAiModelSuccess(''); }}>
+                              取消
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => handleTestAiModel(m.id)}
+                              disabled={testingAiModel === m.id}
+                            >
+                              {testingAiModel === m.id ? '检测中...' : '检测'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingAiModel(m.id);
+                                setEditAiModelName(m.name);
+                                setEditAiModelBaseUrl(m.base_url);
+                                setEditAiModelApiKey('');
+                                setAiModelError('');
+                                setAiModelSuccess('');
+                              }}
+                            >
+                              编辑
+                            </button>
+                            <button
+                              type="button"
+                              className="danger"
+                              onClick={() => handleDeleteAiModel(m.id)}
+                            >
+                              删除
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </section>
+        )}
+
+        {activeTab === 'ai-summary' && (
+          <section className="feeds-card feeds-card-ai-summary">
+            <div className="feeds-summary-layout">
+              <div className="feeds-summary-main">
+                <div className="feeds-summary-main-header">
+                  <h2>AI 总结</h2>
+                  <button
+                    type="button"
+                    className="feeds-summary-toggle-btn"
+                    onClick={() => setSummaryPanelOpen((v) => !v)}
+                    title={summaryPanelOpen ? '收起选项' : '显示选项'}
+                  >
+                    {summaryPanelOpen ? '收起选项' : '选项'}
+                  </button>
+                </div>
+                {summaryError && <p className="error">{summaryError}</p>}
+                <div className="feeds-summary-content">
+                  {(summaryResult || summaryArticleCount > 0) ? (
+                    <>
+                      <div className="feeds-summary-result-header">
+                        总结结果（共 {summaryArticleCount} 篇文章）
+                        {summaryLoading && !summaryResult && (
+                          <span className="feeds-summary-streaming"> 生成中...</span>
+                        )}
+                      </div>
+                      <div className="feeds-summary-result-content">
+                        {summaryResult || (summaryLoading ? '等待内容...' : '')}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="feeds-summary-empty-state">
+                      在右侧选择模型、时间范围与订阅源后点击「生成总结」
+                    </div>
+                  )}
+                </div>
+              </div>
+              <aside
+                className={`feeds-summary-panel ${summaryPanelOpen ? 'feeds-summary-panel-open' : ''}`}
+              >
+                <div className="feeds-summary-panel-inner">
+                  <form onSubmit={handleSummary} className="feeds-summary-form">
+                    <div className="feeds-summary-row">
+                      <label>AI 模型</label>
+                      <select
+                        value={summaryAiModelId}
+                        onChange={(e) =>
+                          setSummaryAiModelId(e.target.value === '' ? '' : Number(e.target.value))
+                        }
+                        required
+                      >
+                        <option value="">选择模型</option>
+                        {aiModels.map((m) => (
+                          <option key={m.id} value={m.id}>
+                            {m.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    {aiModels.length === 0 && (
+                      <p className="feeds-summary-hint">请先在「AI 模型」中添加模型</p>
+                    )}
+
+                    <div className="feeds-summary-row">
+                      <label>开始时间</label>
+                      <input
+                        type="date"
+                        value={summaryStartDate}
+                        onChange={(e) => setSummaryStartDate(e.target.value)}
+                        className="feeds-summary-date-input"
+                      />
+                    </div>
+                    <div className="feeds-summary-row">
+                      <label>结束时间</label>
+                      <input
+                        type="date"
+                        value={summaryEndDate}
+                        onChange={(e) => setSummaryEndDate(e.target.value)}
+                        className="feeds-summary-date-input"
+                      />
+                    </div>
+                    <p className="feeds-summary-hint">不选则包含全部时间</p>
+
+                    <div className="feeds-summary-row">
+                      <label>订阅源</label>
+                      <div className="feeds-summary-feeds">
+                        {feeds.length === 0 ? (
+                          <span className="feeds-summary-empty">暂无订阅</span>
+                        ) : (
+                          feeds.map((f) => (
+                            <label key={f.id} className="feeds-summary-feed-check">
+                              <input
+                                type="checkbox"
+                                checked={summaryFeedIds.has(f.id)}
+                                onChange={() => toggleSummaryFeed(f.id)}
+                              />
+                              <span>{f.title || f.url}</span>
+                            </label>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                    <p className="feeds-summary-hint">不选则包含全部订阅</p>
+
+                    <div className="feeds-summary-actions">
+                      <button type="submit" disabled={summaryLoading || aiModels.length === 0}>
+                        {summaryLoading ? '生成中...' : '生成总结'}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </aside>
+            </div>
           </section>
         )}
 

@@ -2,11 +2,15 @@ package services
 
 import (
 	"errors"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/ushopal/rss-reader/internal/models"
 	"gorm.io/gorm"
 )
+
+var htmlTagRe = regexp.MustCompile(`<[^>]*>`)
 
 var (
 	ErrArticleNotFound = errors.New("文章不存在")
@@ -171,6 +175,66 @@ func (s *ArticleService) ToggleFavorite(userID uint, articleID uint) (bool, erro
 	}
 	next := !ua.Favorite
 	return next, s.db.Model(&ua).Update("favorite", next).Error
+}
+
+// ArticleForSummary 用于 AI 总结的文章摘要
+type ArticleForSummary struct {
+	Title       string `json:"title"`
+	Content     string `json:"content"`
+	FeedTitle   string `json:"feed_title"`
+	PublishedAt string `json:"published_at"`
+}
+
+// ListForSummary 获取指定订阅、时间范围内的文章，用于 AI 总结
+// feedIDs 为空表示全部订阅；最多返回 maxArticles 篇
+func (s *ArticleService) ListForSummary(userID uint, feedIDs []uint, startTime, endTime *time.Time, maxArticles int) ([]ArticleForSummary, error) {
+	if maxArticles <= 0 || maxArticles > 500 {
+		maxArticles = 100
+	}
+	q := s.db.Model(&models.Article{}).
+		Joins("JOIN feeds ON feeds.id = articles.feed_id AND feeds.deleted_at IS NULL").
+		Where("feeds.user_id = ?", userID)
+	if len(feedIDs) > 0 {
+		q = q.Where("articles.feed_id IN ?", feedIDs)
+	}
+	if startTime != nil {
+		q = q.Where("COALESCE(articles.published_at, articles.created_at) >= ?", *startTime)
+	}
+	if endTime != nil {
+		q = q.Where("COALESCE(articles.published_at, articles.created_at) <= ?", *endTime)
+	}
+	var articles []models.Article
+	if err := q.Order("articles.published_at DESC, articles.created_at DESC").
+		Limit(maxArticles).
+		Preload("Feed").
+		Find(&articles).Error; err != nil {
+		return nil, err
+	}
+	result := make([]ArticleForSummary, 0, len(articles))
+	for _, a := range articles {
+		feedTitle := ""
+		if a.Feed.ID != 0 {
+			feedTitle = a.Feed.Title
+		}
+		pubStr := ""
+		if a.PublishedAt != nil {
+			pubStr = a.PublishedAt.Format("2006-01-02 15:04")
+		} else {
+			pubStr = a.CreatedAt.Format("2006-01-02 15:04")
+		}
+		content := htmlTagRe.ReplaceAllString(a.Content, " ")
+		content = strings.TrimSpace(strings.Join(strings.Fields(content), " "))
+		if len(content) > 2000 {
+			content = content[:2000] + "..."
+		}
+		result = append(result, ArticleForSummary{
+			Title:       a.Title,
+			Content:     content,
+			FeedTitle:   feedTitle,
+			PublishedAt: pubStr,
+		})
+	}
+	return result, nil
 }
 
 // CleanupExpiredArticles 删除各订阅下过期的文章（按 feed.expire_days 计算，0=永不过期），收藏的文章不删除

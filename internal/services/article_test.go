@@ -150,3 +150,51 @@ func TestArticleService_List_Favorite(t *testing.T) {
 func ptr(b bool) *bool {
 	return &b
 }
+
+func TestArticleService_ListForSummary(t *testing.T) {
+	db := setupArticleDB(t)
+	svc := NewArticleService(db)
+
+	user := models.User{Username: "u", PasswordHash: "h"}
+	require.NoError(t, db.Create(&user).Error)
+	feed := models.Feed{UserID: user.ID, URL: "http://example.com", Title: "测试订阅", UpdateIntervalMinutes: 60, ExpireDays: 0}
+	require.NoError(t, db.Create(&feed).Error)
+
+	now := time.Now()
+	t1 := now.AddDate(0, 0, -5)
+	t2 := now.AddDate(0, 0, -2)
+	a1 := models.Article{FeedID: feed.ID, GUID: "g1", Title: "文章1", Content: "<p>内容1</p>", PublishedAt: &t1}
+	a2 := models.Article{FeedID: feed.ID, GUID: "g2", Title: "文章2", Content: "内容2", PublishedAt: &t2}
+	require.NoError(t, db.Create(&a1).Error)
+	require.NoError(t, db.Create(&a2).Error)
+
+	// 全部订阅、无时间限制
+	items, err := svc.ListForSummary(user.ID, nil, nil, nil, 100)
+	require.NoError(t, err)
+	assert.Len(t, items, 2)
+	assert.Equal(t, "文章2", items[0].Title)
+	assert.Equal(t, "文章1", items[1].Title)
+	assert.Equal(t, "测试订阅", items[0].FeedTitle)
+	assert.Contains(t, items[0].Content, "内容2")
+	assert.NotContains(t, items[0].Content, "<p>")
+
+	// 指定 feed_ids
+	items, err = svc.ListForSummary(user.ID, []uint{feed.ID}, nil, nil, 100)
+	require.NoError(t, err)
+	assert.Len(t, items, 2)
+
+	// 时间范围
+	start := now.AddDate(0, 0, -4)
+	end := now.AddDate(0, 0, -1)
+	items, err = svc.ListForSummary(user.ID, nil, &start, &end, 100)
+	require.NoError(t, err)
+	assert.Len(t, items, 1)
+	assert.Equal(t, "文章2", items[0].Title)
+
+	// 无文章
+	start2 := now.AddDate(0, 0, -10)
+	end2 := now.AddDate(0, 0, -8)
+	items, err = svc.ListForSummary(user.ID, nil, &start2, &end2, 100)
+	require.NoError(t, err)
+	assert.Empty(t, items)
+}

@@ -72,6 +72,15 @@ export interface Proxy {
   updated_at: string;
 }
 
+export interface AIModel {
+  id: number;
+  user_id: number;
+  name: string;
+  base_url: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Article {
   id: number;
   feed_id: number;
@@ -157,6 +166,21 @@ export const proxiesApi = {
   delete: (id: number) => client.delete(`/proxies/${id}`),
 };
 
+export const aiModelsApi = {
+  list: () => client.get<AIModel[]>('/ai-models'),
+  create: (name: string, base_url: string, api_key?: string) =>
+    client.post<AIModel>('/ai-models', { name, base_url, api_key: api_key ?? '' }),
+  update: (id: number, name: string, base_url: string, api_key?: string | null) =>
+    client.put<AIModel>(`/ai-models/${id}`, {
+      name,
+      base_url,
+      ...(api_key !== undefined && { api_key: api_key ?? '' }),
+    }),
+  delete: (id: number) => client.delete(`/ai-models/${id}`),
+  test: (id: number) =>
+    client.post<{ message: string }>(`/ai-models/${id}/test`),
+};
+
 export const articlesApi = {
   list: (params?: {
     feed_id?: number;
@@ -168,6 +192,75 @@ export const articlesApi = {
   markRead: (id: number) => client.put(`/articles/${id}/read`),
   toggleFavorite: (id: number) =>
     client.put<{ favorite: boolean }>(`/articles/${id}/favorite`),
+  /** 流式总结：通过 onChunk 逐段接收内容，onMeta 接收 article_count */
+  summarizeStream: async (
+    params: {
+      ai_model_id: number;
+      feed_ids?: number[];
+      start_time?: string;
+      end_time?: string;
+    },
+    callbacks: {
+      onMeta: (article_count: number) => void;
+      onChunk: (delta: string) => void;
+      onError: (message: string) => void;
+    }
+  ): Promise<void> => {
+    const token = localStorage.getItem('token');
+    const base = client.defaults.baseURL ?? '/api';
+    const res = await fetch(`${base}/articles/summarize`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token && { Authorization: `Bearer ${token}` }),
+      },
+      body: JSON.stringify(params),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      callbacks.onError((data as { error?: string }).error || res.statusText);
+      return;
+    }
+    const reader = res.body?.getReader();
+    if (!reader) {
+      callbacks.onError('无法读取响应流');
+      return;
+    }
+    const dec = new TextDecoder();
+    let buf = '';
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        const lines = buf.split('\n');
+        buf = lines.pop() ?? '';
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed.startsWith('data:')) continue;
+          const data = trimmed.slice(5).trim();
+          if (!data || data === '[DONE]') continue;
+          try {
+            let obj: unknown = JSON.parse(data);
+            // Gin 传字符串时会二次 JSON 编码，需二次解析
+            if (typeof obj === 'string') obj = JSON.parse(obj);
+            const o = obj as Record<string, unknown>;
+            if (typeof o.article_count === 'number') {
+              callbacks.onMeta(o.article_count);
+            } else if (typeof o.delta === 'string') {
+              callbacks.onChunk(o.delta);
+            } else if (typeof o.error === 'string') {
+              callbacks.onError(o.error);
+            }
+          } catch {
+            // 忽略解析错误
+          }
+        }
+      }
+    } finally {
+      reader.releaseLock();
+    }
+  },
 };
 
 export const adminApi = {

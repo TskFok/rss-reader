@@ -19,6 +19,7 @@ func Init(dsn string) (*gorm.DB, error) {
 		&models.Article{},
 		&models.UserArticle{},
 		&models.Proxy{},
+		&models.AIModel{},
 	); err != nil {
 		return nil, err
 	}

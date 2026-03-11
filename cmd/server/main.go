@@ -39,6 +39,7 @@ func main() {
 	feedSvc := services.NewFeedService(db, rssSvc)
 	categorySvc := services.NewCategoryService(db)
 	proxySvc := services.NewProxyService(db)
+	aiModelSvc := services.NewAIModelService(db)
 	articleSvc := services.NewArticleService(db)
 	adminSvc := services.NewAdminService(db)
 	opmlHandler := handlers.NewOPMLHandler(feedSvc, categorySvc)
@@ -89,6 +90,12 @@ func main() {
 			auth.PUT("/proxies/:id", handlers.NewProxyHandler(proxySvc).Update)
 			auth.DELETE("/proxies/:id", handlers.NewProxyHandler(proxySvc).Delete)
 
+			auth.GET("/ai-models", handlers.NewAIModelHandler(aiModelSvc).List)
+			auth.POST("/ai-models", handlers.NewAIModelHandler(aiModelSvc).Create)
+			auth.PUT("/ai-models/:id", handlers.NewAIModelHandler(aiModelSvc).Update)
+			auth.DELETE("/ai-models/:id", handlers.NewAIModelHandler(aiModelSvc).Delete)
+			auth.POST("/ai-models/:id/test", handlers.NewAIModelHandler(aiModelSvc).Test)
+
 			auth.GET("/feeds", handlers.NewFeedHandler(feedSvc).List)
 			auth.POST("/feeds", handlers.NewFeedHandler(feedSvc).Create)
 			auth.PUT("/feeds/:id", handlers.NewFeedHandler(feedSvc).Update)
@@ -96,6 +103,7 @@ func main() {
 			auth.GET("/articles", handlers.NewArticleHandler(articleSvc).List)
 			auth.PUT("/articles/:id/read", handlers.NewArticleHandler(articleSvc).MarkRead)
 			auth.PUT("/articles/:id/favorite", handlers.NewArticleHandler(articleSvc).ToggleFavorite)
+			auth.POST("/articles/summarize", handlers.NewSummaryHandler(articleSvc, aiModelSvc).Summarize)
 
 			admin := auth.Group("/admin")
 			admin.Use(middleware.RequireSuperAdmin(db))
