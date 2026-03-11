@@ -1,13 +1,14 @@
 import { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { feedsApi, categoriesApi, opmlApi, proxiesApi, aiModelsApi, articlesApi } from '../api/client';
-import type { Feed, FeedCategory, Proxy, AIModel } from '../api/client';
+import { feedsApi, categoriesApi, opmlApi, proxiesApi, aiModelsApi, articlesApi, summarySchedulesApi, summaryHistoriesApi } from '../api/client';
+import type { Feed, FeedCategory, Proxy, AIModel, SummarySchedule } from '../api/client';
 import { useAuth } from '../contexts/AuthContext';
 import Modal from '../components/Modal';
 import Admin from './Admin';
 
 const PAGE_SIZE_OPTIONS = [5, 8, 10, 20, 50] as const;
-const TAB_OPTIONS = ['categories', 'feeds', 'proxies', 'ai-models', 'ai-summary', 'users'] as const;
+const SUMMARY_PAGE_SIZE_OPTIONS = [10, 20, 50, 100] as const;
+const TAB_OPTIONS = ['categories', 'feeds', 'proxies', 'ai-models', 'ai-summary', 'ai-summary-schedule', 'users'] as const;
 type TabType = (typeof TAB_OPTIONS)[number];
 
 /** 上海时区当日的 YYYY-MM-DD */
@@ -112,7 +113,26 @@ export default function Feeds() {
   const [summaryResult, setSummaryResult] = useState('');
   const [summaryError, setSummaryError] = useState('');
   const [summaryArticleCount, setSummaryArticleCount] = useState(0);
+  const [summaryTotal, setSummaryTotal] = useState<number | null>(null);
   const [summaryPanelOpen, setSummaryPanelOpen] = useState(true);
+  const [summaryPage, setSummaryPage] = useState(1);
+  const [summaryPageSize, setSummaryPageSize] = useState(20);
+  const [summaryOrder, setSummaryOrder] = useState<'desc' | 'asc'>('desc');
+  const [summarySavedMsg, setSummarySavedMsg] = useState('');
+  const [summarySaving, setSummarySaving] = useState(false);
+
+  // 定时总结配置
+  const [scheduleItems, setScheduleItems] = useState<SummarySchedule[]>([]);
+  const [scheduleLoading, setScheduleLoading] = useState(false);
+  const [scheduleError, setScheduleError] = useState('');
+  const [scheduleAiModelId, setScheduleAiModelId] = useState<number | ''>('');
+  const [scheduleFeedIds, setScheduleFeedIds] = useState<Set<number>>(new Set());
+  const [scheduleRunAt, setScheduleRunAt] = useState('08:30');
+  const [schedulePageSize, setSchedulePageSize] = useState(20);
+  const [scheduleOrder, setScheduleOrder] = useState<'desc' | 'asc'>('desc');
+  const [scheduleEnabled, setScheduleEnabled] = useState(true);
+  const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
+  const [editingScheduleId, setEditingScheduleId] = useState<number | null>(null);
 
   const totalCategoryPages = Math.max(1, Math.ceil(categories.length / categoryPageSize));
   const totalFeedsPages = Math.max(1, Math.ceil(feeds.length / feedsPageSize));
@@ -159,6 +179,34 @@ export default function Feeds() {
         cancelled = true;
       };
     }
+    if (activeTab === 'ai-summary-schedule') {
+      let cancelled = false;
+      (async () => {
+        try {
+          const fr = await feedsApi.list();
+          if (!cancelled) setFeeds(fr.data);
+        } catch {
+          if (!cancelled) setFeeds([]);
+        }
+        try {
+          const mr = await aiModelsApi.list();
+          if (!cancelled) setAiModels(mr.data);
+        } catch {
+          if (!cancelled) setAiModels([]);
+        }
+        try {
+          const sr = await summarySchedulesApi.list();
+          if (!cancelled) setScheduleItems(sr.data);
+        } catch {
+          if (!cancelled) setScheduleItems([]);
+        }
+        if (!cancelled) {
+          // 默认选择模型
+          if (scheduleAiModelId === '' && aiModels.length > 0) setScheduleAiModelId(aiModels[0].id);
+        }
+      })();
+      return () => { cancelled = true; };
+    }
     if (activeTab === 'feeds') {
       let cancelled = false;
       (async () => {
@@ -201,6 +249,126 @@ export default function Feeds() {
       setSummaryAiModelId(aiModels[0].id);
     }
   }, [activeTab, aiModels, summaryAiModelId]);
+
+  useEffect(() => {
+    if (activeTab === 'ai-summary-schedule' && aiModels.length > 0 && scheduleAiModelId === '') {
+      setScheduleAiModelId(aiModels[0].id);
+    }
+  }, [activeTab, aiModels, scheduleAiModelId]);
+
+  const toggleScheduleFeed = (feedId: number) => {
+    setScheduleFeedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(feedId)) next.delete(feedId);
+      else next.add(feedId);
+      return next;
+    });
+  };
+
+  const loadSchedules = async () => {
+    try {
+      const r = await summarySchedulesApi.list();
+      setScheduleItems(r.data);
+    } catch {
+      setScheduleItems([]);
+    }
+  };
+
+  const handleCreateSchedule = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setScheduleError('');
+    if (scheduleAiModelId === '') {
+      setScheduleError('请选择 AI 模型');
+      return;
+    }
+    setScheduleLoading(true);
+    try {
+      const payload = {
+        ai_model_id: scheduleAiModelId,
+        feed_ids: scheduleFeedIds.size > 0 ? [...scheduleFeedIds] : [],
+        run_at: scheduleRunAt,
+        page_size: schedulePageSize,
+        order: scheduleOrder,
+        enabled: scheduleEnabled,
+      };
+      if (editingScheduleId !== null) {
+        await summarySchedulesApi.update(editingScheduleId, payload);
+      } else {
+        await summarySchedulesApi.create(payload);
+      }
+      await loadSchedules();
+      setScheduleModalOpen(false);
+      setEditingScheduleId(null);
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      setScheduleError(msg || '保存失败');
+    } finally {
+      setScheduleLoading(false);
+    }
+  };
+
+  const handleDeleteSchedule = async (id: number) => {
+    if (!confirm('确定删除这条定时总结配置？')) return;
+    try {
+      await summarySchedulesApi.delete(id);
+      setScheduleItems((prev) => prev.filter((x) => x.id !== id));
+    } catch {}
+  };
+
+  const handleToggleScheduleEnabled = async (s: SummarySchedule) => {
+    setScheduleError('');
+    try {
+      let ids: number[] = [];
+      try {
+        ids = JSON.parse(s.feed_ids_json || '[]') as number[];
+      } catch {
+        ids = [];
+      }
+      await summarySchedulesApi.update(s.id, {
+        ai_model_id: s.ai_model_id,
+        feed_ids: ids,
+        run_at: s.run_at,
+        page_size: s.page_size,
+        order: (s.order === 'asc' ? 'asc' : 'desc') as 'asc' | 'desc',
+        enabled: !s.enabled,
+      });
+      setScheduleItems((prev) => prev.map((x) => (x.id === s.id ? { ...x, enabled: !x.enabled } : x)));
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      setScheduleError(msg || '更新失败');
+    }
+  };
+
+  const openCreateScheduleModal = () => {
+    setScheduleError('');
+    setEditingScheduleId(null);
+    setScheduleRunAt('08:30');
+    setSchedulePageSize(20);
+    setScheduleOrder('desc');
+    setScheduleEnabled(true);
+    setScheduleFeedIds(new Set());
+    if (aiModels.length > 0 && scheduleAiModelId === '') {
+      setScheduleAiModelId(aiModels[0].id);
+    }
+    setScheduleModalOpen(true);
+  };
+
+  const openEditScheduleModal = (s: SummarySchedule) => {
+    setScheduleError('');
+    setEditingScheduleId(s.id);
+    setScheduleAiModelId(s.ai_model_id);
+    setScheduleRunAt(s.run_at || '08:30');
+    setSchedulePageSize(s.page_size || 20);
+    setScheduleOrder((s.order === 'asc' ? 'asc' : 'desc') as 'asc' | 'desc');
+    setScheduleEnabled(Boolean(s.enabled));
+    try {
+      const ids = JSON.parse(s.feed_ids_json || '[]') as number[];
+      setScheduleFeedIds(new Set(ids));
+    } catch {
+      setScheduleFeedIds(new Set());
+    }
+    setScheduleModalOpen(true);
+  };
 
   const loadFeeds = () => {
     feedsApi.list().then((r) => setFeeds(r.data)).catch(() => setFeeds([]));
@@ -483,29 +651,40 @@ export default function Feeds() {
     aiModelsApi.reorder(next.map((m) => m.id)).catch(() => setAiModelError('排序保存失败'));
   };
 
-  const handleSummary = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSummary = async (e?: React.FormEvent, overridePage?: number) => {
+    e?.preventDefault();
     setSummaryError('');
     setSummaryResult('');
+    setSummarySavedMsg('');
     if (summaryAiModelId === '') {
       setSummaryError('请选择 AI 模型');
       return;
     }
     setSummaryLoading(true);
     try {
+      const pageToUse = overridePage ?? Math.max(1, summaryPage);
       const params: {
         ai_model_id: number;
         feed_ids?: number[];
         start_time?: string;
         end_time?: string;
+        page?: number;
+        page_size?: number;
+        order?: 'desc' | 'asc';
       } = { ai_model_id: summaryAiModelId };
       if (summaryFeedIds.size > 0) {
         params.feed_ids = [...summaryFeedIds];
       }
       if (summaryStartDate) params.start_time = summaryStartDate;
       if (summaryEndDate) params.end_time = summaryEndDate;
+      params.page = pageToUse;
+      params.page_size = summaryPageSize;
+      params.order = summaryOrder;
       await articlesApi.summarizeStream(params, {
         onMeta: (count) => setSummaryArticleCount(count),
+        onMetaAll: (meta) => {
+          if (typeof meta.total === 'number') setSummaryTotal(meta.total);
+        },
         onChunk: (delta) =>
           setSummaryResult((prev) => prev + delta),
         onError: (msg) => setSummaryError(msg),
@@ -517,6 +696,41 @@ export default function Feeds() {
       setSummaryError(msg || '生成总结失败');
     } finally {
       setSummaryLoading(false);
+    }
+  };
+
+  const handleSummaryNextPage = async () => {
+    const next = Math.max(1, summaryPage) + 1;
+    setSummaryPage(next);
+    await handleSummary(undefined, next);
+  };
+
+  const handleSaveSummary = async () => {
+    if (summaryLoading || summarySaving) return;
+    if (!summaryResult.trim()) return;
+    if (summaryAiModelId === '') return;
+    setSummarySaving(true);
+    setSummarySavedMsg('');
+    setSummaryError('');
+    try {
+      await summaryHistoriesApi.create({
+        ai_model_id: summaryAiModelId,
+        feed_ids: summaryFeedIds.size > 0 ? [...summaryFeedIds] : [],
+        start_time: summaryStartDate || undefined,
+        end_time: summaryEndDate || undefined,
+        page: Math.max(1, summaryPage),
+        page_size: summaryPageSize,
+        order: summaryOrder,
+        article_count: summaryArticleCount,
+        total: summaryTotal ?? undefined,
+        content: summaryResult,
+      });
+      setSummarySavedMsg('已保存到总结历史');
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      setSummaryError(msg || '保存失败');
+    } finally {
+      setSummarySaving(false);
     }
   };
 
@@ -1260,15 +1474,45 @@ export default function Feeds() {
               <div className="feeds-summary-main">
                 <div className="feeds-summary-main-header">
                   <h2>AI 总结</h2>
-                  <button
-                    type="button"
-                    className="feeds-summary-toggle-btn"
-                    onClick={() => setSummaryPanelOpen((v) => !v)}
-                    title={summaryPanelOpen ? '收起选项' : '显示选项'}
-                  >
-                    {summaryPanelOpen ? '收起选项' : '选项'}
-                  </button>
+                  <div className="feeds-summary-header-actions">
+                    <button
+                      type="button"
+                      className="feeds-primary-btn"
+                      onClick={() => handleSummary()}
+                      disabled={summaryLoading || aiModels.length === 0}
+                      title={aiModels.length === 0 ? '请先添加 AI 模型' : undefined}
+                    >
+                      {summaryLoading ? '生成中...' : '生成总结'}
+                    </button>
+                    <button
+                      type="button"
+                      className="feeds-summary-toggle-btn"
+                      onClick={handleSummaryNextPage}
+                      disabled={summaryLoading || aiModels.length === 0}
+                      title="页码 +1 并生成下一页总结"
+                    >
+                      总结下一页
+                    </button>
+                    <button
+                      type="button"
+                      className="feeds-summary-toggle-btn"
+                      onClick={handleSaveSummary}
+                      disabled={summaryLoading || summarySaving || !summaryResult.trim()}
+                      title={summaryLoading ? '生成中，无法保存' : '保存当前总结到历史记录'}
+                    >
+                      {summarySaving ? '保存中...' : '保存'}
+                    </button>
+                    <button
+                      type="button"
+                      className="feeds-summary-toggle-btn"
+                      onClick={() => setSummaryPanelOpen((v) => !v)}
+                      title={summaryPanelOpen ? '收起选项' : '显示选项'}
+                    >
+                      {summaryPanelOpen ? '收起选项' : '选项'}
+                    </button>
+                  </div>
                 </div>
+                {summarySavedMsg && <p className="bind-msg-success">{summarySavedMsg}</p>}
                 {summaryError && <p className="error">{summaryError}</p>}
                 <div className="feeds-summary-content">
                   {(summaryResult || summaryArticleCount > 0) ? (
@@ -1357,14 +1601,165 @@ export default function Feeds() {
                     </div>
                     <p className="feeds-summary-hint">不选则包含全部订阅</p>
 
-                    <div className="feeds-summary-actions">
-                      <button type="submit" disabled={summaryLoading || aiModels.length === 0}>
-                        {summaryLoading ? '生成中...' : '生成总结'}
-                      </button>
+                    <div className="feeds-summary-row">
+                      <label htmlFor="summary-page">页码</label>
+                      <input
+                        id="summary-page"
+                        type="number"
+                        min={1}
+                        value={summaryPage}
+                        onChange={(e) => setSummaryPage(Math.max(1, Number(e.target.value || 1)))}
+                        className="feeds-summary-date-input"
+                      />
                     </div>
+                    <div className="feeds-summary-row">
+                      <label>每页</label>
+                      <select
+                        value={summaryPageSize}
+                        onChange={(e) => setSummaryPageSize(Number(e.target.value))}
+                      >
+                        {SUMMARY_PAGE_SIZE_OPTIONS.map((n) => (
+                          <option key={n} value={n}>{n}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="feeds-summary-row">
+                      <label>排序</label>
+                      <select
+                        value={summaryOrder}
+                        onChange={(e) => setSummaryOrder(e.target.value as 'desc' | 'asc')}
+                      >
+                        <option value="desc">从新到旧</option>
+                        <option value="asc">从旧到新</option>
+                      </select>
+                    </div>
+                    <p className="feeds-summary-hint">通过分页控制每次参与总结的文章数量</p>
                   </form>
                 </div>
               </aside>
+            </div>
+          </section>
+        )}
+
+        {activeTab === 'ai-summary-schedule' && (
+          <section className="feeds-card">
+            <div className="feeds-card-header">
+              <div>
+                <h2>定时总结</h2>
+                <p>每天定时总结“昨天”的文章，按页生成并保存到总结历史</p>
+              </div>
+              <div className="feeds-card-header-right">
+                <span className="feeds-card-sub">{scheduleItems.length} 条配置</span>
+                <button type="button" className="feeds-primary-btn" onClick={openCreateScheduleModal}>
+                  新增配置
+                </button>
+              </div>
+            </div>
+
+            {scheduleError && <p className="error">{scheduleError}</p>}
+
+            <Modal
+              open={scheduleModalOpen}
+              onClose={() => { setScheduleModalOpen(false); setEditingScheduleId(null); setScheduleError(''); }}
+              title={editingScheduleId === null ? '新增定时总结配置' : '编辑定时总结配置'}
+            >
+              <form onSubmit={handleCreateSchedule} className="feeds-modal-form">
+                {scheduleError && <p className="error">{scheduleError}</p>}
+                <div className="feeds-modal-row">
+                  <label>AI 模型</label>
+                  <select
+                    value={scheduleAiModelId}
+                    onChange={(e) => setScheduleAiModelId(e.target.value === '' ? '' : Number(e.target.value))}
+                    required
+                  >
+                    <option value="">选择模型</option>
+                    {aiModels.map((m) => (
+                      <option key={m.id} value={m.id}>{m.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="feeds-modal-row">
+                  <label>每天执行时间</label>
+                  <input type="time" value={scheduleRunAt} onChange={(e) => setScheduleRunAt(e.target.value)} required />
+                </div>
+                <div className="feeds-modal-row">
+                  <label>每页条数</label>
+                  <select value={schedulePageSize} onChange={(e) => setSchedulePageSize(Number(e.target.value))}>
+                    {SUMMARY_PAGE_SIZE_OPTIONS.map((n) => (
+                      <option key={n} value={n}>{n}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="feeds-modal-row">
+                  <label>排序</label>
+                  <select value={scheduleOrder} onChange={(e) => setScheduleOrder(e.target.value as 'desc' | 'asc')}>
+                    <option value="desc">从新到旧</option>
+                    <option value="asc">从旧到新</option>
+                  </select>
+                </div>
+                <div className="feeds-modal-row">
+                  <label>订阅源（不选表示全部订阅）</label>
+                  <div className="feeds-summary-feeds" style={{ maxHeight: '220px' }}>
+                    {feeds.length === 0 ? (
+                      <span className="feeds-summary-empty">暂无订阅</span>
+                    ) : (
+                      feeds.map((f) => (
+                        <label key={f.id} className="feeds-summary-feed-check">
+                          <input
+                            type="checkbox"
+                            checked={scheduleFeedIds.has(f.id)}
+                            onChange={() => toggleScheduleFeed(f.id)}
+                          />
+                          <span>{f.title || f.url}</span>
+                        </label>
+                      ))
+                    )}
+                  </div>
+                </div>
+                <div className="feeds-modal-row">
+                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                    <input type="checkbox" checked={scheduleEnabled} onChange={(e) => setScheduleEnabled(e.target.checked)} />
+                    启用
+                  </label>
+                </div>
+                <div className="feeds-modal-actions">
+                  <button type="button" onClick={() => { setScheduleModalOpen(false); setEditingScheduleId(null); setScheduleError(''); }}>取消</button>
+                  <button type="submit" disabled={scheduleLoading}>
+                    {scheduleLoading ? '保存中...' : '保存'}
+                  </button>
+                </div>
+              </form>
+            </Modal>
+
+            <div className="feeds-list-scroll">
+              <ul className="feeds-category-list">
+                {scheduleItems.length === 0 ? (
+                  <li>
+                    <div className="feeds-category-main">
+                      <span className="feeds-category-name">暂无配置</span>
+                    </div>
+                  </li>
+                ) : (
+                  scheduleItems.map((s) => (
+                    <li key={s.id}>
+                      <div className="feeds-category-main">
+                        <span className="feeds-category-name">
+                          {s.enabled ? '已启用' : '未启用'} · {s.run_at} · 每页 {s.page_size} · {s.order === 'asc' ? '从旧到新' : '从新到旧'}
+                        </span>
+                        <span className="feeds-proxy-url">模型 ID：{s.ai_model_id}</span>
+                        <span className="feeds-proxy-url">上次执行：{s.last_run_at ? formatDate(s.last_run_at) : '从未'}</span>
+                      </div>
+                      <div className="feeds-category-actions">
+                        <button type="button" onClick={() => openEditScheduleModal(s)}>编辑</button>
+                        <button type="button" onClick={() => handleToggleScheduleEnabled(s)}>
+                          {s.enabled ? '停用' : '启用'}
+                        </button>
+                        <button type="button" className="danger" onClick={() => handleDeleteSchedule(s.id)}>删除</button>
+                      </div>
+                    </li>
+                  ))
+                )}
+              </ul>
             </div>
           </section>
         )}

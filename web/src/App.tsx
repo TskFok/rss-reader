@@ -6,6 +6,7 @@ import Register from './pages/Register';
 import Home from './pages/Home';
 import Favorites from './pages/Favorites';
 import Feeds from './pages/Feeds';
+import SummaryHistory from './pages/SummaryHistory';
 import Layout from './components/Layout';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -34,6 +35,7 @@ function AppRoutes() {
         <Route index element={<Home />} />
         <Route path="favorites" element={<Favorites />} />
         <Route path="feeds" element={<Feeds />} />
+        <Route path="summary-history" element={<SummaryHistory />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

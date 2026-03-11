@@ -41,13 +41,15 @@ func main() {
 	proxySvc := services.NewProxyService(db)
 	aiModelSvc := services.NewAIModelService(db)
 	articleSvc := services.NewArticleService(db)
+	summaryHistorySvc := services.NewSummaryHistoryService(db)
+	summaryScheduleSvc := services.NewSummaryScheduleService(db)
 	adminSvc := services.NewAdminService(db)
 	opmlHandler := handlers.NewOPMLHandler(feedSvc, categorySvc)
 	feishuAPI := services.NewFeishuHTTPClient(cfg.Feishu.AppID, cfg.Feishu.AppSecret, cfg.Feishu.Redirect)
 	feishuAuthSvc := services.NewFeishuAuthService(db)
 	feishuHandler := handlers.NewFeishuHandler(&cfg.Feishu, feishuAPI, authSvc, feishuAuthSvc)
 
-	sched := scheduler.New(db, rssSvc, articleSvc, 3)
+	sched := scheduler.New(db, rssSvc, articleSvc, aiModelSvc, summaryHistorySvc, 3)
 	sched.Start()
 	defer sched.Stop()
 
@@ -106,6 +108,15 @@ func main() {
 			auth.PUT("/articles/:id/read", handlers.NewArticleHandler(articleSvc).MarkRead)
 			auth.PUT("/articles/:id/favorite", handlers.NewArticleHandler(articleSvc).ToggleFavorite)
 			auth.POST("/articles/summarize", handlers.NewSummaryHandler(articleSvc, aiModelSvc).Summarize)
+
+			auth.GET("/summary-histories", handlers.NewSummaryHistoryHandler(summaryHistorySvc).List)
+			auth.POST("/summary-histories", handlers.NewSummaryHistoryHandler(summaryHistorySvc).Create)
+			auth.DELETE("/summary-histories/:id", handlers.NewSummaryHistoryHandler(summaryHistorySvc).Delete)
+
+			auth.GET("/summary-schedules", handlers.NewSummaryScheduleHandler(summaryScheduleSvc).List)
+			auth.POST("/summary-schedules", handlers.NewSummaryScheduleHandler(summaryScheduleSvc).Create)
+			auth.PUT("/summary-schedules/:id", handlers.NewSummaryScheduleHandler(summaryScheduleSvc).Update)
+			auth.DELETE("/summary-schedules/:id", handlers.NewSummaryScheduleHandler(summaryScheduleSvc).Delete)
 
 			admin := auth.Group("/admin")
 			admin.Use(middleware.RequireSuperAdmin(db))

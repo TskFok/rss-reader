@@ -1077,7 +1077,7 @@ a:hover {
 
 .feeds-category-list {
   list-style: none;
-  padding: 0;
+  padding: 0 10px 10px;
   margin: 8px 0 0;
   display: flex;
   flex-direction: column;
@@ -1090,7 +1090,8 @@ a:hover {
   justify-content: space-between;
   padding: 10px 12px;
   border-radius: 8px;
-  background: var(--nice-admin-subtle-bg);
+  background: transparent;
+  border: 1px solid var(--nice-admin-card-border);
 }
 
 .feeds-category-list-draggable li {
@@ -1207,6 +1208,20 @@ a:hover {
   font-size: 1.05rem;
 }
 
+.feeds-summary-header-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.feeds-summary-header-actions .feeds-primary-btn,
+.feeds-summary-header-actions .feeds-summary-toggle-btn {
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  line-height: 1.2;
+}
+
 .feeds-summary-toggle-btn {
   padding: 6px 12px;
   border-radius: 8px;
@@ -1293,7 +1308,8 @@ a:hover {
 }
 
 .feeds-summary-row select,
-.feeds-summary-row input[type="date"] {
+.feeds-summary-row input[type="date"],
+.feeds-summary-row input[type="number"] {
   padding: 8px 12px;
   border-radius: 8px;
   border: 1px solid var(--nice-admin-input-border);
@@ -1306,6 +1322,16 @@ a:hover {
 .feeds-summary-date-input {
   width: 100%;
   box-sizing: border-box;
+}
+
+/* 让页码输入更“像普通输入框”，避免上下箭头太突兀 */
+.feeds-summary-row input[type="number"] {
+  appearance: textfield;
+}
+.feeds-summary-row input[type="number"]::-webkit-outer-spin-button,
+.feeds-summary-row input[type="number"]::-webkit-inner-spin-button {
+  appearance: none;
+  margin: 0;
 }
 
 .feeds-summary-feeds {

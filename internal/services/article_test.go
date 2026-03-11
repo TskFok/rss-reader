@@ -169,8 +169,9 @@ func TestArticleService_ListForSummary(t *testing.T) {
 	require.NoError(t, db.Create(&a2).Error)
 
 	// 全部订阅、无时间限制
-	items, err := svc.ListForSummary(user.ID, nil, nil, nil, 100)
+	items, total, err := svc.ListForSummary(user.ID, nil, nil, nil, 1, 100, "desc")
 	require.NoError(t, err)
+	assert.Equal(t, int64(2), total)
 	assert.Len(t, items, 2)
 	assert.Equal(t, "文章2", items[0].Title)
 	assert.Equal(t, "文章1", items[1].Title)
@@ -179,22 +180,40 @@ func TestArticleService_ListForSummary(t *testing.T) {
 	assert.NotContains(t, items[0].Content, "<p>")
 
 	// 指定 feed_ids
-	items, err = svc.ListForSummary(user.ID, []uint{feed.ID}, nil, nil, 100)
+	items, total, err = svc.ListForSummary(user.ID, []uint{feed.ID}, nil, nil, 1, 100, "desc")
 	require.NoError(t, err)
+	assert.Equal(t, int64(2), total)
 	assert.Len(t, items, 2)
 
 	// 时间范围
 	start := now.AddDate(0, 0, -4)
 	end := now.AddDate(0, 0, -1)
-	items, err = svc.ListForSummary(user.ID, nil, &start, &end, 100)
+	items, total, err = svc.ListForSummary(user.ID, nil, &start, &end, 1, 100, "desc")
 	require.NoError(t, err)
+	assert.Equal(t, int64(1), total)
 	assert.Len(t, items, 1)
 	assert.Equal(t, "文章2", items[0].Title)
+
+	// 分页：page=2,page_size=1 应返回较早的那篇
+	items, total, err = svc.ListForSummary(user.ID, nil, nil, nil, 2, 1, "desc")
+	require.NoError(t, err)
+	assert.Equal(t, int64(2), total)
+	assert.Len(t, items, 1)
+	assert.Equal(t, "文章1", items[0].Title)
+
+	// 排序：asc=从旧到新
+	items, total, err = svc.ListForSummary(user.ID, nil, nil, nil, 1, 100, "asc")
+	require.NoError(t, err)
+	assert.Equal(t, int64(2), total)
+	require.Len(t, items, 2)
+	assert.Equal(t, "文章1", items[0].Title)
+	assert.Equal(t, "文章2", items[1].Title)
 
 	// 无文章
 	start2 := now.AddDate(0, 0, -10)
 	end2 := now.AddDate(0, 0, -8)
-	items, err = svc.ListForSummary(user.ID, nil, &start2, &end2, 100)
+	items, total, err = svc.ListForSummary(user.ID, nil, &start2, &end2, 1, 100, "desc")
 	require.NoError(t, err)
+	assert.Equal(t, int64(0), total)
 	assert.Empty(t, items)
 }

@@ -26,6 +26,9 @@ type SummarizeRequest struct {
 	FeedIDs   []uint   `json:"feed_ids"`
 	StartTime string   `json:"start_time"`
 	EndTime   string   `json:"end_time"`
+	Page      int      `json:"page"`
+	PageSize  int      `json:"page_size"`
+	Order     string   `json:"order"` // "desc"(默认)=从新到旧，"asc"=从旧到新
 }
 
 // Summarize 流式生成 AI 总结（SSE）
@@ -56,7 +59,7 @@ func (h *SummaryHandler) Summarize(c *gin.Context) {
 		t = t.Add(24*time.Hour - time.Second)
 		endTime = &t
 	}
-	articles, err := h.articleSvc.ListForSummary(userID, req.FeedIDs, startTime, endTime, 100)
+	articles, total, err := h.articleSvc.ListForSummary(userID, req.FeedIDs, startTime, endTime, req.Page, req.PageSize, req.Order)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取文章失败"})
 		return
@@ -80,7 +83,13 @@ func (h *SummaryHandler) Summarize(c *gin.Context) {
 	c.Header("X-Accel-Buffering", "no")
 	c.Writer.Flush()
 	// 先发送 article_count（传 map 避免 Gin 对字符串二次 JSON 编码）
-	c.SSEvent("", map[string]interface{}{"article_count": len(articles)})
+	c.SSEvent("", map[string]interface{}{
+		"article_count": len(articles),
+		"total":         total,
+		"page":          req.Page,
+		"page_size":     req.PageSize,
+		"order":         req.Order,
+	})
 	c.Writer.Flush()
 	// 流式输出
 	err = h.aiModelSvc.SummarizeStream(userID, req.AIModelID, articles, func(chunk string) error {

@@ -185,11 +185,20 @@ type ArticleForSummary struct {
 	PublishedAt string `json:"published_at"`
 }
 
-// ListForSummary 获取指定订阅、时间范围内的文章，用于 AI 总结
-// feedIDs 为空表示全部订阅；最多返回 maxArticles 篇
-func (s *ArticleService) ListForSummary(userID uint, feedIDs []uint, startTime, endTime *time.Time, maxArticles int) ([]ArticleForSummary, error) {
-	if maxArticles <= 0 || maxArticles > 500 {
-		maxArticles = 100
+// ListForSummary 获取指定订阅、时间范围内的文章，用于 AI 总结（支持分页）
+// feedIDs 为空表示全部订阅；返回 items 与 total（分页前总数）
+// order: "desc"(默认)=从新到旧，"asc"=从旧到新
+func (s *ArticleService) ListForSummary(userID uint, feedIDs []uint, startTime, endTime *time.Time, page, pageSize int, order string) ([]ArticleForSummary, int64, error) {
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 || pageSize > 100 {
+		pageSize = 20
+	}
+	order = strings.ToLower(strings.TrimSpace(order))
+	orderClause := "articles.published_at DESC, articles.created_at DESC"
+	if order == "asc" {
+		orderClause = "articles.published_at ASC, articles.created_at ASC"
 	}
 	q := s.db.Model(&models.Article{}).
 		Joins("JOIN feeds ON feeds.id = articles.feed_id AND feeds.deleted_at IS NULL").
@@ -203,12 +212,17 @@ func (s *ArticleService) ListForSummary(userID uint, feedIDs []uint, startTime, 
 	if endTime != nil {
 		q = q.Where("COALESCE(articles.published_at, articles.created_at) <= ?", *endTime)
 	}
+	var total int64
+	if err := q.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
 	var articles []models.Article
-	if err := q.Order("articles.published_at DESC, articles.created_at DESC").
-		Limit(maxArticles).
+	offset := (page - 1) * pageSize
+	if err := q.Order(orderClause).
+		Offset(offset).Limit(pageSize).
 		Preload("Feed").
 		Find(&articles).Error; err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	result := make([]ArticleForSummary, 0, len(articles))
 	for _, a := range articles {
@@ -234,7 +248,7 @@ func (s *ArticleService) ListForSummary(userID uint, feedIDs []uint, startTime, 
 			PublishedAt: pubStr,
 		})
 	}
-	return result, nil
+	return result, total, nil
 }
 
 // CleanupExpiredArticles 删除各订阅下过期的文章（按 feed.expire_days 计算，0=永不过期），收藏的文章不删除

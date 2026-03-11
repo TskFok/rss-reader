@@ -97,6 +97,36 @@ export interface Article {
   feed_title?: string;
 }
 
+export interface SummaryHistoryItem {
+  id: number;
+  ai_model_id: number;
+  ai_model_name: string;
+  start_time: string;
+  end_time: string;
+  page: number;
+  page_size: number;
+  order: 'desc' | 'asc' | string;
+  article_count: number;
+  total: number;
+  content: string;
+  error: string;
+  created_at: string;
+}
+
+export interface SummarySchedule {
+  id: number;
+  user_id: number;
+  ai_model_id: number;
+  feed_ids_json: string;
+  run_at: string; // HH:MM
+  page_size: number;
+  order: 'desc' | 'asc' | string;
+  enabled: boolean;
+  last_run_at?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export const authApi = {
   register: (username: string, password: string) =>
     client.post('/auth/register', { username, password }),
@@ -198,16 +228,20 @@ export const articlesApi = {
   markRead: (id: number) => client.put(`/articles/${id}/read`),
   toggleFavorite: (id: number) =>
     client.put<{ favorite: boolean }>(`/articles/${id}/favorite`),
-  /** 流式总结：通过 onChunk 逐段接收内容，onMeta 接收 article_count */
+  /** 流式总结：通过 onChunk 逐段接收内容，onMeta 接收 article_count（onMetaAll 可选接收更多 meta） */
   summarizeStream: async (
     params: {
       ai_model_id: number;
       feed_ids?: number[];
       start_time?: string;
       end_time?: string;
+      page?: number;
+      page_size?: number;
+      order?: 'desc' | 'asc';
     },
     callbacks: {
       onMeta: (article_count: number) => void;
+      onMetaAll?: (meta: { article_count: number; total?: number; page?: number; page_size?: number; order?: string }) => void;
       onChunk: (delta: string) => void;
       onError: (message: string) => void;
     }
@@ -253,6 +287,13 @@ export const articlesApi = {
             const o = obj as Record<string, unknown>;
             if (typeof o.article_count === 'number') {
               callbacks.onMeta(o.article_count);
+              callbacks.onMetaAll?.({
+                article_count: o.article_count,
+                total: typeof o.total === 'number' ? o.total : undefined,
+                page: typeof o.page === 'number' ? o.page : undefined,
+                page_size: typeof o.page_size === 'number' ? o.page_size : undefined,
+                order: typeof o.order === 'string' ? o.order : undefined,
+              });
             } else if (typeof o.delta === 'string') {
               callbacks.onChunk(o.delta);
             } else if (typeof o.error === 'string') {
@@ -267,6 +308,34 @@ export const articlesApi = {
       reader.releaseLock();
     }
   },
+};
+
+export const summaryHistoriesApi = {
+  list: (params?: { page?: number; page_size?: number }) =>
+    client.get<{ items: SummaryHistoryItem[]; total: number }>('/summary-histories', { params }),
+  create: (params: {
+    ai_model_id: number;
+    feed_ids?: number[];
+    start_time?: string;
+    end_time?: string;
+    page?: number;
+    page_size?: number;
+    order?: 'desc' | 'asc' | string;
+    article_count?: number;
+    total?: number;
+    content: string;
+    error?: string;
+  }) => client.post<{ id: number }>('/summary-histories', params),
+  delete: (id: number) => client.delete(`/summary-histories/${id}`),
+};
+
+export const summarySchedulesApi = {
+  list: () => client.get<SummarySchedule[]>('/summary-schedules'),
+  create: (params: { ai_model_id: number; feed_ids?: number[]; run_at: string; page_size?: number; order?: 'desc' | 'asc'; enabled?: boolean }) =>
+    client.post<SummarySchedule>('/summary-schedules', params),
+  update: (id: number, params: { ai_model_id: number; feed_ids?: number[]; run_at: string; page_size?: number; order?: 'desc' | 'asc'; enabled?: boolean }) =>
+    client.put<SummarySchedule>(`/summary-schedules/${id}`, params),
+  delete: (id: number) => client.delete(`/summary-schedules/${id}`),
 };
 
 export const adminApi = {
