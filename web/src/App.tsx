@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { ThemeProvider } from './contexts/ThemeContext';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Home from './pages/Home';
@@ -11,15 +11,7 @@ import Layout from './components/Layout';
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   useAuth(); // ensure we're inside AuthProvider
   const location = useLocation();
-  const [ready, setReady] = useState(false);
-
-  useEffect(() => {
-    setReady(true);
-  }, []);
-
-  if (!ready) {
-    return <div className="loading">加载中...</div>;
-  }
+  if (typeof window === 'undefined') return <div className="loading">加载中...</div>;
   if (!localStorage.getItem('token')) {
     return <Navigate to="/login" replace state={{ from: location }} />;
   }
@@ -50,10 +42,12 @@ function AppRoutes() {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <BrowserRouter>
-        <AppRoutes />
-      </BrowserRouter>
-    </AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <BrowserRouter>
+          <AppRoutes />
+        </BrowserRouter>
+      </AuthProvider>
+    </ThemeProvider>
   );
 }

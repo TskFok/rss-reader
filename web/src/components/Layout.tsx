@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Outlet, Link, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext';
 
 const mainNavItems: { to: string; label: string }[] = [
   { to: '/', label: '首页' },
@@ -18,6 +19,7 @@ const feedsTabItems: { tab: string; label: string; icon: string; superAdminOnly?
 
 export default function Layout() {
   const { user, logout } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
@@ -92,6 +94,15 @@ export default function Layout() {
             </span>
           </div>
           <div className="nice-admin-header-right">
+            <button
+              type="button"
+              className="nice-admin-header-theme"
+              onClick={toggleTheme}
+              aria-label="切换明暗模式"
+              title={theme === 'dark' ? '切换到浅色模式' : '切换到深色模式'}
+            >
+              {theme === 'dark' ? '☀️' : '🌙'}
+            </button>
             <span className="nice-admin-header-user">{user?.username}</span>
             <button type="button" onClick={handleLogout} className="nice-admin-header-logout">
               退出
