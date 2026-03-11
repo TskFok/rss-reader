@@ -52,14 +52,21 @@ export default function Feeds() {
     return 'feeds';
   });
 
-  // URL 变化时同步 activeTab（如刷新、浏览器前进/后退）
+  // URL 变化时同步 activeTab（如刷新、浏览器前进/后退）；非超管访问 tab=users 时修正 URL
   useEffect(() => {
     const tab = (searchParams.get('tab') || 'feeds') as TabType;
     const next = tab === 'users' && !isSuperAdmin ? 'feeds' : tab;
     if (TAB_OPTIONS.includes(next)) {
       setActiveTabState(next);
+      if (tab === 'users' && !isSuperAdmin) {
+        setSearchParams((prev) => {
+          const p = new URLSearchParams(prev);
+          p.set('tab', 'feeds');
+          return p;
+        });
+      }
     }
-  }, [searchParams, isSuperAdmin]);
+  }, [searchParams, isSuperAdmin, setSearchParams]);
   const opmlInputRef = useRef<HTMLInputElement | null>(null);
   const [opmlMsg, setOpmlMsg] = useState('');
   const [opmlLoading, setOpmlLoading] = useState(false);
@@ -540,97 +547,7 @@ export default function Feeds() {
       : '管理系统用户与账号状态';
 
   return (
-    <div className="feeds-page settings-page">
-      <aside className="settings-sidebar">
-        <div className="settings-sidebar-title">系统设置</div>
-        <button
-          type="button"
-          className={`settings-sidebar-item ${activeTab === 'categories' ? 'active' : ''}`}
-          onClick={() => {
-            setActiveTabState('categories');
-            setSearchParams((prev) => {
-              const p = new URLSearchParams(prev);
-              p.set('tab', 'categories');
-              return p;
-            });
-          }}
-        >
-          订阅分类
-        </button>
-        <button
-          type="button"
-          className={`settings-sidebar-item ${activeTab === 'feeds' ? 'active' : ''}`}
-          onClick={() => {
-            setActiveTabState('feeds');
-            setSearchParams((prev) => {
-              const p = new URLSearchParams(prev);
-              p.set('tab', 'feeds');
-              return p;
-            });
-          }}
-        >
-          订阅列表
-        </button>
-        <button
-          type="button"
-          className={`settings-sidebar-item ${activeTab === 'proxies' ? 'active' : ''}`}
-          onClick={() => {
-            setActiveTabState('proxies');
-            setSearchParams((prev) => {
-              const p = new URLSearchParams(prev);
-              p.set('tab', 'proxies');
-              return p;
-            });
-          }}
-        >
-          代理
-        </button>
-        <button
-          type="button"
-          className={`settings-sidebar-item ${activeTab === 'ai-models' ? 'active' : ''}`}
-          onClick={() => {
-            setActiveTabState('ai-models');
-            setSearchParams((prev) => {
-              const p = new URLSearchParams(prev);
-              p.set('tab', 'ai-models');
-              return p;
-            });
-          }}
-        >
-          AI 模型
-        </button>
-        <button
-          type="button"
-          className={`settings-sidebar-item ${activeTab === 'ai-summary' ? 'active' : ''}`}
-          onClick={() => {
-            setActiveTabState('ai-summary');
-            setSearchParams((prev) => {
-              const p = new URLSearchParams(prev);
-              p.set('tab', 'ai-summary');
-              return p;
-            });
-          }}
-        >
-          AI 总结
-        </button>
-        {isSuperAdmin && (
-          <button
-            type="button"
-            className={`settings-sidebar-item ${activeTab === 'users' ? 'active' : ''}`}
-            onClick={() => {
-              setActiveTabState('users');
-              setSearchParams((prev) => {
-                const p = new URLSearchParams(prev);
-                p.set('tab', 'users');
-                return p;
-              });
-            }}
-          >
-            用户管理
-          </button>
-        )}
-      </aside>
-
+    <div className="feeds-page">
       <section className="settings-main">
         <div className="feeds-header-card">
           <div className="feeds-header-main">

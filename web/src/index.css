@@ -1,3 +1,26 @@
+/* NiceAdmin 风格主题变量 (Shadcn/Tailwind 风格) */
+:root {
+  --nice-admin-sidebar-bg: #1e293b;
+  --nice-admin-sidebar-text: #e2e8f0;
+  --nice-admin-sidebar-active: #3b82f6;
+  --nice-admin-sidebar-hover: rgba(255, 255, 255, 0.08);
+  --nice-admin-header-bg: #ffffff;
+  --nice-admin-header-border: #e2e8f0;
+  --nice-admin-content-bg: #f8fafc;
+  --nice-admin-card-bg: #ffffff;
+  --nice-admin-card-border: #e2e8f0;
+  --nice-admin-text: #0f172a;
+  --nice-admin-text-muted: #64748b;
+  --nice-admin-primary: #3b82f6;
+  --nice-admin-primary-hover: #2563eb;
+  --nice-admin-input-bg: #ffffff;
+  --nice-admin-input-border: #e2e8f0;
+  --nice-admin-danger: #ef4444;
+  --nice-admin-success: #22c55e;
+  --nice-admin-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  --nice-admin-shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -2px rgba(0, 0, 0, 0.06);
+}
+
 * {
   box-sizing: border-box;
 }
@@ -8,14 +31,14 @@ html, body, #root {
 
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
-  background: #1a1a2e;
-  color: #eaeaea;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+  background: var(--nice-admin-content-bg);
+  color: var(--nice-admin-text);
   min-height: 100vh;
 }
 
 a {
-  color: #4fc3f7;
+  color: var(--nice-admin-primary);
   text-decoration: none;
 }
 
@@ -23,16 +46,276 @@ a:hover {
   text-decoration: underline;
 }
 
-.auth-page {
-  max-width: 360px;
-  margin: 80px auto;
+/* ========== NiceAdmin 布局：侧边栏 + 顶栏 + 内容区 ========== */
+.nice-admin-layout {
+  display: flex;
+  width: 100%;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.nice-admin-sidebar {
+  width: 260px;
+  flex-shrink: 0;
+  background: var(--nice-admin-sidebar-bg);
+  color: var(--nice-admin-sidebar-text);
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+  transition: width 0.2s ease;
+}
+
+.nice-admin-sidebar.collapsed {
+  width: 72px;
+}
+
+.nice-admin-sidebar.collapsed .nice-admin-sidebar-title,
+.nice-admin-sidebar.collapsed .nice-admin-sidebar-link span:not(.nice-admin-sidebar-icon) {
+  opacity: 0;
+  width: 0;
+  overflow: hidden;
+  padding: 0;
+  margin: 0;
+}
+
+.nice-admin-sidebar-brand {
+  padding: 20px 18px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 64px;
+}
+
+.nice-admin-sidebar-logo {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  background: var(--nice-admin-primary);
+  color: #fff;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.nice-admin-sidebar-title {
+  font-weight: 600;
+  font-size: 1.1rem;
+  color: #fff;
+  white-space: nowrap;
+  transition: opacity 0.2s;
+}
+
+.nice-admin-sidebar-nav {
+  flex: 1;
+  padding: 12px 10px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.nice-admin-sidebar-group-title {
+  padding: 12px 14px 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.5);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.nice-admin-sidebar-link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  color: var(--nice-admin-sidebar-text);
+  text-decoration: none;
+  transition: background 0.15s, color 0.15s;
+}
+
+.nice-admin-sidebar-link:hover {
+  background: var(--nice-admin-sidebar-hover);
+  color: #fff;
+  text-decoration: none;
+}
+
+.nice-admin-sidebar-link.active {
+  background: rgba(59, 130, 246, 0.2);
+  color: #93c5fd;
+  text-decoration: none;
+}
+
+.nice-admin-sidebar-icon {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.85rem;
+}
+
+.nice-admin-sidebar-link.active .nice-admin-sidebar-icon {
+  background: var(--nice-admin-primary);
+  color: #fff;
+}
+
+.nice-admin-sidebar-toggle {
+  padding: 10px;
+  border: none;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  background: transparent;
+  color: var(--nice-admin-sidebar-text);
+  cursor: pointer;
+  font-size: 1.2rem;
+  transition: background 0.15s;
+}
+
+.nice-admin-sidebar-toggle:hover {
+  background: var(--nice-admin-sidebar-hover);
+}
+
+.nice-admin-main-wrap {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.nice-admin-header {
+  height: 64px;
+  flex-shrink: 0;
+  background: var(--nice-admin-header-bg);
+  border-bottom: 1px solid var(--nice-admin-header-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  box-shadow: var(--nice-admin-shadow);
+}
+
+.nice-admin-header-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.nice-admin-header-menu-btn {
+  display: none;
+  padding: 8px 12px;
+  border: 1px solid var(--nice-admin-input-border);
+  border-radius: 8px;
+  background: var(--nice-admin-card-bg);
+  color: var(--nice-admin-text);
+  cursor: pointer;
+  font-size: 1.1rem;
+}
+
+.nice-admin-header-breadcrumb {
+  font-weight: 600;
+  font-size: 1.05rem;
+  color: var(--nice-admin-text);
+}
+
+.nice-admin-header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.nice-admin-header-user {
+  font-size: 0.9rem;
+  color: var(--nice-admin-text-muted);
+}
+
+.nice-admin-header-logout {
+  padding: 6px 14px;
+  border: 1px solid var(--nice-admin-input-border);
+  border-radius: 8px;
+  background: var(--nice-admin-card-bg);
+  color: var(--nice-admin-text-muted);
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.nice-admin-header-logout:hover {
+  background: #f1f5f9;
+  color: var(--nice-admin-text);
+}
+
+.nice-admin-content {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
   padding: 24px;
+  background: var(--nice-admin-content-bg);
+  display: flex;
+  flex-direction: column;
+}
+
+.nice-admin-content > * {
+  min-height: 0;
+}
+
+@media (max-width: 768px) {
+  .nice-admin-sidebar {
+    position: fixed;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    z-index: 100;
+    transform: translateX(-100%);
+    box-shadow: 4px 0 12px rgba(0, 0, 0, 0.15);
+  }
+
+  .nice-admin-sidebar:not(.collapsed) {
+    transform: translateX(0);
+  }
+
+  .nice-admin-sidebar.collapsed {
+    width: 260px;
+    transform: translateX(-100%);
+  }
+
+  .nice-admin-sidebar.collapsed .nice-admin-sidebar-title,
+  .nice-admin-sidebar.collapsed .nice-admin-sidebar-link span:not(.nice-admin-sidebar-icon) {
+    opacity: 1;
+    width: auto;
+    overflow: visible;
+    padding: 0;
+    margin: 0;
+  }
+
+  .nice-admin-header-menu-btn {
+    display: inline-flex;
+  }
+}
+
+/* 登录/注册页 - NiceAdmin 卡片风格 */
+.auth-page {
+  max-width: 400px;
+  margin: 60px auto;
+  padding: 32px;
+  background: var(--nice-admin-card-bg);
+  border: 1px solid var(--nice-admin-card-border);
+  border-radius: 12px;
+  box-shadow: var(--nice-admin-shadow-md);
   text-align: center;
 }
 
 .auth-page h1 {
   margin-bottom: 24px;
   font-size: 1.5rem;
+  color: var(--nice-admin-text);
 }
 
 .login-tabs {
@@ -43,19 +326,19 @@ a:hover {
 }
 
 .login-tabs button {
-  padding: 6px 12px;
-  border-radius: 999px;
-  border: 1px solid #333;
-  background: transparent;
-  color: #aaa;
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--nice-admin-input-border);
+  background: var(--nice-admin-input-bg);
+  color: var(--nice-admin-text-muted);
   font-size: 0.9rem;
   cursor: pointer;
 }
 
 .login-tabs button.active {
-  background: #4fc3f7;
-  color: #1a1a2e;
-  border-color: #4fc3f7;
+  background: var(--nice-admin-primary);
+  color: #fff;
+  border-color: var(--nice-admin-primary);
 }
 
 .auth-form {
@@ -65,26 +348,30 @@ a:hover {
 }
 
 .auth-form input {
-  padding: 12px;
-  border: 1px solid #333;
+  padding: 12px 14px;
+  border: 1px solid var(--nice-admin-input-border);
   border-radius: 8px;
-  background: #16213e;
-  color: #eaeaea;
+  background: var(--nice-admin-input-bg);
+  color: var(--nice-admin-text);
   font-size: 1rem;
 }
 
 .auth-form input::placeholder {
-  color: #888;
+  color: var(--nice-admin-text-muted);
 }
 
 .auth-form button {
   padding: 12px;
   border: none;
   border-radius: 8px;
-  background: #4fc3f7;
-  color: #1a1a2e;
+  background: var(--nice-admin-primary);
+  color: #fff;
   font-size: 1rem;
   cursor: pointer;
+}
+
+.auth-form button:hover:not(:disabled) {
+  background: var(--nice-admin-primary-hover);
 }
 
 .auth-form button:disabled {
@@ -93,85 +380,30 @@ a:hover {
 }
 
 .error {
-  color: #ff6b6b;
+  color: var(--nice-admin-danger);
   margin: 0;
   font-size: 0.9rem;
 }
 
 .bind-msg-success {
-  color: #22c55e;
+  color: var(--nice-admin-success);
   margin: 0;
   font-size: 0.9rem;
 }
 
 .message {
-  color: #4fc3f7;
+  color: var(--nice-admin-primary);
   margin: 0;
   font-size: 0.9rem;
 }
 
-.layout {
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-  max-width: none;
-  margin: 0;
-  padding: 0 24px;
-  height: 100vh;
-}
-
-.nav {
-  display: flex;
-  align-items: center;
-  gap: 24px;
-  padding: 16px 0;
-  border-bottom: 1px solid #333;
-  margin-bottom: 24px;
-  flex-shrink: 0;
-}
-
-.nav a {
-  color: #eaeaea;
-}
-
-.nav a:hover {
-  color: #4fc3f7;
-}
-
-.nav .user {
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.logout-btn {
-  padding: 6px 12px;
-  border: 1px solid #555;
-  border-radius: 6px;
-  background: transparent;
-  color: #aaa;
-  cursor: pointer;
-  font-size: 0.9rem;
-}
-
-.logout-btn:hover {
-  background: #333;
-  color: #eaeaea;
-}
-
+/* 保留兼容：主内容区由 .nice-admin-content 提供 */
 .main {
   min-height: 400px;
   flex: 1;
   min-height: 0;
   overflow: hidden;
   display: flex;
-}
-
-@media (max-width: 860px) {
-  .layout {
-    padding: 0 16px;
-  }
 }
 
 .home-layout {
@@ -184,9 +416,10 @@ a:hover {
 .home-sidebar {
   width: 260px;
   flex-shrink: 0;
-  border: 1px solid #2a2a4a;
-  border-radius: 10px;
-  background: #121a33;
+  border: 1px solid var(--nice-admin-card-border);
+  border-radius: 12px;
+  background: var(--nice-admin-card-bg);
+  box-shadow: var(--nice-admin-shadow);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -194,17 +427,17 @@ a:hover {
 }
 
 .sidebar-header {
-  padding: 12px 14px;
-  border-bottom: 1px solid #2a2a4a;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--nice-admin-card-border);
   font-weight: 600;
-  color: #eaeaea;
+  color: var(--nice-admin-text);
 }
 
 .sidebar-tree {
   padding: 10px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 6px;
   overflow: auto;
   min-height: 0;
 }
@@ -212,21 +445,23 @@ a:hover {
 .sidebar-item {
   width: 100%;
   text-align: left;
-  padding: 10px 10px;
-  border: 1px solid #2a2a4a;
+  padding: 10px 12px;
+  border: 1px solid var(--nice-admin-input-border);
   border-radius: 8px;
-  background: #16213e;
-  color: #eaeaea;
+  background: var(--nice-admin-content-bg);
+  color: var(--nice-admin-text);
   cursor: pointer;
 }
 
 .sidebar-item:hover {
-  background: #1b2a52;
+  background: #f1f5f9;
+  border-color: var(--nice-admin-primary);
 }
 
 .sidebar-item.active {
-  border-color: #4fc3f7;
-  color: #4fc3f7;
+  border-color: var(--nice-admin-primary);
+  color: var(--nice-admin-primary);
+  background: rgba(59, 130, 246, 0.08);
 }
 
 .sidebar-group-title {
@@ -234,19 +469,19 @@ a:hover {
   align-items: center;
   gap: 6px;
   width: 100%;
-  padding: 6px 6px;
+  padding: 8px 10px;
   border: none;
-  border-radius: 6px;
+  border-radius: 8px;
   background: transparent;
-  color: #aaa;
+  color: var(--nice-admin-text-muted);
   font-size: 0.85rem;
   text-align: left;
   cursor: pointer;
 }
 
 .sidebar-group-title:hover {
-  color: #eaeaea;
-  background: rgba(255, 255, 255, 0.05);
+  color: var(--nice-admin-text);
+  background: #f1f5f9;
 }
 
 .sidebar-group-toggle {
@@ -258,27 +493,27 @@ a:hover {
 .sidebar-sub-item {
   width: 100%;
   text-align: left;
-  padding: 8px 10px;
+  padding: 8px 12px;
   border: none;
   border-radius: 8px;
   background: transparent;
-  color: #eaeaea;
+  color: var(--nice-admin-text);
   cursor: pointer;
 }
 
 .sidebar-sub-item:hover {
-  background: #16213e;
+  background: #f8fafc;
 }
 
 .sidebar-sub-item.active {
-  background: #16213e;
-  color: #4fc3f7;
+  background: rgba(59, 130, 246, 0.08);
+  color: var(--nice-admin-primary);
 }
 
 .sidebar-sub-empty,
 .sidebar-empty {
   padding: 8px 10px;
-  color: #666;
+  color: var(--nice-admin-text-muted);
   font-size: 0.85rem;
 }
 
@@ -293,7 +528,7 @@ a:hover {
 .home-current-feed {
   flex: 1;
   min-width: 0;
-  color: #aaa;
+  color: var(--nice-admin-text-muted);
   font-size: 0.9rem;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -308,10 +543,10 @@ a:hover {
 
 .filters select {
   padding: 8px 12px;
-  border: 1px solid #333;
-  border-radius: 6px;
-  background: #16213e;
-  color: #eaeaea;
+  border: 1px solid var(--nice-admin-input-border);
+  border-radius: 8px;
+  background: var(--nice-admin-input-bg);
+  color: var(--nice-admin-text);
 }
 
 .favorites-layout {
@@ -340,15 +575,15 @@ a:hover {
 
 .article-list li {
   padding: 16px;
-  border-bottom: 1px solid #2a2a4a;
+  border-bottom: 1px solid var(--nice-admin-card-border);
 }
 
 .article-list li.read {
-  opacity: 0.7;
+  opacity: 0.75;
 }
 
 .article-list li.active {
-  background: rgba(79, 195, 247, 0.08);
+  background: rgba(59, 130, 246, 0.08);
 }
 
 .article-header {
@@ -357,44 +592,42 @@ a:hover {
   gap: 12px;
 }
 
-/* 标题现在是按钮（.article-title-btn），不要让 .article-header 里的所有链接都 flex 拉伸 */
-
 .article-title-btn {
   flex: 1;
   text-align: left;
   padding: 0;
   border: none;
   background: transparent;
-  color: #eaeaea;
+  color: var(--nice-admin-text);
   font-weight: 500;
   cursor: pointer;
 }
 
 .article-title-btn:hover {
-  color: #4fc3f7;
+  color: var(--nice-admin-primary);
   text-decoration: underline;
 }
 
 .mark-read {
-  padding: 4px 10px;
-  border: 1px solid #4fc3f7;
-  border-radius: 4px;
+  padding: 6px 12px;
+  border: 1px solid var(--nice-admin-primary);
+  border-radius: 8px;
   background: transparent;
-  color: #4fc3f7;
+  color: var(--nice-admin-primary);
   cursor: pointer;
   font-size: 0.85rem;
   flex-shrink: 0;
 }
 
 .mark-read:hover {
-  background: #4fc3f7;
-  color: #1a1a2e;
+  background: var(--nice-admin-primary);
+  color: #fff;
 }
 
 .article-meta {
   margin-top: 8px;
   font-size: 0.85rem;
-  color: #888;
+  color: var(--nice-admin-text-muted);
 }
 
 .article-meta .feed {
@@ -402,10 +635,11 @@ a:hover {
 }
 
 .article-detail {
-  border: 1px solid #2a2a4a;
-  border-radius: 10px;
-  background: #121a33;
-  padding: 14px;
+  border: 1px solid var(--nice-admin-card-border);
+  border-radius: 12px;
+  background: var(--nice-admin-card-bg);
+  box-shadow: var(--nice-admin-shadow);
+  padding: 18px;
   margin-bottom: 16px;
 }
 
@@ -418,10 +652,11 @@ a:hover {
 
 .article-detail-dock {
   flex-shrink: 0;
-  border: 1px solid #2a2a4a;
-  border-radius: 10px;
-  background: #121a33;
-  padding: 14px;
+  border: 1px solid var(--nice-admin-card-border);
+  border-radius: 12px;
+  background: var(--nice-admin-card-bg);
+  box-shadow: var(--nice-admin-shadow);
+  padding: 18px;
   height: 40vh;
   overflow: auto;
 }
@@ -435,13 +670,13 @@ a:hover {
 
 .article-detail-title {
   font-weight: 600;
-  color: #eaeaea;
+  color: var(--nice-admin-text);
   line-height: 1.35;
   text-decoration: none;
 }
 
 .article-detail-title:hover {
-  color: #4fc3f7;
+  color: var(--nice-admin-primary);
   text-decoration: underline;
 }
 
@@ -452,43 +687,43 @@ a:hover {
 }
 
 .article-detail-favorite {
-  padding: 4px 8px;
-  border: 1px solid #555;
-  border-radius: 6px;
+  padding: 6px 10px;
+  border: 1px solid var(--nice-admin-input-border);
+  border-radius: 8px;
   background: transparent;
-  color: #666;
+  color: var(--nice-admin-text-muted);
   cursor: pointer;
   font-size: 1rem;
 }
 
 .article-detail-favorite:hover {
-  color: #4fc3f7;
+  color: var(--nice-admin-primary);
 }
 
 .article-detail-favorite.active {
-  color: #ffc107;
-  border-color: #ffc107;
+  color: #eab308;
+  border-color: #eab308;
 }
 
 .article-detail-close {
-  padding: 4px 10px;
-  border: 1px solid #555;
-  border-radius: 6px;
+  padding: 6px 12px;
+  border: 1px solid var(--nice-admin-input-border);
+  border-radius: 8px;
   background: transparent;
-  color: #aaa;
+  color: var(--nice-admin-text-muted);
   cursor: pointer;
   font-size: 0.85rem;
 }
 
 .article-detail-close:hover {
-  background: #333;
-  color: #eaeaea;
+  background: #f1f5f9;
+  color: var(--nice-admin-text);
 }
 
 .article-detail-meta {
   margin-top: 8px;
   font-size: 0.85rem;
-  color: #888;
+  color: var(--nice-admin-text-muted);
   display: flex;
   gap: 12px;
   flex-wrap: wrap;
@@ -496,11 +731,11 @@ a:hover {
 
 .article-detail-content {
   margin-top: 12px;
-  color: #eaeaea;
+  color: var(--nice-admin-text);
 }
 
 .article-detail-content a {
-  color: #4fc3f7;
+  color: var(--nice-admin-primary);
 }
 
 .article-detail-content img {
@@ -519,10 +754,10 @@ a:hover {
 
 .pagination button {
   padding: 8px 16px;
-  border: 1px solid #333;
-  border-radius: 6px;
-  background: #16213e;
-  color: #eaeaea;
+  border: 1px solid var(--nice-admin-input-border);
+  border-radius: 8px;
+  background: var(--nice-admin-card-bg);
+  color: var(--nice-admin-text);
   cursor: pointer;
 }
 
@@ -532,24 +767,27 @@ a:hover {
 }
 
 .pagination button:not(:disabled):hover {
-  background: #2a2a4a;
+  background: #f1f5f9;
 }
 
 .loading, .empty {
   text-align: center;
-  color: #888;
+  color: var(--nice-admin-text-muted);
   padding: 48px;
 }
 
 .feeds-page h2, .admin-page h2 {
   margin-bottom: 16px;
   font-size: 1.2rem;
+  color: var(--nice-admin-text);
 }
 
 .feeds-page {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  flex: 1;
+  min-height: 0;
 }
 
 .settings-page {
@@ -564,8 +802,9 @@ a:hover {
 .settings-sidebar {
   align-self: stretch;
   border-radius: 12px;
-  background: #020617;
-  border: 1px solid #1f2937;
+  background: var(--nice-admin-card-bg);
+  border: 1px solid var(--nice-admin-card-border);
+  box-shadow: var(--nice-admin-shadow);
   padding: 14px 10px;
   display: flex;
   flex-direction: column;
@@ -575,28 +814,28 @@ a:hover {
 .settings-sidebar-title {
   padding: 6px 10px 10px;
   font-size: 0.9rem;
-  color: #9ca3af;
+  color: var(--nice-admin-text-muted);
 }
 
 .settings-sidebar-item {
   width: 100%;
   text-align: left;
-  padding: 8px 10px;
+  padding: 8px 12px;
   border-radius: 8px;
   border: none;
   background: transparent;
-  color: #e5e7eb;
+  color: var(--nice-admin-text);
   font-size: 0.9rem;
   cursor: pointer;
 }
 
 .settings-sidebar-item:hover {
-  background: #111827;
+  background: #f8fafc;
 }
 
 .settings-sidebar-item.active {
-  background: #111827;
-  color: #4fc3f7;
+  background: rgba(59, 130, 246, 0.08);
+  color: var(--nice-admin-primary);
 }
 
 .settings-main {
@@ -624,10 +863,11 @@ a:hover {
 }
 
 .feeds-header-card {
-  padding: 16px 20px;
+  padding: 20px 24px;
   border-radius: 12px;
-  background: #111827;
-  border: 1px solid #1f2937;
+  background: var(--nice-admin-card-bg);
+  border: 1px solid var(--nice-admin-card-border);
+  box-shadow: var(--nice-admin-shadow);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -637,12 +877,13 @@ a:hover {
 .feeds-header-main h1 {
   margin: 0 0 4px;
   font-size: 1.4rem;
+  color: var(--nice-admin-text);
 }
 
 .feeds-header-main p {
   margin: 0;
   font-size: 0.9rem;
-  color: #9ca3af;
+  color: var(--nice-admin-text-muted);
 }
 
 .feeds-header-side {
@@ -652,10 +893,10 @@ a:hover {
 .feeds-header-pill {
   display: inline-flex;
   align-items: center;
-  padding: 4px 10px;
+  padding: 6px 12px;
   border-radius: 999px;
-  background: #022c22;
-  color: #6ee7b7;
+  background: rgba(34, 197, 94, 0.12);
+  color: var(--nice-admin-success);
   font-size: 0.8rem;
 }
 
@@ -674,9 +915,10 @@ a:hover {
 
 .feeds-card {
   border-radius: 12px;
-  background: #111827;
-  border: 1px solid #1f2937;
-  padding: 16px 18px 18px;
+  background: var(--nice-admin-card-bg);
+  border: 1px solid var(--nice-admin-card-border);
+  box-shadow: var(--nice-admin-shadow);
+  padding: 18px 20px 20px;
 }
 
 .feeds-card-categories.feeds-card,
@@ -692,7 +934,7 @@ a:hover {
   overflow-y: auto;
   margin-top: 8px;
   border-radius: 10px;
-  border: 1px solid #1f2937;
+  border: 1px solid var(--nice-admin-card-border);
 }
 
 .feeds-card-categories .feeds-list-scroll {
@@ -714,17 +956,18 @@ a:hover {
 .feeds-card-header h2 {
   margin: 0 0 4px;
   font-size: 1.05rem;
+  color: var(--nice-admin-text);
 }
 
 .feeds-card-header p {
   margin: 0;
   font-size: 0.8rem;
-  color: #6b7280;
+  color: var(--nice-admin-text-muted);
 }
 
 .feeds-card-sub {
   font-size: 0.8rem;
-  color: #6b7280;
+  color: var(--nice-admin-text-muted);
 }
 
 .feeds-inline-form {
@@ -737,11 +980,11 @@ a:hover {
 
 .feeds-inline-form input,
 .feeds-inline-form select {
-  padding: 8px 10px;
+  padding: 8px 12px;
   border-radius: 8px;
-  border: 1px solid #374151;
-  background: #020617;
-  color: #e5e7eb;
+  border: 1px solid var(--nice-admin-input-border);
+  background: var(--nice-admin-input-bg);
+  color: var(--nice-admin-text);
   font-size: 0.9rem;
 }
 
@@ -758,10 +1001,14 @@ a:hover {
   padding: 8px 14px;
   border-radius: 8px;
   border: none;
-  background: #4fc3f7;
-  color: #020617;
+  background: var(--nice-admin-primary);
+  color: #fff;
   font-size: 0.9rem;
   cursor: pointer;
+}
+
+.feeds-inline-form button:hover:not(:disabled) {
+  background: var(--nice-admin-primary-hover);
 }
 
 .feeds-inline-form button:disabled {
@@ -773,8 +1020,8 @@ a:hover {
   margin-top: 12px;
   padding: 20px;
   border-radius: 10px;
-  background: #020617;
-  color: #6b7280;
+  background: #f8fafc;
+  color: var(--nice-admin-text-muted);
   font-size: 0.9rem;
   text-align: center;
 }
@@ -794,11 +1041,19 @@ a:hover {
   justify-content: space-between;
   padding: 10px 12px;
   border-radius: 8px;
-  background: #020617;
+  background: #f8fafc;
 }
 
 .feeds-category-list-draggable li {
+  display: grid;
+  grid-template-columns: 28px 1fr minmax(140px, auto);
+  gap: 12px;
+  align-items: center;
   cursor: grab;
+}
+
+.feeds-category-list-draggable .feeds-drag-handle {
+  margin-right: 0;
 }
 
 .feeds-category-list-draggable li:active {
@@ -807,11 +1062,17 @@ a:hover {
 
 .feeds-drag-handle {
   cursor: grab;
-  color: #6b7280;
+  color: var(--nice-admin-text-muted);
   font-size: 0.9rem;
   margin-right: 10px;
   user-select: none;
   flex-shrink: 0;
+  width: 28px;
+  min-width: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
 }
 
 .feeds-drag-handle:active {
@@ -823,7 +1084,7 @@ a:hover {
 }
 
 .feeds-ai-model-drag-over {
-  outline: 2px solid #4fc3f7;
+  outline: 2px solid var(--nice-admin-primary);
   outline-offset: -2px;
 }
 
@@ -831,15 +1092,26 @@ a:hover {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  min-width: 0;
+}
+
+.feeds-category-list-draggable .feeds-category-main {
+  overflow: hidden;
 }
 
 .feeds-category-name {
   font-size: 0.95rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .feeds-proxy-url {
   font-size: 0.78rem;
-  color: #6b7280;
+  color: var(--nice-admin-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .feeds-card-proxies.feeds-card {
@@ -887,15 +1159,15 @@ a:hover {
 .feeds-summary-toggle-btn {
   padding: 6px 12px;
   border-radius: 8px;
-  border: 1px solid #374151;
-  background: #1f2937;
-  color: #e5e7eb;
+  border: 1px solid var(--nice-admin-input-border);
+  background: var(--nice-admin-input-bg);
+  color: var(--nice-admin-text);
   font-size: 0.85rem;
   cursor: pointer;
 }
 
 .feeds-summary-toggle-btn:hover {
-  background: #374151;
+  background: #f1f5f9;
 }
 
 .feeds-summary-content {
@@ -903,8 +1175,8 @@ a:hover {
   min-height: 0;
   overflow: auto;
   border-radius: 10px;
-  border: 1px solid #1f2937;
-  background: #020617;
+  border: 1px solid var(--nice-admin-card-border);
+  background: #f8fafc;
   display: flex;
   flex-direction: column;
 }
@@ -924,7 +1196,7 @@ a:hover {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #6b7280;
+  color: var(--nice-admin-text-muted);
   font-size: 0.95rem;
   padding: 24px;
   text-align: center;
@@ -933,7 +1205,7 @@ a:hover {
 .feeds-summary-panel {
   width: 0;
   overflow: hidden;
-  border-left: 1px solid #1f2937;
+  border-left: 1px solid var(--nice-admin-card-border);
   transition: width 0.2s ease;
   flex-shrink: 0;
 }
@@ -947,7 +1219,7 @@ a:hover {
   height: 100%;
   padding: 16px;
   overflow-y: auto;
-  background: #0f172a;
+  background: var(--nice-admin-card-bg);
 }
 
 .feeds-summary-form {
@@ -966,16 +1238,16 @@ a:hover {
 .feeds-summary-row label {
   font-size: 0.88rem;
   font-weight: 500;
-  color: #9ca3af;
+  color: var(--nice-admin-text-muted);
 }
 
 .feeds-summary-row select,
 .feeds-summary-row input[type="date"] {
-  padding: 8px 10px;
+  padding: 8px 12px;
   border-radius: 8px;
-  border: 1px solid #374151;
-  background: #020617;
-  color: #e5e7eb;
+  border: 1px solid var(--nice-admin-input-border);
+  background: var(--nice-admin-input-bg);
+  color: var(--nice-admin-text);
   font-size: 0.9rem;
   max-width: 100%;
 }
@@ -993,8 +1265,8 @@ a:hover {
   overflow-y: auto;
   padding: 10px 12px;
   border-radius: 8px;
-  border: 1px solid #1f2937;
-  background: #020617;
+  border: 1px solid var(--nice-admin-card-border);
+  background: #f8fafc;
 }
 
 .feeds-summary-feed-check {
@@ -1017,29 +1289,29 @@ a:hover {
 }
 
 .feeds-summary-empty {
-  color: #6b7280;
+  color: var(--nice-admin-text-muted);
   font-size: 0.9rem;
 }
 
 .feeds-summary-hint {
   margin: -6px 0 0;
   font-size: 0.78rem;
-  color: #6b7280;
+  color: var(--nice-admin-text-muted);
 }
 
 .feeds-summary-actions button {
   padding: 10px 20px;
   border-radius: 8px;
   border: none;
-  background: #4fc3f7;
-  color: #020617;
+  background: var(--nice-admin-primary);
+  color: #fff;
   font-size: 0.95rem;
   font-weight: 500;
   cursor: pointer;
 }
 
 .feeds-summary-actions button:hover:not(:disabled) {
-  filter: brightness(1.1);
+  background: var(--nice-admin-primary-hover);
 }
 
 .feeds-summary-actions button:disabled {
@@ -1050,13 +1322,13 @@ a:hover {
 .feeds-summary-result-header {
   padding: 10px 14px;
   font-size: 0.88rem;
-  color: #6b7280;
-  border-bottom: 1px solid #1f2937;
-  background: #020617;
+  color: var(--nice-admin-text-muted);
+  border-bottom: 1px solid var(--nice-admin-card-border);
+  background: var(--nice-admin-card-bg);
 }
 
 .feeds-summary-streaming {
-  color: #4fc3f7;
+  color: var(--nice-admin-primary);
   margin-left: 6px;
 }
 
@@ -1076,53 +1348,53 @@ a:hover {
 }
 
 .feeds-category-actions input {
-  padding: 4px 8px;
-  border-radius: 6px;
-  border: 1px solid #374151;
-  background: #020617;
-  color: #e5e7eb;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--nice-admin-input-border);
+  background: var(--nice-admin-input-bg);
+  color: var(--nice-admin-text);
   font-size: 0.85rem;
   min-width: 140px;
 }
 
 .feeds-category-actions button {
-  padding: 4px 10px;
-  border-radius: 6px;
-  border: 1px solid #374151;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--nice-admin-input-border);
   background: transparent;
-  color: #e5e7eb;
+  color: var(--nice-admin-text);
   font-size: 0.8rem;
   cursor: pointer;
 }
 
 .feeds-category-actions button.danger {
-  border-color: #f97373;
-  color: #f97373;
+  border-color: var(--nice-admin-danger);
+  color: var(--nice-admin-danger);
 }
 
 .feeds-category-actions button:hover {
-  background: #111827;
+  background: #f8fafc;
 }
 
 .feeds-primary-btn {
-  padding: 8px 14px;
-  border-radius: 999px;
+  padding: 8px 16px;
+  border-radius: 8px;
   border: none;
-  background: #22c55e;
-  color: #022c22;
+  background: var(--nice-admin-success);
+  color: #fff;
   font-size: 0.9rem;
   cursor: pointer;
 }
 
 .feeds-primary-btn:hover {
-  filter: brightness(1.1);
+  filter: brightness(1.05);
 }
 
 .feeds-table-wrapper {
   margin-top: 12px;
   border-radius: 10px;
   overflow: hidden;
-  border: 1px solid #1f2937;
+  border: 1px solid var(--nice-admin-card-border);
 }
 
 .feeds-table {
@@ -1132,24 +1404,24 @@ a:hover {
 }
 
 .feeds-table thead {
-  background: #020617;
+  background: #f8fafc;
 }
 
 .feeds-table th,
 .feeds-table td {
-  padding: 10px 12px;
+  padding: 12px 14px;
   text-align: left;
-  border-bottom: 1px solid #111827;
+  border-bottom: 1px solid var(--nice-admin-card-border);
 }
 
 .feeds-table th {
   font-weight: 500;
-  color: #6b7280;
+  color: var(--nice-admin-text-muted);
   font-size: 0.8rem;
 }
 
 .feeds-table tbody tr:hover {
-  background: rgba(31, 41, 55, 0.8);
+  background: #f8fafc;
 }
 
 .feeds-table-title {
@@ -1164,7 +1436,7 @@ a:hover {
 
 .feeds-table-sub {
   font-size: 0.78rem;
-  color: #6b7280;
+  color: var(--nice-admin-text-muted);
 }
 
 .feeds-row-actions {
@@ -1185,21 +1457,21 @@ a:hover {
   margin-top: auto;
   flex-shrink: 0;
   padding: 12px 0 0;
-  border-top: 1px solid #1f2937;
+  border-top: 1px solid var(--nice-admin-card-border);
 }
 
 .feeds-pagination button {
   padding: 6px 14px;
   border-radius: 8px;
-  border: 1px solid #374151;
-  background: #1f2937;
-  color: #e5e7eb;
+  border: 1px solid var(--nice-admin-input-border);
+  background: var(--nice-admin-card-bg);
+  color: var(--nice-admin-text);
   font-size: 0.9rem;
   cursor: pointer;
 }
 
 .feeds-pagination button:hover:not(:disabled) {
-  background: #374151;
+  background: #f1f5f9;
 }
 
 .feeds-pagination button:disabled {
@@ -1209,38 +1481,38 @@ a:hover {
 
 .feeds-pagination-info {
   font-size: 0.85rem;
-  color: #6b7280;
+  color: var(--nice-admin-text-muted);
 }
 
 .feeds-row-actions button {
-  padding: 4px 10px;
-  border-radius: 6px;
-  border: 1px solid #374151;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--nice-admin-input-border);
   background: transparent;
-  color: #e5e7eb;
+  color: var(--nice-admin-text);
   font-size: 0.8rem;
   cursor: pointer;
 }
 
 .feeds-row-actions button.danger {
-  border-color: #f97373;
-  color: #f97373;
+  border-color: var(--nice-admin-danger);
+  color: var(--nice-admin-danger);
 }
 
 .feeds-row-actions button:hover {
-  background: #020617;
+  background: #f8fafc;
 }
 
 .feeds-opml-row {
   margin-top: 8px;
   padding-top: 10px;
-  border-top: 1px dashed #1f2937;
+  border-top: 1px dashed var(--nice-admin-card-border);
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
   font-size: 0.82rem;
-  color: #9ca3af;
+  color: var(--nice-admin-text-muted);
 }
 
 .feeds-opml-actions {
@@ -1249,17 +1521,17 @@ a:hover {
 }
 
 .feeds-opml-actions button {
-  padding: 4px 10px;
-  border-radius: 6px;
-  border: 1px solid #374151;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--nice-admin-input-border);
   background: transparent;
-  color: #e5e7eb;
+  color: var(--nice-admin-text);
   font-size: 0.8rem;
   cursor: pointer;
 }
 
 .feeds-opml-actions button:hover {
-  background: #020617;
+  background: #f8fafc;
 }
 
 .feeds-opml-actions button:disabled {
@@ -1270,7 +1542,7 @@ a:hover {
 .feeds-opml-message {
   margin-top: 6px;
   font-size: 0.8rem;
-  color: #9ca3af;
+  color: var(--nice-admin-text-muted);
 }
 
 .add-feed-form {
@@ -1285,26 +1557,26 @@ a:hover {
   flex: 1;
   min-width: 200px;
   padding: 10px 12px;
-  border: 1px solid #333;
-  border-radius: 6px;
-  background: #16213e;
-  color: #eaeaea;
+  border: 1px solid var(--nice-admin-input-border);
+  border-radius: 8px;
+  background: var(--nice-admin-input-bg);
+  color: var(--nice-admin-text);
 }
 
 .add-feed-form select {
   padding: 10px 12px;
-  border: 1px solid #333;
-  border-radius: 6px;
-  background: #16213e;
-  color: #eaeaea;
+  border: 1px solid var(--nice-admin-input-border);
+  border-radius: 8px;
+  background: var(--nice-admin-input-bg);
+  color: var(--nice-admin-text);
 }
 
 .add-feed-form button {
   padding: 10px 20px;
   border: none;
-  border-radius: 6px;
-  background: #4fc3f7;
-  color: #1a1a2e;
+  border-radius: 8px;
+  background: var(--nice-admin-primary);
+  color: #fff;
   cursor: pointer;
 }
 
@@ -1319,9 +1591,10 @@ a:hover {
   justify-content: space-between;
   align-items: flex-start;
   padding: 16px;
-  border: 1px solid #2a2a4a;
-  border-radius: 8px;
+  border: 1px solid var(--nice-admin-card-border);
+  border-radius: 10px;
   margin-bottom: 12px;
+  background: var(--nice-admin-card-bg);
 }
 
 .feed-info {
@@ -1336,12 +1609,12 @@ a:hover {
 
 .feed-url {
   font-size: 0.85rem;
-  color: #888;
+  color: var(--nice-admin-text-muted);
 }
 
 .feed-meta {
   font-size: 0.8rem;
-  color: #666;
+  color: var(--nice-admin-text-muted);
 }
 
 .feed-actions {
@@ -1352,22 +1625,22 @@ a:hover {
 
 .feed-actions button {
   padding: 6px 12px;
-  border: 1px solid #333;
-  border-radius: 6px;
-  background: #16213e;
-  color: #eaeaea;
+  border: 1px solid var(--nice-admin-input-border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--nice-admin-text);
   cursor: pointer;
   font-size: 0.9rem;
 }
 
 .feed-actions button.danger {
-  border-color: #ff6b6b;
-  color: #ff6b6b;
+  border-color: var(--nice-admin-danger);
+  color: var(--nice-admin-danger);
 }
 
 .feed-actions button.danger:hover {
-  background: #ff6b6b;
-  color: #1a1a2e;
+  background: var(--nice-admin-danger);
+  color: #fff;
 }
 
 .user-table {
@@ -1379,26 +1652,26 @@ a:hover {
 .user-table td {
   padding: 12px;
   text-align: left;
-  border-bottom: 1px solid #2a2a4a;
+  border-bottom: 1px solid var(--nice-admin-card-border);
 }
 
 .user-table th {
-  color: #888;
+  color: var(--nice-admin-text-muted);
   font-weight: 500;
 }
 
 .user-table button {
   padding: 6px 12px;
-  border: 1px solid #4fc3f7;
-  border-radius: 6px;
+  border: 1px solid var(--nice-admin-primary);
+  border-radius: 8px;
   background: transparent;
-  color: #4fc3f7;
+  color: var(--nice-admin-primary);
   cursor: pointer;
 }
 
 .user-table button:hover {
-  background: #4fc3f7;
-  color: #1a1a2e;
+  background: var(--nice-admin-primary);
+  color: #fff;
 }
 
 /* 绑定飞书弹窗 */
@@ -1413,19 +1686,20 @@ a:hover {
 }
 
 .bind-feishu-modal {
-  background: #1e2a3a;
+  background: var(--nice-admin-card-bg);
+  border: 1px solid var(--nice-admin-card-border);
   border-radius: 12px;
   padding: 24px;
   max-width: 360px;
   width: 90%;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  box-shadow: var(--nice-admin-shadow-md);
   text-align: center;
 }
 
 .bind-feishu-title {
   margin: 0 0 12px;
   font-size: 1.25rem;
-  color: #eaeaea;
+  color: var(--nice-admin-text);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1438,29 +1712,29 @@ a:hover {
   justify-content: center;
   width: 28px;
   height: 28px;
-  background: #2a3a4a;
-  border-radius: 6px;
+  background: #f1f5f9;
+  border-radius: 8px;
   font-size: 1rem;
-  color: #9ca3af;
+  color: var(--nice-admin-text-muted);
 }
 
 .bind-feishu-desc {
   margin: 0 0 20px;
   font-size: 0.9rem;
-  color: #b0b8c0;
+  color: var(--nice-admin-text-muted);
   line-height: 1.5;
 }
 
 .bind-feishu-pending {
   margin: 0 0 12px;
   font-size: 0.9rem;
-  color: #4fc3f7;
+  color: var(--nice-admin-primary);
 }
 
 .bind-feishu-hint {
   margin: 0 0 16px;
   font-size: 0.8rem;
-  color: #888;
+  color: var(--nice-admin-text-muted);
 }
 
 .bind-feishu-qr {
@@ -1480,16 +1754,16 @@ a:hover {
   display: block;
   width: 100%;
   padding: 10px 20px;
-  border: none;
+  border: 1px solid var(--nice-admin-input-border);
   border-radius: 8px;
-  background: #3a4a5a;
-  color: #eaeaea;
+  background: var(--nice-admin-content-bg);
+  color: var(--nice-admin-text);
   font-size: 1rem;
   cursor: pointer;
 }
 
 .bind-feishu-close:hover {
-  background: #4a5a6a;
+  background: #f1f5f9;
 }
 
 /* 飞书二维码容器：防止 SDK 生成的 iframe 溢出，确保完整显示可扫码 */
@@ -1516,6 +1790,6 @@ a:hover {
 .feishu-qr-hint {
   margin: 0;
   font-size: 0.9rem;
-  color: var(--text-muted, #b0b8c0);
+  color: var(--nice-admin-text-muted);
   line-height: 1.5;
 }

@@ -6,7 +6,6 @@ import Register from './pages/Register';
 import Home from './pages/Home';
 import Favorites from './pages/Favorites';
 import Feeds from './pages/Feeds';
-import Admin from './pages/Admin';
 import Layout from './components/Layout';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -28,8 +27,6 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 }
 
 function AppRoutes() {
-  const auth = useAuth();
-  const isSuperAdmin = auth.user?.is_super_admin ?? false;
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
@@ -45,7 +42,6 @@ function AppRoutes() {
         <Route index element={<Home />} />
         <Route path="favorites" element={<Favorites />} />
         <Route path="feeds" element={<Feeds />} />
-        {isSuperAdmin && <Route path="admin" element={<Admin />} />}
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
