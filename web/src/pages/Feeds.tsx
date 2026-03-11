@@ -130,7 +130,6 @@ export default function Feeds() {
   const [scheduleRunAt, setScheduleRunAt] = useState('08:30');
   const [schedulePageSize, setSchedulePageSize] = useState(20);
   const [scheduleOrder, setScheduleOrder] = useState<'desc' | 'asc'>('desc');
-  const [scheduleEnabled, setScheduleEnabled] = useState(true);
   const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
   const [editingScheduleId, setEditingScheduleId] = useState<number | null>(null);
 
@@ -289,7 +288,6 @@ export default function Feeds() {
         run_at: scheduleRunAt,
         page_size: schedulePageSize,
         order: scheduleOrder,
-        enabled: scheduleEnabled,
       };
       if (editingScheduleId !== null) {
         await summarySchedulesApi.update(editingScheduleId, payload);
@@ -345,7 +343,6 @@ export default function Feeds() {
     setScheduleRunAt('08:30');
     setSchedulePageSize(20);
     setScheduleOrder('desc');
-    setScheduleEnabled(true);
     setScheduleFeedIds(new Set());
     if (aiModels.length > 0 && scheduleAiModelId === '') {
       setScheduleAiModelId(aiModels[0].id);
@@ -360,7 +357,6 @@ export default function Feeds() {
     setScheduleRunAt(s.run_at || '08:30');
     setSchedulePageSize(s.page_size || 20);
     setScheduleOrder((s.order === 'asc' ? 'asc' : 'desc') as 'asc' | 'desc');
-    setScheduleEnabled(Boolean(s.enabled));
     try {
       const ids = JSON.parse(s.feed_ids_json || '[]') as number[];
       setScheduleFeedIds(new Set(ids));
@@ -1697,7 +1693,7 @@ export default function Feeds() {
                     <option value="asc">从旧到新</option>
                   </select>
                 </div>
-                <div className="feeds-modal-row feeds-modal-row-inline">
+                <div className="feeds-modal-row">
                   <label>订阅源（不选表示全部订阅）</label>
                   <div className="feeds-summary-feeds" style={{ maxHeight: '220px' }}>
                     {feeds.length === 0 ? (
@@ -1717,16 +1713,12 @@ export default function Feeds() {
                   </div>
                 </div>
                 <div className="feeds-modal-row">
-                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
-                    <input type="checkbox" checked={scheduleEnabled} onChange={(e) => setScheduleEnabled(e.target.checked)} />
-                    启用
-                  </label>
-                </div>
-                <div className="feeds-modal-actions">
+                  <div className="feeds-modal-actions">
                   <button type="button" onClick={() => { setScheduleModalOpen(false); setEditingScheduleId(null); setScheduleError(''); }}>取消</button>
                   <button type="submit" disabled={scheduleLoading}>
                     {scheduleLoading ? '保存中...' : '保存'}
                   </button>
+                  </div>
                 </div>
               </form>
             </Modal>

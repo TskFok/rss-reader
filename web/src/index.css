@@ -1350,22 +1350,28 @@ a:hover {
   background: var(--nice-admin-subtle-bg);
 }
 
-.feeds-summary-feed-check {
+label.feeds-summary-feed-check {
   display: flex;
   align-items: center;
+  justify-content: flex-start;
   gap: 6px;
   font-size: 0.88rem;
   cursor: pointer;
   min-width: 0;
+  flex-wrap: nowrap;
+  width: 100%;
 }
 
-.feeds-summary-feed-check span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+label.feeds-summary-feed-check span {
+  flex: 1;
+  min-width: 0;
+  /* 允许多行展示，避免文本被完全截断 */
+  overflow: visible;
+  text-overflow: unset;
+  white-space: normal;
 }
 
-.feeds-summary-feed-check input {
+label.feeds-summary-feed-check input {
   flex-shrink: 0;
 }
 
@@ -1852,10 +1858,13 @@ a:hover {
 
 .feeds-modal-row.feeds-modal-row-inline > label {
   flex-shrink: 0;
+  width: 140px; /* 固定标签宽度，避免把右侧选择区挤到下一行 */
+  box-sizing: border-box;
 }
 
 .feeds-modal-row.feeds-modal-row-inline > .feeds-summary-feeds {
   flex: 1;
+  min-width: 0;
 }
 
 .feeds-modal-form label {
@@ -1864,6 +1873,38 @@ a:hover {
   font-weight: 500;
   color: var(--nice-admin-text-muted);
   margin-bottom: 6px;
+}
+
+/* 订阅源复选项：覆盖 modal 内 label 的 block 样式，防止错行 */
+.feeds-modal-form label.feeds-summary-feed-check {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 6px;
+  margin-bottom: 0;
+  cursor: pointer;
+  font-size: 0.88rem;
+  font-weight: 400;
+  color: var(--nice-admin-text);
+  width: 100%;
+  flex-wrap: nowrap;
+}
+
+.feeds-modal-form label.feeds-summary-feed-check span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.feeds-modal-form label.feeds-summary-feed-check input {
+  flex-shrink: 0;
+  width: auto;
+  padding: 0;
+  border: 1px solid var(--nice-admin-input-border);
+  border-radius: 4px;
+  background: transparent;
 }
 
 .feeds-modal-form input,
