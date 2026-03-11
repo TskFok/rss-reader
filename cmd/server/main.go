@@ -92,6 +92,7 @@ func main() {
 
 			auth.GET("/ai-models", handlers.NewAIModelHandler(aiModelSvc).List)
 			auth.POST("/ai-models", handlers.NewAIModelHandler(aiModelSvc).Create)
+			auth.PUT("/ai-models/reorder", handlers.NewAIModelHandler(aiModelSvc).Reorder)
 			auth.PUT("/ai-models/:id", handlers.NewAIModelHandler(aiModelSvc).Update)
 			auth.DELETE("/ai-models/:id", handlers.NewAIModelHandler(aiModelSvc).Delete)
 			auth.POST("/ai-models/:id/test", handlers.NewAIModelHandler(aiModelSvc).Test)

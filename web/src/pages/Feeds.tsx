@@ -83,6 +83,8 @@ export default function Feeds() {
   const [editAiModelBaseUrl, setEditAiModelBaseUrl] = useState('');
   const [editAiModelApiKey, setEditAiModelApiKey] = useState('');
   const [testingAiModel, setTestingAiModel] = useState<number | null>(null);
+  const [draggedAiModelId, setDraggedAiModelId] = useState<number | null>(null);
+  const [dragOverAiModelId, setDragOverAiModelId] = useState<number | null>(null);
 
   // AI 总结（默认时间范围：上海时区当日）
   const [summaryAiModelId, setSummaryAiModelId] = useState<number | ''>('');
@@ -379,6 +381,44 @@ export default function Feeds() {
     } finally {
       setTestingAiModel(null);
     }
+  };
+
+  const handleAiModelDragStart = (e: React.DragEvent, id: number) => {
+    setDraggedAiModelId(id);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', String(id));
+  };
+
+  const handleAiModelDragEnd = () => {
+    setDraggedAiModelId(null);
+    setDragOverAiModelId(null);
+  };
+
+  const handleAiModelDragOver = (e: React.DragEvent, id: number) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (draggedAiModelId !== null && draggedAiModelId !== id) setDragOverAiModelId(id);
+  };
+
+  const handleAiModelDrop = (e: React.DragEvent, targetId: number) => {
+    e.preventDefault();
+    setDragOverAiModelId(null);
+    if (draggedAiModelId === null || draggedAiModelId === targetId) {
+      setDraggedAiModelId(null);
+      return;
+    }
+    const fromIdx = aiModels.findIndex((m) => m.id === draggedAiModelId);
+    const toIdx = aiModels.findIndex((m) => m.id === targetId);
+    if (fromIdx === -1 || toIdx === -1) {
+      setDraggedAiModelId(null);
+      return;
+    }
+    const next = [...aiModels];
+    const [item] = next.splice(fromIdx, 1);
+    next.splice(toIdx, 0, item);
+    setAiModels(next);
+    setDraggedAiModelId(null);
+    aiModelsApi.reorder(next.map((m) => m.id)).catch(() => setAiModelError('排序保存失败'));
   };
 
   const handleSummary = async (e: React.FormEvent) => {
@@ -1125,9 +1165,24 @@ export default function Feeds() {
               <div className="feeds-empty-card">暂无 AI 模型，请先添加模型。</div>
             ) : (
               <div className="feeds-list-scroll">
-                <ul className="feeds-category-list">
+                <ul className="feeds-category-list feeds-category-list-draggable">
                   {aiModels.map((m) => (
-                    <li key={m.id}>
+                    <li
+                      key={m.id}
+                      draggable
+                      onDragStart={(e) => handleAiModelDragStart(e, m.id)}
+                      onDragEnd={handleAiModelDragEnd}
+                      onDragOver={(e) => handleAiModelDragOver(e, m.id)}
+                      onDrop={(e) => handleAiModelDrop(e, m.id)}
+                      className={
+                        draggedAiModelId === m.id
+                          ? 'feeds-ai-model-dragging'
+                          : dragOverAiModelId === m.id
+                            ? 'feeds-ai-model-drag-over'
+                            : ''
+                      }
+                    >
+                      <span className="feeds-drag-handle" title="拖动排序">⋮⋮</span>
                       <div className="feeds-category-main">
                         <span className="feeds-category-name">{m.name}</span>
                         <span className="feeds-proxy-url">{m.base_url}</span>

@@ -77,6 +77,7 @@ export interface AIModel {
   user_id: number;
   name: string;
   base_url: string;
+  sort_order?: number;
   created_at: string;
   updated_at: string;
 }
@@ -179,6 +180,8 @@ export const aiModelsApi = {
   delete: (id: number) => client.delete(`/ai-models/${id}`),
   test: (id: number) =>
     client.post<{ message: string }>(`/ai-models/${id}/test`),
+  reorder: (id_list: number[]) =>
+    client.put<{ message: string }>('/ai-models/reorder', { id_list }),
 };
 
 export const articlesApi = {

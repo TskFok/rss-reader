@@ -797,6 +797,36 @@ a:hover {
   background: #020617;
 }
 
+.feeds-category-list-draggable li {
+  cursor: grab;
+}
+
+.feeds-category-list-draggable li:active {
+  cursor: grabbing;
+}
+
+.feeds-drag-handle {
+  cursor: grab;
+  color: #6b7280;
+  font-size: 0.9rem;
+  margin-right: 10px;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.feeds-drag-handle:active {
+  cursor: grabbing;
+}
+
+.feeds-ai-model-dragging {
+  opacity: 0.6;
+}
+
+.feeds-ai-model-drag-over {
+  outline: 2px solid #4fc3f7;
+  outline-offset: -2px;
+}
+
 .feeds-category-main {
   display: flex;
   flex-direction: column;
@@ -957,15 +987,14 @@ a:hover {
 
 .feeds-summary-feeds {
   display: flex;
-  flex-wrap: wrap;
-  gap: 10px 16px;
+  flex-direction: column;
+  gap: 8px;
   max-height: 160px;
   overflow-y: auto;
-  padding: 10px 0;
+  padding: 10px 12px;
   border-radius: 8px;
   border: 1px solid #1f2937;
   background: #020617;
-  padding: 10px 12px;
 }
 
 .feeds-summary-feed-check {
@@ -974,6 +1003,12 @@ a:hover {
   gap: 6px;
   font-size: 0.88rem;
   cursor: pointer;
+  min-width: 0;
+}
+
+.feeds-summary-feed-check span {
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 

@@ -43,7 +43,7 @@ func normalizeURL(s string) string {
 
 func (s *AIModelService) List(userID uint) ([]models.AIModel, error) {
 	var items []models.AIModel
-	err := s.db.Where("user_id = ?", userID).Order("created_at DESC").Find(&items).Error
+	err := s.db.Where("user_id = ?", userID).Order("sort_order ASC, id ASC").Find(&items).Error
 	return items, err
 }
 
@@ -52,11 +52,14 @@ func (s *AIModelService) Create(userID uint, req CreateAIModelRequest) (*models.
 	if baseURL == "" {
 		return nil, errors.New("调用地址不能为空")
 	}
+	var maxOrder int
+	s.db.Model(&models.AIModel{}).Where("user_id = ?", userID).Select("COALESCE(MAX(sort_order), -1)").Scan(&maxOrder)
 	m := &models.AIModel{
-		UserID:  userID,
-		Name:    strings.TrimSpace(req.Name),
-		BaseURL: baseURL,
-		APIKey:  strings.TrimSpace(req.APIKey),
+		UserID:    userID,
+		Name:      strings.TrimSpace(req.Name),
+		BaseURL:   baseURL,
+		APIKey:    strings.TrimSpace(req.APIKey),
+		SortOrder: maxOrder + 1,
 	}
 	if err := s.db.Create(m).Error; err != nil {
 		return nil, err
@@ -101,6 +104,17 @@ func (s *AIModelService) Delete(userID uint, id uint) error {
 		return ErrAIModelNotFound
 	}
 	return res.Error
+}
+
+// Reorder 按 id_list 顺序更新 sort_order（id_list 为当前用户下的模型 id 有序列表）
+func (s *AIModelService) Reorder(userID uint, idList []uint) error {
+	for i, id := range idList {
+		res := s.db.Model(&models.AIModel{}).Where("user_id = ? AND id = ?", userID, id).Update("sort_order", i)
+		if res.Error != nil {
+			return res.Error
+		}
+	}
+	return nil
 }
 
 // chatCompletionsRequest OpenAI 兼容的聊天请求

@@ -13,6 +13,7 @@ type AIModel struct {
 	Name      string         `gorm:"size:128" json:"name"`
 	BaseURL   string         `gorm:"size:512;not null" json:"base_url"`
 	APIKey    string         `gorm:"size:512" json:"-"` // 不返回给前端，仅存储
+	SortOrder int            `gorm:"default:0;not null" json:"sort_order"` // 拖动排序，越小越靠前
 	CreatedAt time.Time      `json:"created_at"`
 	UpdatedAt time.Time      `json:"updated_at"`
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`

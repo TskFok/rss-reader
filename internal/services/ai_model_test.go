@@ -138,6 +138,30 @@ func TestAIModelService_Test(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestAIModelService_Reorder(t *testing.T) {
+	db := setupAIModelDB(t)
+	svc := NewAIModelService(db)
+
+	m1, _ := svc.Create(1, CreateAIModelRequest{Name: "a", BaseURL: "https://a.com/v1"})
+	m2, _ := svc.Create(1, CreateAIModelRequest{Name: "b", BaseURL: "https://b.com/v1"})
+	m3, _ := svc.Create(1, CreateAIModelRequest{Name: "c", BaseURL: "https://c.com/v1"})
+
+	items, _ := svc.List(1)
+	require.Len(t, items, 3)
+	assert.Equal(t, m1.ID, items[0].ID)
+	assert.Equal(t, m2.ID, items[1].ID)
+	assert.Equal(t, m3.ID, items[2].ID)
+
+	err := svc.Reorder(1, []uint{m3.ID, m1.ID, m2.ID})
+	require.NoError(t, err)
+
+	items, _ = svc.List(1)
+	require.Len(t, items, 3)
+	assert.Equal(t, m3.ID, items[0].ID)
+	assert.Equal(t, m1.ID, items[1].ID)
+	assert.Equal(t, m2.ID, items[2].ID)
+}
+
 func TestAIModelService_Test_Fail(t *testing.T) {
 	db := setupAIModelDB(t)
 	svc := NewAIModelService(db)
