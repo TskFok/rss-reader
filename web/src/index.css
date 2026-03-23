@@ -102,6 +102,12 @@ a:hover {
   margin: 0;
 }
 
+.nice-admin-sidebar.collapsed .nice-admin-sidebar-link {
+  justify-content: center;
+  padding: 10px 0;
+  gap: 0;
+}
+
 .nice-admin-sidebar-brand {
   padding: 20px 18px;
   border-bottom: 1px solid var(--nice-admin-header-border);
