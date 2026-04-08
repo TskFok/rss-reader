@@ -150,6 +150,17 @@ func (s *SummaryHistoryService) List(userID uint, req ListSummaryHistoriesReques
 	return items, total, nil
 }
 
+func (s *SummaryHistoryService) GetByID(userID uint, id uint) (*models.AISummaryHistory, error) {
+	var h models.AISummaryHistory
+	if err := s.db.Where("user_id = ? AND id = ?", userID, id).First(&h).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrSummaryHistoryNotFound
+		}
+		return nil, err
+	}
+	return &h, nil
+}
+
 func (s *SummaryHistoryService) Delete(userID uint, id uint) error {
 	res := s.db.Where("user_id = ? AND id = ?", userID, id).Delete(&models.AISummaryHistory{})
 	if res.Error != nil {

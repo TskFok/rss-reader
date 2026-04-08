@@ -346,6 +346,7 @@ export const summaryHistoriesApi = {
     content: string;
     error?: string;
   }) => client.post<{ id: number }>('/summary-histories', params),
+  retry: (id: number) => client.post<{ id: number; content: string; error: string }>(`/summary-histories/${id}/retry`),
   delete: (id: number) => client.delete(`/summary-histories/${id}`),
 };
 

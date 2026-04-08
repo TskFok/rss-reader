@@ -130,7 +130,7 @@ func TestRunDailySummaryForYesterday_SendsFeishuAlertOnAIFailure(t *testing.T) {
 
 	mockBot := &mockFeishuBotClient{}
 	err = RunDailySummaryForYesterday(u.ID, aiModelSvc, articleSvc, historySvc, m.ID, []uint{feed.ID}, 1, "desc", now, loc, mockBot, db)
-	require.Error(t, err)
+	require.NoError(t, err)
 
 	// 验证飞书告警被调用
 	require.Len(t, mockBot.sendCalls, 1)
@@ -250,7 +250,7 @@ func TestRunDailySummaryForYesterday_NoFeishuAlertWhenFeishuBotNil(t *testing.T)
 
 	// feishuBot 为 nil，即使配置了 Webhook 也不发送
 	err := RunDailySummaryForYesterday(u.ID, aiModelSvc, articleSvc, historySvc, m.ID, []uint{feed.ID}, 1, "desc", now, loc, nil, db)
-	require.Error(t, err)
+	require.NoError(t, err)
 	// 无 mock 可验证，主要确保传 nil 不 panic
 }
 
@@ -287,9 +287,7 @@ func TestRunDailySummaryForYesterday_FeishuSendFailureDoesNotAffectMainFlow(t *t
 
 	mockBot := &mockFeishuBotClient{sendErr: assert.AnError}
 	err := RunDailySummaryForYesterday(u.ID, aiModelSvc, articleSvc, historySvc, m.ID, []uint{feed.ID}, 1, "desc", now, loc, mockBot, db)
-	require.Error(t, err)
-	// 主流程应返回 AI 错误，而非飞书错误
-	assert.Contains(t, err.Error(), "500") // AI 服务返回 500
+	require.NoError(t, err)
 	// 飞书告警仍被尝试发送
 	require.Len(t, mockBot.sendCalls, 1)
 }
@@ -349,7 +347,7 @@ func TestRunDailySummaryForYesterday_ModelNotFoundShowsUnknown(t *testing.T) {
 	mockBot := &mockFeishuBotClient{}
 	// aiModelID=999 不存在，Summarize 会失败
 	err := RunDailySummaryForYesterday(u.ID, aiModelSvc, articleSvc, historySvc, 999, []uint{feed.ID}, 1, "desc", now, loc, mockBot, db)
-	require.Error(t, err)
+	require.NoError(t, err)
 
 	require.Len(t, mockBot.sendCalls, 1)
 	call := mockBot.sendCalls[0]

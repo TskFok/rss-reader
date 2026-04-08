@@ -86,10 +86,11 @@ func RunDailySummaryForYesterday(
 			Error:        errStr,
 		})
 
-		// 模型失败时不再继续翻页，避免连续失败刷屏
+		// 模型失败时：记录错误并继续下一页，避免阻塞整次总结
 		if sumErr != nil {
 			trySendFeishuAlert(feishuBot, db, userID, aiModelID, startStr, endStr, page, pageSize, order, len(items), sumErr.Error())
-			return sumErr
+			page++
+			continue
 		}
 		page++
 		// 安全阈值：避免意外无限循环

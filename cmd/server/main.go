@@ -46,6 +46,7 @@ func main() {
 	errorLogSvc := services.NewErrorLogService(db)
 	adminSvc := services.NewAdminService(db)
 	userSettingSvc := services.NewUserSettingService(db)
+	summaryHistoryHandler := handlers.NewSummaryHistoryHandler(summaryHistorySvc, articleSvc, aiModelSvc)
 	opmlHandler := handlers.NewOPMLHandler(feedSvc, categorySvc)
 	feishuAPI := services.NewFeishuHTTPClient(cfg.Feishu.AppID, cfg.Feishu.AppSecret, cfg.Feishu.Redirect)
 	feishuAuthSvc := services.NewFeishuAuthService(db)
@@ -114,9 +115,10 @@ func main() {
 			auth.PUT("/articles/:id/favorite", handlers.NewArticleHandler(articleSvc).ToggleFavorite)
 			auth.POST("/articles/summarize", handlers.NewSummaryHandler(articleSvc, aiModelSvc, errorLogSvc).Summarize)
 
-			auth.GET("/summary-histories", handlers.NewSummaryHistoryHandler(summaryHistorySvc).List)
-			auth.POST("/summary-histories", handlers.NewSummaryHistoryHandler(summaryHistorySvc).Create)
-			auth.DELETE("/summary-histories/:id", handlers.NewSummaryHistoryHandler(summaryHistorySvc).Delete)
+			auth.GET("/summary-histories", summaryHistoryHandler.List)
+			auth.POST("/summary-histories", summaryHistoryHandler.Create)
+			auth.POST("/summary-histories/:id/retry", summaryHistoryHandler.Retry)
+			auth.DELETE("/summary-histories/:id", summaryHistoryHandler.Delete)
 
 			auth.GET("/summary-schedules", handlers.NewSummaryScheduleHandler(summaryScheduleSvc).List)
 			auth.POST("/summary-schedules", handlers.NewSummaryScheduleHandler(summaryScheduleSvc).Create)

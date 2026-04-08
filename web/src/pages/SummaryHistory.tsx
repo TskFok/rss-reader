@@ -16,6 +16,8 @@ export default function SummaryHistory() {
   const [error, setError] = useState('');
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
+  const [retryingId, setRetryingId] = useState<number | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
@@ -40,7 +42,7 @@ export default function SummaryHistory() {
       }
     })();
     return () => { cancelled = true; };
-  }, [page]);
+  }, [page, reloadKey]);
 
   const handleDelete = async (id: number) => {
     if (!confirm('确定删除这条总结记录？')) return;
@@ -49,6 +51,21 @@ export default function SummaryHistory() {
       setItems((prev) => prev.filter((x) => x.id !== id));
       setTotal((t) => Math.max(0, t - 1));
     } catch {}
+  };
+
+  const handleRetry = async (id: number) => {
+    setRetryingId(id);
+    setError('');
+    try {
+      await summaryHistoriesApi.retry(id);
+      // 重新拉取当前页，确保展示最新的重试结果
+      setReloadKey((k) => k + 1);
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      setError(msg || '重试失败');
+    } finally {
+      setRetryingId((cur) => (cur === id ? null : cur));
+    }
   };
 
   return (
@@ -95,6 +112,15 @@ export default function SummaryHistory() {
                       </div>
                     </div>
                     <div className="feeds-category-actions">
+                      {it.error && (
+                        <button
+                          type="button"
+                          onClick={() => handleRetry(it.id)}
+                          disabled={retryingId === it.id}
+                        >
+                          {retryingId === it.id ? '重试中...' : '重试'}
+                        </button>
+                      )}
                       <button type="button" className="danger" onClick={() => handleDelete(it.id)}>删除</button>
                     </div>
                   </li>

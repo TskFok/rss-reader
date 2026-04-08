@@ -1,8 +1,10 @@
 package handlers
 
 import (
+	"encoding/json"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/ushopal/rss-reader/internal/middleware"
@@ -10,11 +12,13 @@ import (
 )
 
 type SummaryHistoryHandler struct {
-	svc *services.SummaryHistoryService
+	svc        *services.SummaryHistoryService
+	articleSvc *services.ArticleService
+	aiModelSvc *services.AIModelService
 }
 
-func NewSummaryHistoryHandler(svc *services.SummaryHistoryService) *SummaryHistoryHandler {
-	return &SummaryHistoryHandler{svc: svc}
+func NewSummaryHistoryHandler(svc *services.SummaryHistoryService, articleSvc *services.ArticleService, aiModelSvc *services.AIModelService) *SummaryHistoryHandler {
+	return &SummaryHistoryHandler{svc: svc, articleSvc: articleSvc, aiModelSvc: aiModelSvc}
 }
 
 // List GET /api/summary-histories
@@ -92,5 +96,85 @@ func (h *SummaryHistoryHandler) Delete(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "删除成功"})
+}
+
+// Retry POST /api/summary-histories/:id/retry
+// 根据失败历史记录的查询条件，重新调用 AI 总结并生成一条新的历史记录。
+func (h *SummaryHistoryHandler) Retry(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的 ID"})
+		return
+	}
+	his, err := h.svc.GetByID(userID, uint(id))
+	if err != nil {
+		if err == services.ErrSummaryHistoryNotFound {
+			c.JSON(http.StatusNotFound, gin.H{"error": "记录不存在"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取记录失败"})
+		return
+	}
+
+	var feedIDs []uint
+	if his.FeedIDsJSON != "" {
+		_ = json.Unmarshal([]byte(his.FeedIDsJSON), &feedIDs)
+	}
+
+	var startTime, endTime *time.Time
+	if his.StartTime != "" {
+		t, parseErr := time.Parse("2006-01-02", his.StartTime)
+		if parseErr == nil {
+			startTime = &t
+		}
+	}
+	if his.EndTime != "" {
+		t, parseErr := time.Parse("2006-01-02", his.EndTime)
+		if parseErr == nil {
+			t = t.Add(24*time.Hour - time.Second)
+			endTime = &t
+		}
+	}
+
+	articles, total, err := h.articleSvc.ListForSummary(userID, feedIDs, startTime, endTime, his.Page, his.PageSize, his.Order)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取文章失败"})
+		return
+	}
+	if len(articles) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "指定条件下没有文章可总结"})
+		return
+	}
+
+	content, sumErr := h.aiModelSvc.Summarize(userID, his.AIModelID, articles)
+	errStr := ""
+	if sumErr != nil {
+		errStr = sumErr.Error()
+	}
+
+	newItem, createErr := h.svc.Create(userID, services.CreateSummaryHistoryRequest{
+		AIModelID:    his.AIModelID,
+		FeedIDs:      feedIDs,
+		StartTime:    his.StartTime,
+		EndTime:      his.EndTime,
+		Page:         his.Page,
+		PageSize:     his.PageSize,
+		Order:        his.Order,
+		ArticleCount: len(articles),
+		Total:        total,
+		Content:      content,
+		Error:        errStr,
+	})
+	if createErr != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "保存失败"})
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{
+		"id":      newItem.ID,
+		"content": newItem.Content,
+		"error":   newItem.Error,
+	})
 }
 
