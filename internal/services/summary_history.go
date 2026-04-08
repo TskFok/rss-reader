@@ -37,6 +37,15 @@ type CreateSummaryHistoryRequest struct {
 	CreatedAt    *time.Time
 }
 
+type UpdateSummaryHistoryResultRequest struct {
+	ArticleCount int
+	Total        int64
+	Content      string
+	Error        string
+	// nil 表示不更新 created_at
+	CreatedAt *time.Time
+}
+
 func normalizeOrder(s string) string {
 	s = strings.ToLower(strings.TrimSpace(s))
 	if s == "asc" {
@@ -156,6 +165,27 @@ func (s *SummaryHistoryService) GetByID(userID uint, id uint) (*models.AISummary
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrSummaryHistoryNotFound
 		}
+		return nil, err
+	}
+	return &h, nil
+}
+
+func (s *SummaryHistoryService) UpdateResult(userID uint, id uint, req UpdateSummaryHistoryResultRequest) (*models.AISummaryHistory, error) {
+	var h models.AISummaryHistory
+	if err := s.db.Where("user_id = ? AND id = ?", userID, id).First(&h).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrSummaryHistoryNotFound
+		}
+		return nil, err
+	}
+	h.ArticleCount = req.ArticleCount
+	h.Total = req.Total
+	h.Content = req.Content
+	h.Error = req.Error
+	if req.CreatedAt != nil {
+		h.CreatedAt = *req.CreatedAt
+	}
+	if err := s.db.Save(&h).Error; err != nil {
 		return nil, err
 	}
 	return &h, nil

@@ -51,7 +51,7 @@ func setupSummaryHistoryRetryHandlers(t *testing.T, aiBaseURL string) (*gin.Engi
 	return r, db, u.ID, m.ID
 }
 
-func TestSummaryHistoryHandler_Retry_CreatesNewHistory(t *testing.T) {
+func TestSummaryHistoryHandler_Retry_OverwritesHistory(t *testing.T) {
 	// mock AI server
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -95,6 +95,13 @@ func TestSummaryHistoryHandler_Retry_CreatesNewHistory(t *testing.T) {
 
 	var count int64
 	require.NoError(t, db.Model(&models.AISummaryHistory{}).Where("user_id = ?", userID).Count(&count).Error)
-	assert.Equal(t, int64(2), count)
+	assert.Equal(t, int64(1), count)
+
+	var h models.AISummaryHistory
+	require.NoError(t, db.Where("user_id = ? AND id = ?", userID, old.ID).First(&h).Error)
+	assert.Equal(t, "重试总结成功", h.Content)
+	assert.Equal(t, "", h.Error)
+	assert.Equal(t, 1, h.ArticleCount)
+	assert.Equal(t, int64(1), h.Total)
 }
 

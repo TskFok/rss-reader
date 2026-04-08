@@ -99,7 +99,7 @@ func (h *SummaryHistoryHandler) Delete(c *gin.Context) {
 }
 
 // Retry POST /api/summary-histories/:id/retry
-// 根据失败历史记录的查询条件，重新调用 AI 总结并生成一条新的历史记录。
+// 根据失败历史记录的查询条件，重新调用 AI 总结并覆盖更新原历史记录。
 func (h *SummaryHistoryHandler) Retry(c *gin.Context) {
 	userID := middleware.GetUserID(c)
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
@@ -153,28 +153,23 @@ func (h *SummaryHistoryHandler) Retry(c *gin.Context) {
 		errStr = sumErr.Error()
 	}
 
-	newItem, createErr := h.svc.Create(userID, services.CreateSummaryHistoryRequest{
-		AIModelID:    his.AIModelID,
-		FeedIDs:      feedIDs,
-		StartTime:    his.StartTime,
-		EndTime:      his.EndTime,
-		Page:         his.Page,
-		PageSize:     his.PageSize,
-		Order:        his.Order,
+	now := time.Now()
+	updated, updateErr := h.svc.UpdateResult(userID, his.ID, services.UpdateSummaryHistoryResultRequest{
 		ArticleCount: len(articles),
 		Total:        total,
 		Content:      content,
 		Error:        errStr,
+		CreatedAt:    &now,
 	})
-	if createErr != nil {
+	if updateErr != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "保存失败"})
 		return
 	}
 
 	c.JSON(http.StatusCreated, gin.H{
-		"id":      newItem.ID,
-		"content": newItem.Content,
-		"error":   newItem.Error,
+		"id":      updated.ID,
+		"content": updated.Content,
+		"error":   updated.Error,
 	})
 }
 
