@@ -1,5 +1,9 @@
 .PHONY: build build-web build-local build-linux-amd64 build-linux-arm64 build-darwin-amd64 build-darwin-arm64 build-windows-amd64 docker-build docker-build-cross docker-build-cross-push docker-build-linux-amd64 docker-build-linux-arm64 test run
 
+# 本机目标 OS/ARCH（不受环境中 GOOS/GOARCH 影响）。若 shell 里残留交叉编译变量，直接 go run 会生成 foreign 二进制并在本机 exec 时报 exec format error。
+HOST_GOOS := $(shell go env GOHOSTOS)
+HOST_GOARCH := $(shell go env GOHOSTARCH)
+
 build-web:
 	cd web && npm ci && npm run build
 	rm -rf cmd/server/static
@@ -38,14 +42,14 @@ build: build-web
 
 # 仅当前平台单二进制（便于本地 ./rss-reader 运行）
 build-local: build-web
-	CGO_ENABLED=0 go build -o rss-reader ./cmd/server
+	CGO_ENABLED=0 GOOS=$(HOST_GOOS) GOARCH=$(HOST_GOARCH) go build -o rss-reader ./cmd/server
 
 # run 前会先构建前端并拷贝到 cmd/server/static，保证用最新前端
 run: build-web
-	go run ./cmd/server
+	GOOS=$(HOST_GOOS) GOARCH=$(HOST_GOARCH) go run ./cmd/server
 
 test:
-	go test ./...
+	GOOS=$(HOST_GOOS) GOARCH=$(HOST_GOARCH) go test ./...
 
 docker-build:
 	docker build -t rss-reader:latest .
