@@ -204,7 +204,7 @@ func TestAIModelService_Summarize(t *testing.T) {
 		{Title: "文章1", Content: "内容1", FeedTitle: "订阅A", PublishedAt: "2025-03-01"},
 		{Title: "文章2", Content: "内容2", FeedTitle: "订阅B", PublishedAt: "2025-03-02"},
 	}
-	summary, err := svc.Summarize(1, m.ID, articles)
+	summary, err := svc.Summarize(1, m.ID, articles, nil)
 	require.NoError(t, err)
 	assert.Equal(t, "这是中文总结内容。", summary)
 }
@@ -213,10 +213,10 @@ func TestAIModelService_Summarize_EmptyArticles(t *testing.T) {
 	db := setupAIModelDB(t)
 	svc := NewAIModelService(db)
 
-	_, err := svc.Summarize(1, 1, nil)
+	_, err := svc.Summarize(1, 1, nil, nil)
 	assert.Error(t, err)
 
-	_, err = svc.Summarize(1, 1, []ArticleForSummary{})
+	_, err = svc.Summarize(1, 1, []ArticleForSummary{}, nil)
 	assert.Error(t, err)
 }
 
@@ -225,7 +225,7 @@ func TestAIModelService_Summarize_ModelNotFound(t *testing.T) {
 	svc := NewAIModelService(db)
 
 	articles := []ArticleForSummary{{Title: "a", Content: "b", FeedTitle: "f", PublishedAt: "2025-03-01"}}
-	_, err := svc.Summarize(1, 999, articles)
+	_, err := svc.Summarize(1, 999, articles, nil)
 	assert.ErrorIs(t, err, ErrAIModelNotFound)
 }
 
@@ -252,7 +252,7 @@ func TestAIModelService_SummarizeStream(t *testing.T) {
 
 	articles := []ArticleForSummary{{Title: "a", Content: "b", FeedTitle: "f", PublishedAt: "2025-03-01"}}
 	var collected strings.Builder
-	err = svc.SummarizeStream(1, m.ID, articles, func(chunk string) error {
+	err = svc.SummarizeStream(1, m.ID, articles, nil, func(chunk string) error {
 		collected.WriteString(chunk)
 		return nil
 	})

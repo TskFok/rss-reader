@@ -23,18 +23,20 @@ func NewSummaryHistoryService(db *gorm.DB) *SummaryHistoryService {
 }
 
 type CreateSummaryHistoryRequest struct {
-	AIModelID    uint
-	FeedIDs      []uint
-	StartTime    string
-	EndTime      string
-	Page         int
-	PageSize     int
-	Order        string
-	ArticleCount int
-	Total        int64
-	Content      string
-	Error        string
-	CreatedAt    *time.Time
+	AIModelID             uint
+	SummaryTemplateID     *uint
+	SummaryTemplateName   string
+	FeedIDs               []uint
+	StartTime             string
+	EndTime               string
+	Page                  int
+	PageSize              int
+	Order                 string
+	ArticleCount          int
+	Total                 int64
+	Content               string
+	Error                 string
+	CreatedAt             *time.Time
 }
 
 type UpdateSummaryHistoryResultRequest struct {
@@ -68,9 +70,11 @@ func (s *SummaryHistoryService) Create(userID uint, req CreateSummaryHistoryRequ
 		pageSize = 20
 	}
 	h := &models.AISummaryHistory{
-		UserID:       userID,
-		AIModelID:    req.AIModelID,
-		FeedIDsJSON:  string(b),
+		UserID:                userID,
+		AIModelID:             req.AIModelID,
+		SummaryTemplateID:     req.SummaryTemplateID,
+		SummaryTemplateName:   strings.TrimSpace(req.SummaryTemplateName),
+		FeedIDsJSON:           string(b),
 		StartTime:    strings.TrimSpace(req.StartTime),
 		EndTime:      strings.TrimSpace(req.EndTime),
 		Page:         page,
@@ -96,10 +100,12 @@ type ListSummaryHistoriesRequest struct {
 }
 
 type SummaryHistoryItem struct {
-	ID          uint      `json:"id"`
-	AIModelID   uint      `json:"ai_model_id"`
-	AIModelName string    `json:"ai_model_name"`
-	StartTime   string    `json:"start_time"`
+	ID                    uint      `json:"id"`
+	AIModelID             uint      `json:"ai_model_id"`
+	AIModelName           string    `json:"ai_model_name"`
+	SummaryTemplateID     *uint     `json:"summary_template_id"`
+	SummaryTemplateName   string    `json:"summary_template_name"`
+	StartTime             string    `json:"start_time"`
 	EndTime     string    `json:"end_time"`
 	Page        int       `json:"page"`
 	PageSize    int       `json:"page_size"`
@@ -141,10 +147,12 @@ func (s *SummaryHistoryService) List(userID uint, req ListSummaryHistoriesReques
 	items := make([]SummaryHistoryItem, 0, len(rows))
 	for _, r := range rows {
 		items = append(items, SummaryHistoryItem{
-			ID:           r.ID,
-			AIModelID:    r.AIModelID,
-			AIModelName:  r.AIModelName,
-			StartTime:    r.StartTime,
+			ID:                  r.ID,
+			AIModelID:           r.AIModelID,
+			AIModelName:         r.AIModelName,
+			SummaryTemplateID:   r.SummaryTemplateID,
+			SummaryTemplateName: r.SummaryTemplateName,
+			StartTime:           r.StartTime,
 			EndTime:      r.EndTime,
 			Page:         r.Page,
 			PageSize:     r.PageSize,

@@ -16,7 +16,7 @@ import (
 func setupFeedDB(t *testing.T) *gorm.DB {
 	db, err := gorm.Open(sqlite.Open("file:"+t.Name()+"?mode=memory&cache=shared"), &gorm.Config{})
 	require.NoError(t, err)
-	require.NoError(t, db.AutoMigrate(&models.User{}, &models.FeedCategory{}, &models.Proxy{}, &models.Feed{}, &models.Article{}, &models.UserArticle{}))
+	require.NoError(t, db.AutoMigrate(&models.User{}, &models.FeedCategory{}, &models.Proxy{}, &models.AIModel{}, &models.Feed{}, &models.Article{}, &models.UserArticle{}))
 	return db
 }
 
@@ -58,6 +58,11 @@ func TestFeedService_Create(t *testing.T) {
 	assert.NotNil(t, feed.CategoryID)
 	assert.Equal(t, cat.ID, *feed.CategoryID)
 	assert.Equal(t, 90, feed.ExpireDays) // 默认 90 天
+
+	var art models.Article
+	require.NoError(t, db.Where("feed_id = ?", feed.ID).First(&art).Error)
+	assert.Equal(t, "hello", art.GUIDRaw)
+	assert.Equal(t, models.ArticleGUIDHash("hello"), art.GUID)
 
 	// 显式设置永不过期
 	expire0 := 0
@@ -178,4 +183,38 @@ func TestFeedService_Update_Category(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.Nil(t, updated2.CategoryID)
+}
+
+func TestFeedService_Create_AIValidation(t *testing.T) {
+	db := setupFeedDB(t)
+	rss := NewRSSService(db)
+	svc := NewFeedService(db, rss)
+	catSvc := NewCategoryService(db)
+	cat, err := catSvc.Create(1, CreateCategoryRequest{Name: "默认"})
+	require.NoError(t, err)
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/xml; charset=utf-8")
+		_, _ = fmt.Fprint(w, `<?xml version="1.0"?><rss version="2.0"><channel><title>F</title></channel></rss>`)
+	}))
+	defer ts.Close()
+
+	_, err = svc.Create(1, CreateFeedRequest{URL: ts.URL + "/a", CategoryID: cat.ID, UpdateIntervalMinutes: 60, AIClassifyEnabled: true})
+	assert.Equal(t, "开启 AI 分类或翻译时需选择模型", err.Error())
+
+	m := models.AIModel{UserID: 1, Name: "m", BaseURL: "http://localhost/v1"}
+	require.NoError(t, db.Create(&m).Error)
+	_, err = svc.Create(1, CreateFeedRequest{
+		URL: ts.URL + "/b", CategoryID: cat.ID, UpdateIntervalMinutes: 60,
+		AITranslateEnabled: true, AIModelID: &m.ID,
+	})
+	assert.Equal(t, "开启 AI 翻译时需填写目标语言", err.Error())
+
+	feed, err := svc.Create(1, CreateFeedRequest{
+		URL: ts.URL + "/c", CategoryID: cat.ID, UpdateIntervalMinutes: 60,
+		AIClassifyEnabled: true, AIModelID: &m.ID,
+	})
+	require.NoError(t, err)
+	assert.True(t, feed.AIClassifyEnabled)
+	require.NotNil(t, feed.AIModelID)
+	assert.Equal(t, m.ID, *feed.AIModelID)
 }

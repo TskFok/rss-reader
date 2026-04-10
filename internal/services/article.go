@@ -38,9 +38,11 @@ type ListArticlesRequest struct {
 // ArticleWithRead 带阅读状态与收藏的文章
 type ArticleWithRead struct {
 	models.Article
-	Read      bool   `json:"read"`
-	Favorite  bool   `json:"favorite"`
-	FeedTitle string `json:"feed_title"`
+	Read                   bool   `json:"read"`
+	Favorite               bool   `json:"favorite"`
+	FeedTitle              string `json:"feed_title"`
+	FeedAITranslateEnabled bool   `json:"feed_ai_translate_enabled"`
+	FeedAIClassifyEnabled  bool   `json:"feed_ai_classify_enabled"`
 }
 
 // List 获取用户可见的文章列表（通过 feed 归属）
@@ -115,7 +117,14 @@ func (s *ArticleService) List(userID uint, req ListArticlesRequest) ([]ArticleWi
 		if a.Feed.ID != 0 {
 			feedTitle = a.Feed.Title
 		}
-		result[i] = ArticleWithRead{Article: a, Read: readMap[a.ID], Favorite: favMap[a.ID], FeedTitle: feedTitle}
+		result[i] = ArticleWithRead{
+			Article:                a,
+			Read:                   readMap[a.ID],
+			Favorite:               favMap[a.ID],
+			FeedTitle:              feedTitle,
+			FeedAITranslateEnabled: a.Feed.AITranslateEnabled,
+			FeedAIClassifyEnabled:  a.Feed.AIClassifyEnabled,
+		}
 	}
 	return result, total, nil
 }

@@ -11,6 +11,7 @@ type AISummarySchedule struct {
 	ID        uint           `gorm:"primaryKey" json:"id"`
 	UserID    uint           `gorm:"not null;index" json:"user_id"`
 	AIModelID uint           `gorm:"not null;index" json:"ai_model_id"`
+	SummaryTemplateID *uint `gorm:"index" json:"summary_template_id"`
 
 	FeedIDsJSON string `gorm:"type:text" json:"feed_ids_json"`
 

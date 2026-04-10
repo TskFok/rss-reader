@@ -1,14 +1,14 @@
 import { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { feedsApi, categoriesApi, opmlApi, proxiesApi, aiModelsApi, articlesApi, summarySchedulesApi, summaryHistoriesApi, userSettingsApi } from '../api/client';
-import type { Feed, FeedCategory, Proxy, AIModel, SummarySchedule } from '../api/client';
+import { feedsApi, categoriesApi, opmlApi, proxiesApi, aiModelsApi, articlesApi, summarySchedulesApi, summaryHistoriesApi, summaryTemplatesApi, userSettingsApi } from '../api/client';
+import type { Feed, FeedCategory, Proxy, AIModel, SummarySchedule, SummaryTemplate } from '../api/client';
 import { useAuth } from '../contexts/AuthContext';
 import Modal from '../components/Modal';
 import Admin from './Admin';
 
 const PAGE_SIZE_OPTIONS = [5, 8, 10, 20, 50] as const;
 const SUMMARY_PAGE_SIZE_OPTIONS = [10, 20, 50, 100] as const;
-const TAB_OPTIONS = ['categories', 'feeds', 'proxies', 'ai-models', 'ai-summary', 'ai-summary-schedule', 'feishu', 'users'] as const;
+const TAB_OPTIONS = ['categories', 'feeds', 'proxies', 'ai-models', 'summary-templates', 'ai-summary', 'ai-summary-schedule', 'feishu', 'users'] as const;
 type TabType = (typeof TAB_OPTIONS)[number];
 
 /** 上海时区当日的 YYYY-MM-DD */
@@ -49,6 +49,14 @@ export default function Feeds() {
   const urlInputRef = useRef<HTMLInputElement | null>(null);
   const [proxyId, setProxyId] = useState<number | ''>('');
   const [editProxyId, setEditProxyId] = useState<number | ''>('');
+  const [addAiModelId, setAddAiModelId] = useState<number | ''>('');
+  const [addAiClassify, setAddAiClassify] = useState(false);
+  const [addAiTranslate, setAddAiTranslate] = useState(false);
+  const [addAiTargetLang, setAddAiTargetLang] = useState('zh-CN');
+  const [editAiModelId, setEditAiModelId] = useState<number | ''>('');
+  const [editAiClassify, setEditAiClassify] = useState(false);
+  const [editAiTranslate, setEditAiTranslate] = useState(false);
+  const [editAiTargetLang, setEditAiTargetLang] = useState('zh-CN');
   const [searchParams, setSearchParams] = useSearchParams();
   const initialTabParam = (searchParams.get('tab') || 'feeds') as TabType;
   const [activeTab, setActiveTabState] = useState<TabType>(() => {
@@ -122,6 +130,18 @@ export default function Feeds() {
   const [summaryOrder, setSummaryOrder] = useState<'desc' | 'asc'>('desc');
   const [summarySavedMsg, setSummarySavedMsg] = useState('');
   const [summarySaving, setSummarySaving] = useState(false);
+  const [summaryTemplates, setSummaryTemplates] = useState<SummaryTemplate[]>([]);
+  const [summaryTemplateId, setSummaryTemplateId] = useState<number | ''>('');
+
+  // 总结模版（Prompt 配置）
+  const [templateModalOpen, setTemplateModalOpen] = useState(false);
+  const [editingTemplateId, setEditingTemplateId] = useState<number | null>(null);
+  const [tplName, setTplName] = useState('');
+  const [tplSystem, setTplSystem] = useState('');
+  const [tplUserPrefix, setTplUserPrefix] = useState('');
+  const [tplSort, setTplSort] = useState(0);
+  const [tplError, setTplError] = useState('');
+  const [tplLoading, setTplLoading] = useState(false);
 
   // 定时总结配置
   const [scheduleItems, setScheduleItems] = useState<SummarySchedule[]>([]);
@@ -134,6 +154,7 @@ export default function Feeds() {
   const [scheduleOrder, setScheduleOrder] = useState<'desc' | 'asc'>('desc');
   const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
   const [editingScheduleId, setEditingScheduleId] = useState<number | null>(null);
+  const [scheduleTemplateId, setScheduleTemplateId] = useState<number | ''>('');
 
   // 飞书机器人配置（Webhook 或服务端 API 二选一，API 模式使用 config 的 app_id/app_secret，接收者为 users.feishu_id）
   const [feishuNotifyType, setFeishuNotifyType] = useState<'webhook' | 'api' | ''>('');
@@ -185,6 +206,12 @@ export default function Feeds() {
         } catch {
           if (!cancelled) setAiModels([]);
         }
+        try {
+          const tr = await summaryTemplatesApi.list();
+          if (!cancelled) setSummaryTemplates(tr.data.items);
+        } catch {
+          if (!cancelled) setSummaryTemplates([]);
+        }
       })();
       return () => {
         cancelled = true;
@@ -211,12 +238,32 @@ export default function Feeds() {
         } catch {
           if (!cancelled) setScheduleItems([]);
         }
+        try {
+          const tr = await summaryTemplatesApi.list();
+          if (!cancelled) setSummaryTemplates(tr.data.items);
+        } catch {
+          if (!cancelled) setSummaryTemplates([]);
+        }
         if (!cancelled) {
           // 默认选择模型
           if (scheduleAiModelId === '' && aiModels.length > 0) setScheduleAiModelId(aiModels[0].id);
         }
       })();
       return () => { cancelled = true; };
+    }
+    if (activeTab === 'summary-templates') {
+      let cancelled = false;
+      (async () => {
+        try {
+          const tr = await summaryTemplatesApi.list();
+          if (!cancelled) setSummaryTemplates(tr.data.items);
+        } catch {
+          if (!cancelled) setSummaryTemplates([]);
+        }
+      })();
+      return () => {
+        cancelled = true;
+      };
     }
     if (activeTab === 'feishu') {
       let cancelled = false;
@@ -261,6 +308,12 @@ export default function Feeds() {
           if (!cancelled) setProxies(pr.data);
         } catch {
           if (!cancelled) setProxies([]);
+        }
+        try {
+          const mr = await aiModelsApi.list();
+          if (!cancelled) setAiModels(mr.data);
+        } catch {
+          if (!cancelled) setAiModels([]);
         }
       })();
       return () => {
@@ -323,6 +376,7 @@ export default function Feeds() {
         run_at: scheduleRunAt,
         page_size: schedulePageSize,
         order: scheduleOrder,
+        ...(scheduleTemplateId !== '' ? { summary_template_id: scheduleTemplateId as number } : {}),
       };
       if (editingScheduleId !== null) {
         await summarySchedulesApi.update(editingScheduleId, payload);
@@ -348,6 +402,73 @@ export default function Feeds() {
     } catch {}
   };
 
+  const openCreateTemplateModal = () => {
+    setTplError('');
+    setEditingTemplateId(null);
+    setTplName('');
+    setTplSystem('');
+    setTplUserPrefix('');
+    setTplSort(0);
+    setTemplateModalOpen(true);
+  };
+
+  const openEditTemplateModal = (t: SummaryTemplate) => {
+    setTplError('');
+    setEditingTemplateId(t.id);
+    setTplName(t.name);
+    setTplSystem(t.system_prompt || '');
+    setTplUserPrefix(t.user_prompt_prefix || '');
+    setTplSort(t.sort_order ?? 0);
+    setTemplateModalOpen(true);
+  };
+
+  const handleSubmitTemplate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setTplError('');
+    const name = tplName.trim();
+    if (!name) {
+      setTplError('请填写模版名称');
+      return;
+    }
+    setTplLoading(true);
+    try {
+      if (editingTemplateId !== null) {
+        await summaryTemplatesApi.update(editingTemplateId, {
+          name,
+          system_prompt: tplSystem,
+          user_prompt_prefix: tplUserPrefix,
+          sort_order: tplSort,
+        });
+      } else {
+        await summaryTemplatesApi.create({
+          name,
+          system_prompt: tplSystem,
+          user_prompt_prefix: tplUserPrefix,
+          sort_order: tplSort,
+        });
+      }
+      const tr = await summaryTemplatesApi.list();
+      setSummaryTemplates(tr.data.items);
+      setTemplateModalOpen(false);
+      setEditingTemplateId(null);
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      setTplError(msg || '保存失败');
+    } finally {
+      setTplLoading(false);
+    }
+  };
+
+  const handleDeleteTemplate = async (id: number) => {
+    if (!confirm('确定删除此模版？')) return;
+    try {
+      await summaryTemplatesApi.delete(id);
+      setSummaryTemplates((prev) => prev.filter((x) => x.id !== id));
+      if (summaryTemplateId === id) setSummaryTemplateId('');
+      if (scheduleTemplateId === id) setScheduleTemplateId('');
+    } catch {}
+  };
+
   const handleToggleScheduleEnabled = async (s: SummarySchedule) => {
     setScheduleError('');
     try {
@@ -359,6 +480,9 @@ export default function Feeds() {
       }
       await summarySchedulesApi.update(s.id, {
         ai_model_id: s.ai_model_id,
+        ...(s.summary_template_id != null && s.summary_template_id > 0
+          ? { summary_template_id: s.summary_template_id }
+          : {}),
         feed_ids: ids,
         run_at: s.run_at,
         page_size: s.page_size,
@@ -379,6 +503,7 @@ export default function Feeds() {
     setSchedulePageSize(20);
     setScheduleOrder('desc');
     setScheduleFeedIds(new Set());
+    setScheduleTemplateId('');
     if (aiModels.length > 0 && scheduleAiModelId === '') {
       setScheduleAiModelId(aiModels[0].id);
     }
@@ -389,6 +514,9 @@ export default function Feeds() {
     setScheduleError('');
     setEditingScheduleId(s.id);
     setScheduleAiModelId(s.ai_model_id);
+    setScheduleTemplateId(
+      s.summary_template_id != null && s.summary_template_id > 0 ? s.summary_template_id : ''
+    );
     setScheduleRunAt(s.run_at || '08:30');
     setSchedulePageSize(s.page_size || 20);
     setScheduleOrder((s.order === 'asc' ? 'asc' : 'desc') as 'asc' | 'desc');
@@ -426,16 +554,38 @@ export default function Feeds() {
         setError('请选择分类');
         return;
       }
+      if ((addAiClassify || addAiTranslate) && addAiModelId === '') {
+        setError('开启 AI 时需选择模型');
+        return;
+      }
+      if (addAiTranslate && !addAiTargetLang.trim()) {
+        setError('开启 AI 翻译时需填写目标语言');
+        return;
+      }
+      const aiOpts =
+        addAiClassify || addAiTranslate
+          ? {
+              ai_model_id: addAiModelId as number,
+              ai_classify_enabled: addAiClassify,
+              ai_translate_enabled: addAiTranslate,
+              ai_target_language: addAiTargetLang.trim(),
+            }
+          : undefined;
       await feedsApi.create(
         url,
         categoryId,
         interval,
         proxyId === '' ? null : proxyId,
-        expireDays
+        expireDays,
+        aiOpts
       );
       setUrl('');
       setCategoryId('');
       setProxyId('');
+      setAddAiModelId('');
+      setAddAiClassify(false);
+      setAddAiTranslate(false);
+      setAddAiTargetLang('zh-CN');
       setFeedAddOpen(false);
       loadFeeds();
     } catch (err: unknown) {
@@ -521,12 +671,27 @@ export default function Feeds() {
   const handleUpdate = async (id: number) => {
     setEditError('');
     try {
+      if ((editAiClassify || editAiTranslate) && editAiModelId === '') {
+        setEditError('开启 AI 时需选择模型');
+        return;
+      }
+      if (editAiTranslate && !editAiTargetLang.trim()) {
+        setEditError('开启 AI 翻译时需填写目标语言');
+        return;
+      }
+      const aiOpts = {
+        ai_model_id: editAiClassify || editAiTranslate ? (editAiModelId as number) : 0,
+        ai_classify_enabled: editAiClassify,
+        ai_translate_enabled: editAiTranslate,
+        ai_target_language: editAiTargetLang.trim(),
+      };
       await feedsApi.update(
         id,
         editInterval,
         editProxyId === '' ? null : editProxyId,
         editExpireDays,
-        editCategoryId === '' ? 0 : editCategoryId
+        editCategoryId === '' ? 0 : editCategoryId,
+        aiOpts
       );
       setEditing(null);
       loadFeeds();
@@ -704,6 +869,7 @@ export default function Feeds() {
       const pageToUse = overridePage ?? Math.max(1, summaryPage);
       const params: {
         ai_model_id: number;
+        summary_template_id?: number;
         feed_ids?: number[];
         start_time?: string;
         end_time?: string;
@@ -711,6 +877,9 @@ export default function Feeds() {
         page_size?: number;
         order?: 'desc' | 'asc';
       } = { ai_model_id: summaryAiModelId };
+      if (summaryTemplateId !== '') {
+        params.summary_template_id = summaryTemplateId as number;
+      }
       if (summaryFeedIds.size > 0) {
         params.feed_ids = [...summaryFeedIds];
       }
@@ -752,8 +921,15 @@ export default function Feeds() {
     setSummarySavedMsg('');
     setSummaryError('');
     try {
+      const tpl = summaryTemplates.find((x) => x.id === summaryTemplateId);
       await summaryHistoriesApi.create({
         ai_model_id: summaryAiModelId,
+        ...(summaryTemplateId !== ''
+          ? {
+              summary_template_id: summaryTemplateId as number,
+              summary_template_name: tpl?.name ?? '',
+            }
+          : {}),
         feed_ids: summaryFeedIds.size > 0 ? [...summaryFeedIds] : [],
         start_time: summaryStartDate || undefined,
         end_time: summaryEndDate || undefined,
@@ -1017,7 +1193,18 @@ export default function Feeds() {
                 <p>当前账号下的所有订阅源</p>
               </div>
               <div className="feeds-card-header-right">
-                <button type="button" className="feeds-primary-btn" onClick={() => { setFeedAddOpen(true); setError(''); }}>
+                <button
+                  type="button"
+                  className="feeds-primary-btn"
+                  onClick={() => {
+                    setFeedAddOpen(true);
+                    setError('');
+                    setAddAiModelId('');
+                    setAddAiClassify(false);
+                    setAddAiTranslate(false);
+                    setAddAiTargetLang('zh-CN');
+                  }}
+                >
                   添加订阅
                 </button>
               </div>
@@ -1087,6 +1274,52 @@ export default function Feeds() {
                     ))}
                   </select>
                 </div>
+                <div className="feeds-modal-row">
+                  <label>AI 模型</label>
+                  <select
+                    value={addAiModelId}
+                    onChange={(e) => setAddAiModelId(e.target.value === '' ? '' : Number(e.target.value))}
+                  >
+                    <option value="">不启用 AI</option>
+                    {aiModels.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="feeds-modal-row feeds-modal-check-row">
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={addAiClassify}
+                      onChange={(e) => setAddAiClassify(e.target.checked)}
+                    />
+                    AI 分类（仅在新文章入库后异步执行）
+                  </label>
+                </div>
+                <div className="feeds-modal-row feeds-modal-check-row">
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={addAiTranslate}
+                      onChange={(e) => setAddAiTranslate(e.target.checked)}
+                    />
+                    AI 翻译
+                  </label>
+                </div>
+                {addAiTranslate && (
+                  <div className="feeds-modal-row">
+                    <label>翻译目标语言</label>
+                    <input
+                      type="text"
+                      placeholder="如 zh-CN、en"
+                      value={addAiTargetLang}
+                      onChange={(e) => setAddAiTargetLang(e.target.value)}
+                    />
+                  </div>
+                )}
+                <p className="feeds-summary-hint">AI 功能依赖已配置的模型；翻译开启后可在阅读页切换原文/译文与分类语言。</p>
                 <div className="feeds-modal-actions">
                   <button type="button" onClick={() => { setFeedAddOpen(false); setError(''); }}>取消</button>
                   <button type="submit" disabled={loading}>{loading ? '添加中...' : '确定'}</button>
@@ -1146,6 +1379,51 @@ export default function Feeds() {
                     <option value={365}>1 年</option>
                   </select>
                 </div>
+                <div className="feeds-modal-row">
+                  <label>AI 模型</label>
+                  <select
+                    value={editAiModelId}
+                    onChange={(e) => setEditAiModelId(e.target.value === '' ? '' : Number(e.target.value))}
+                  >
+                    <option value="">不启用 AI</option>
+                    {aiModels.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="feeds-modal-row feeds-modal-check-row">
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={editAiClassify}
+                      onChange={(e) => setEditAiClassify(e.target.checked)}
+                    />
+                    AI 分类（仅在新文章入库后异步执行）
+                  </label>
+                </div>
+                <div className="feeds-modal-row feeds-modal-check-row">
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={editAiTranslate}
+                      onChange={(e) => setEditAiTranslate(e.target.checked)}
+                    />
+                    AI 翻译
+                  </label>
+                </div>
+                {editAiTranslate && (
+                  <div className="feeds-modal-row">
+                    <label>翻译目标语言</label>
+                    <input
+                      type="text"
+                      placeholder="如 zh-CN、en"
+                      value={editAiTargetLang}
+                      onChange={(e) => setEditAiTargetLang(e.target.value)}
+                    />
+                  </div>
+                )}
                 <div className="feeds-modal-actions">
                   <button type="button" onClick={() => { setEditing(null); setEditError(''); }}>取消</button>
                   <button type="submit">保存</button>
@@ -1191,6 +1469,7 @@ export default function Feeds() {
                         <th>代理</th>
                         <th>更新间隔</th>
                         <th>内容保留</th>
+                        <th>AI</th>
                         <th>上次更新</th>
                         <th style={{ width: '160px' }}>操作</th>
                       </tr>
@@ -1208,6 +1487,16 @@ export default function Feeds() {
                           <td>{f.proxy ? (f.proxy.name || f.proxy.url) : '无'}</td>
                           <td>{f.update_interval_minutes} 分钟</td>
                           <td>{f.expire_days === 0 ? '永不过期' : `${f.expire_days} 天`}</td>
+                          <td>
+                            {f.ai_classify_enabled || f.ai_translate_enabled ? (
+                              <span className="feeds-ai-badges">
+                                {f.ai_classify_enabled ? <span className="feeds-ai-badge">分类</span> : null}
+                                {f.ai_translate_enabled ? <span className="feeds-ai-badge">译</span> : null}
+                              </span>
+                            ) : (
+                              '—'
+                            )}
+                          </td>
                           <td>{formatDate(f.last_fetched_at)}</td>
                           <td>
                             <div className="feeds-row-actions">
@@ -1219,6 +1508,10 @@ export default function Feeds() {
                                   setEditExpireDays(f.expire_days ?? 90);
                                   setEditProxyId(f.proxy_id ?? '');
                                   setEditCategoryId(f.category_id ?? '');
+                                  setEditAiModelId(f.ai_model_id ?? '');
+                                  setEditAiClassify(!!f.ai_classify_enabled);
+                                  setEditAiTranslate(!!f.ai_translate_enabled);
+                                  setEditAiTargetLang(f.ai_target_language || 'zh-CN');
                                 }}
                               >
                                 编辑
@@ -1582,6 +1875,121 @@ export default function Feeds() {
           </section>
         )}
 
+        {activeTab === 'summary-templates' && (
+          <section className="feeds-card">
+            <div className="feeds-card-header">
+              <div>
+                <h2>总结模版</h2>
+                <p>配置 System 与用户对模型的说明；用户说明后自动拼接 RSS 文章列表。留空则使用内置中文要点说明。</p>
+              </div>
+              <div className="feeds-card-header-right">
+                <span className="feeds-card-sub">{summaryTemplates.length} 个模版</span>
+                <button type="button" className="feeds-primary-btn" onClick={openCreateTemplateModal}>
+                  新建模版
+                </button>
+              </div>
+            </div>
+
+            <Modal
+              open={templateModalOpen}
+              onClose={() => {
+                setTemplateModalOpen(false);
+                setEditingTemplateId(null);
+                setTplError('');
+              }}
+              title={editingTemplateId === null ? '新建总结模版' : '编辑总结模版'}
+            >
+              <form onSubmit={handleSubmitTemplate} className="feeds-modal-form">
+                {tplError && <p className="error">{tplError}</p>}
+                <div className="feeds-modal-row">
+                  <label>名称</label>
+                  <input
+                    value={tplName}
+                    onChange={(e) => setTplName(e.target.value)}
+                    placeholder="如：技术简报 / 投资要点"
+                    required
+                  />
+                </div>
+                <div className="feeds-modal-row">
+                  <label>System 提示（可选）</label>
+                  <textarea
+                    rows={3}
+                    value={tplSystem}
+                    onChange={(e) => setTplSystem(e.target.value)}
+                    placeholder="如：你是专业编辑，输出简洁要点。"
+                    className="feeds-template-textarea"
+                  />
+                </div>
+                <div className="feeds-modal-row">
+                  <label>用户说明（可选）</label>
+                  <textarea
+                    rows={6}
+                    value={tplUserPrefix}
+                    onChange={(e) => setTplUserPrefix(e.target.value)}
+                    placeholder="说明总结风格与要求；可包含一行「---」作为与文章正文的分隔。留空则使用内置默认说明。"
+                    className="feeds-template-textarea"
+                  />
+                </div>
+                <div className="feeds-modal-row">
+                  <label>排序</label>
+                  <input
+                    type="number"
+                    value={tplSort}
+                    onChange={(e) => setTplSort(Number(e.target.value) || 0)}
+                  />
+                </div>
+                <div className="feeds-modal-actions">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTemplateModalOpen(false);
+                      setEditingTemplateId(null);
+                      setTplError('');
+                    }}
+                  >
+                    取消
+                  </button>
+                  <button type="submit" disabled={tplLoading}>
+                    {tplLoading ? '保存中...' : '保存'}
+                  </button>
+                </div>
+              </form>
+            </Modal>
+
+            <div className="feeds-list-scroll">
+              <ul className="feeds-category-list">
+                {summaryTemplates.length === 0 ? (
+                  <li>
+                    <div className="feeds-category-main">
+                      <span className="feeds-category-name">暂无模版，点击「新建模版」</span>
+                    </div>
+                  </li>
+                ) : (
+                  summaryTemplates.map((t) => (
+                    <li key={t.id}>
+                      <div className="feeds-category-main">
+                        <span className="feeds-category-name">{t.name}</span>
+                        {t.system_prompt?.trim() ? (
+                          <span className="feeds-proxy-url">System：{t.system_prompt.slice(0, 80)}{t.system_prompt.length > 80 ? '…' : ''}</span>
+                        ) : null}
+                        {t.user_prompt_prefix?.trim() ? (
+                          <span className="feeds-proxy-url">用户说明：{t.user_prompt_prefix.slice(0, 120)}{t.user_prompt_prefix.length > 120 ? '…' : ''}</span>
+                        ) : (
+                          <span className="feeds-proxy-url">用户说明：（内置默认）</span>
+                        )}
+                      </div>
+                      <div className="feeds-category-actions">
+                        <button type="button" onClick={() => openEditTemplateModal(t)}>编辑</button>
+                        <button type="button" className="danger" onClick={() => handleDeleteTemplate(t.id)}>删除</button>
+                      </div>
+                    </li>
+                  ))
+                )}
+              </ul>
+            </div>
+          </section>
+        )}
+
         {activeTab === 'ai-summary' && (
           <section className="feeds-card feeds-card-ai-summary">
             <div className="feeds-summary-layout">
@@ -1673,6 +2081,23 @@ export default function Feeds() {
                     {aiModels.length === 0 && (
                       <p className="feeds-summary-hint">请先在「AI 模型」中添加模型</p>
                     )}
+                    <div className="feeds-summary-row">
+                      <label>总结模版</label>
+                      <select
+                        value={summaryTemplateId === '' ? '' : summaryTemplateId}
+                        onChange={(e) =>
+                          setSummaryTemplateId(e.target.value === '' ? '' : Number(e.target.value))
+                        }
+                      >
+                        <option value="">默认（内置中文要点说明）</option>
+                        {summaryTemplates.map((t) => (
+                          <option key={t.id} value={t.id}>
+                            {t.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <p className="feeds-summary-hint">可在「总结模版」中自定义 system / 用户说明；不选则使用内置 Prompt</p>
 
                     <div className="feeds-summary-row">
                       <label>开始时间</label>
@@ -1793,6 +2218,20 @@ export default function Feeds() {
                   </select>
                 </div>
                 <div className="feeds-modal-row">
+                  <label>总结模版</label>
+                  <select
+                    value={scheduleTemplateId === '' ? '' : scheduleTemplateId}
+                    onChange={(e) =>
+                      setScheduleTemplateId(e.target.value === '' ? '' : Number(e.target.value))
+                    }
+                  >
+                    <option value="">默认（内置）</option>
+                    {summaryTemplates.map((t) => (
+                      <option key={t.id} value={t.id}>{t.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="feeds-modal-row">
                   <label>每天执行时间</label>
                   <input type="time" value={scheduleRunAt} onChange={(e) => setScheduleRunAt(e.target.value)} required />
                 </div>
@@ -1857,6 +2296,12 @@ export default function Feeds() {
                           {s.enabled ? '已启用' : '未启用'} · {s.run_at} · 每页 {s.page_size} · {s.order === 'asc' ? '从旧到新' : '从新到旧'}
                         </span>
                         <span className="feeds-proxy-url">模型 ID：{s.ai_model_id}</span>
+                        <span className="feeds-proxy-url">
+                          模版：
+                          {s.summary_template_id != null && s.summary_template_id > 0
+                            ? (summaryTemplates.find((x) => x.id === s.summary_template_id)?.name ?? `ID ${s.summary_template_id}`)
+                            : '默认'}
+                        </span>
                         <span className="feeds-proxy-url">上次执行：{s.last_run_at ? formatDate(s.last_run_at) : '从未'}</span>
                       </div>
                       <div className="feeds-category-actions">

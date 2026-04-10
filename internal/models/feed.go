@@ -17,6 +17,11 @@ type Feed struct {
 	Title                 string         `gorm:"size:512" json:"title"`
 	UpdateIntervalMinutes int            `gorm:"default:60;not null" json:"update_interval_minutes"`
 	ExpireDays            int            `gorm:"default:90;not null" json:"expire_days"` // 0=永不过期
+	// AI：按订阅配置；新文章入库后由后台异步调用模型做分类/翻译（见 ArticleAIProcessor）
+	AIModelID           *uint  `gorm:"index" json:"ai_model_id"`
+	AIClassifyEnabled   bool   `gorm:"default:false;not null" json:"ai_classify_enabled"`
+	AITranslateEnabled  bool   `gorm:"default:false;not null" json:"ai_translate_enabled"`
+	AITargetLanguage    string `gorm:"size:32;default:''" json:"ai_target_language"` // 如 zh-CN、en，开启翻译时必填
 	LastFetchedAt         *time.Time     `json:"last_fetched_at"`
 	CreatedAt             time.Time      `json:"created_at"`
 	UpdatedAt             time.Time      `json:"updated_at"`

@@ -39,7 +39,7 @@ func setupSummaryHistoryRetryHandlers(t *testing.T, aiBaseURL string) (*gin.Engi
 	articleSvc := services.NewArticleService(db)
 	historySvc := services.NewSummaryHistoryService(db)
 	aiModelSvc := services.NewAIModelService(db)
-	h := NewSummaryHistoryHandler(historySvc, articleSvc, aiModelSvc)
+	h := NewSummaryHistoryHandler(historySvc, articleSvc, aiModelSvc, nil)
 
 	r := gin.New()
 	r.Use(func(c *gin.Context) {
@@ -68,7 +68,7 @@ func TestSummaryHistoryHandler_Retry_OverwritesHistory(t *testing.T) {
 	loc, err := time.LoadLocation("Asia/Shanghai")
 	require.NoError(t, err)
 	published := time.Date(2026, 3, 10, 9, 0, 0, 0, loc)
-	a1 := models.Article{FeedID: feed.ID, GUID: "g1", Title: "a1", Content: "c1", PublishedAt: &published}
+	a1 := models.Article{FeedID: feed.ID, GUID: models.ArticleGUIDHash("g1"), GUIDRaw: "g1", Title: "a1", Content: "c1", PublishedAt: &published}
 	require.NoError(t, db.Create(&a1).Error)
 
 	// seed a failed history (same query condition)

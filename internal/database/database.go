@@ -12,6 +12,9 @@ func Init(dsn string) (*gorm.DB, error) {
 	if err != nil {
 		return nil, err
 	}
+	if err := migrateArticleGUIDsBeforeSchema(db); err != nil {
+		return nil, err
+	}
 	if err := db.AutoMigrate(
 		&models.User{},
 		&models.FeedCategory{},
@@ -22,6 +25,7 @@ func Init(dsn string) (*gorm.DB, error) {
 		&models.AIModel{},
 		&models.AISummaryHistory{},
 		&models.AISummarySchedule{},
+		&models.AISummaryTemplate{},
 		&models.ErrorLog{},
 	); err != nil {
 		return nil, err

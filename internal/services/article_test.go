@@ -49,8 +49,8 @@ func TestArticleService_CleanupExpiredArticles(t *testing.T) {
 	oldTime := time.Now().AddDate(0, 0, -10) // 10 天前
 	newTime := time.Now().AddDate(0, 0, -3)  // 3 天前
 
-	a1 := models.Article{FeedID: feed.ID, GUID: "g1", Title: "old", PublishedAt: &oldTime}
-	a2 := models.Article{FeedID: feed.ID, GUID: "g2", Title: "new", PublishedAt: &newTime}
+	a1 := models.Article{FeedID: feed.ID, GUID: models.ArticleGUIDHash("g1"), GUIDRaw: "g1", Title: "old", PublishedAt: &oldTime}
+	a2 := models.Article{FeedID: feed.ID, GUID: models.ArticleGUIDHash("g2"), GUIDRaw: "g2", Title: "new", PublishedAt: &newTime}
 	require.NoError(t, db.Create(&a1).Error)
 	require.NoError(t, db.Create(&a2).Error)
 
@@ -73,7 +73,7 @@ func TestArticleService_CleanupExpiredArticles_ExcludesFavorited(t *testing.T) {
 	require.NoError(t, db.Create(&feed).Error)
 
 	oldTime := time.Now().AddDate(0, 0, -10)
-	a1 := models.Article{FeedID: feed.ID, GUID: "g1", Title: "old", PublishedAt: &oldTime}
+	a1 := models.Article{FeedID: feed.ID, GUID: models.ArticleGUIDHash("g1"), GUIDRaw: "g1", Title: "old", PublishedAt: &oldTime}
 	require.NoError(t, db.Create(&a1).Error)
 
 	ua := models.UserArticle{UserID: user.ID, ArticleID: a1.ID, Favorite: true}
@@ -96,7 +96,7 @@ func TestArticleService_ToggleFavorite(t *testing.T) {
 	require.NoError(t, db.Create(&user).Error)
 	feed := models.Feed{UserID: user.ID, URL: "http://example.com", Title: "F", UpdateIntervalMinutes: 60, ExpireDays: 0}
 	require.NoError(t, db.Create(&feed).Error)
-	article := models.Article{FeedID: feed.ID, GUID: "g1", Title: "a"}
+	article := models.Article{FeedID: feed.ID, GUID: models.ArticleGUIDHash("g1"), GUIDRaw: "g1", Title: "a"}
 	require.NoError(t, db.Create(&article).Error)
 
 	// 首次收藏
@@ -131,8 +131,8 @@ func TestArticleService_List_Favorite(t *testing.T) {
 	require.NoError(t, db.Create(&user).Error)
 	feed := models.Feed{UserID: user.ID, URL: "http://example.com", Title: "F", UpdateIntervalMinutes: 60, ExpireDays: 0}
 	require.NoError(t, db.Create(&feed).Error)
-	a1 := models.Article{FeedID: feed.ID, GUID: "g1", Title: "a1"}
-	a2 := models.Article{FeedID: feed.ID, GUID: "g2", Title: "a2"}
+	a1 := models.Article{FeedID: feed.ID, GUID: models.ArticleGUIDHash("g1"), GUIDRaw: "g1", Title: "a1"}
+	a2 := models.Article{FeedID: feed.ID, GUID: models.ArticleGUIDHash("g2"), GUIDRaw: "g2", Title: "a2"}
 	require.NoError(t, db.Create(&a1).Error)
 	require.NoError(t, db.Create(&a2).Error)
 
@@ -163,8 +163,8 @@ func TestArticleService_ListForSummary(t *testing.T) {
 	now := time.Now()
 	t1 := now.AddDate(0, 0, -5)
 	t2 := now.AddDate(0, 0, -2)
-	a1 := models.Article{FeedID: feed.ID, GUID: "g1", Title: "文章1", Content: "<p>内容1</p>", PublishedAt: &t1}
-	a2 := models.Article{FeedID: feed.ID, GUID: "g2", Title: "文章2", Content: "内容2", PublishedAt: &t2}
+	a1 := models.Article{FeedID: feed.ID, GUID: models.ArticleGUIDHash("g1"), GUIDRaw: "g1", Title: "文章1", Content: "<p>内容1</p>", PublishedAt: &t1}
+	a2 := models.Article{FeedID: feed.ID, GUID: models.ArticleGUIDHash("g2"), GUIDRaw: "g2", Title: "文章2", Content: "内容2", PublishedAt: &t2}
 	require.NoError(t, db.Create(&a1).Error)
 	require.NoError(t, db.Create(&a2).Error)
 

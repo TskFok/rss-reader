@@ -3,6 +3,13 @@ import { articlesApi } from '../api/client';
 import type { Article } from '../api/client';
 import ArticleList from '../components/ArticleList';
 import { nextIndex } from '../utils/arrowNav';
+import {
+  articleCategoryForDisplay,
+  articleTitleForDisplay,
+  getStoredArticleLang,
+  setStoredArticleLang,
+  type ArticleDisplayLang,
+} from '../utils/articleDisplayLang';
 
 const PAGE_SIZE = 20;
 
@@ -13,6 +20,9 @@ export default function Favorites() {
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [selected, setSelected] = useState<Article | null>(null);
+  const [articleDisplayLang, setArticleDisplayLang] = useState<ArticleDisplayLang>(() =>
+    getStoredArticleLang()
+  );
   const listScrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -93,6 +103,8 @@ export default function Favorites() {
     });
   };
 
+  const showArticleLangToggle = articles.some((a) => a.feed_ai_translate_enabled);
+
   const hasMore = articles.length < total;
   const loadMore = useCallback(() => {
     if (loading || loadingMore || !hasMore) return;
@@ -153,6 +165,22 @@ export default function Favorites() {
       <section className="home-content favorites-content">
         <div className="filters">
           <div className="home-current-feed">收藏列表</div>
+          {showArticleLangToggle && (
+            <label className="home-lang-toggle">
+              显示
+              <select
+                value={articleDisplayLang}
+                onChange={(e) => {
+                  const v = e.target.value as ArticleDisplayLang;
+                  setStoredArticleLang(v);
+                  setArticleDisplayLang(v);
+                }}
+              >
+                <option value="original">原文</option>
+                <option value="translated">译文</option>
+              </select>
+            </label>
+          )}
         </div>
 
         <div ref={listScrollRef} className="article-list-scroll">
@@ -165,6 +193,7 @@ export default function Favorites() {
               <ArticleList
                 articles={articles}
                 selectedId={selected?.id ?? null}
+                displayLang={articleDisplayLang}
                 onOpen={(a) => {
                   setSelected(a);
                   markRead(a.id);
@@ -189,7 +218,7 @@ export default function Favorites() {
                 rel="noopener noreferrer"
                 title="打开原文"
               >
-                {selected.title || '(无标题)'}
+                {articleTitleForDisplay(selected, articleDisplayLang)}
               </a>
               <div className="article-detail-actions">
                 <button
@@ -207,13 +236,24 @@ export default function Favorites() {
               </div>
             </div>
             <div className="article-detail-meta">
+              {articleCategoryForDisplay(selected, articleDisplayLang) && (
+                <span className="article-detail-ai-cat">
+                  {articleCategoryForDisplay(selected, articleDisplayLang)}
+                </span>
+              )}
               {selected.feed_title && <span className="feed">{selected.feed_title}</span>}
               <span className="date">{formatDate(selected.published_at || selected.created_at)}</span>
             </div>
-            <div
-              className="article-detail-content"
-              dangerouslySetInnerHTML={{ __html: selected.content || '<p>(暂无内容)</p>' }}
-            />
+            {articleDisplayLang === 'translated' &&
+            selected.feed_ai_translate_enabled &&
+            selected.content_translated?.trim() ? (
+              <div className="article-detail-content article-detail-plain">{selected.content_translated}</div>
+            ) : (
+              <div
+                className="article-detail-content"
+                dangerouslySetInnerHTML={{ __html: selected.content || '<p>(暂无内容)</p>' }}
+              />
+            )}
           </div>
         )}
       </section>

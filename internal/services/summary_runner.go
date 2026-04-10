@@ -31,6 +31,9 @@ func RunDailySummaryForYesterday(
 	loc *time.Location,
 	feishuBot FeishuBotClient,
 	db *gorm.DB,
+	prompt *SummaryPromptOptions,
+	summaryTemplateID *uint,
+	summaryTemplateName string,
 ) error {
 	if loc != nil {
 		now = now.In(loc)
@@ -48,17 +51,19 @@ func RunDailySummaryForYesterday(
 		items, total, err := articleSvc.ListForSummary(userID, feedIDs, &start, &end, page, pageSize, order)
 		if err != nil {
 			_, _ = historySvc.Create(userID, CreateSummaryHistoryRequest{
-				AIModelID:    aiModelID,
-				FeedIDs:      feedIDs,
-				StartTime:    startStr,
-				EndTime:      endStr,
-				Page:         page,
-				PageSize:     pageSize,
-				Order:        order,
-				ArticleCount: 0,
-				Total:        total,
-				Content:      "",
-				Error:        err.Error(),
+				AIModelID:           aiModelID,
+				SummaryTemplateID:   summaryTemplateID,
+				SummaryTemplateName:   summaryTemplateName,
+				FeedIDs:               feedIDs,
+				StartTime:             startStr,
+				EndTime:               endStr,
+				Page:                  page,
+				PageSize:              pageSize,
+				Order:                 order,
+				ArticleCount:          0,
+				Total:                 total,
+				Content:               "",
+				Error:                 err.Error(),
 			})
 			trySendFeishuAlert(feishuBot, db, userID, aiModelID, startStr, endStr, page, pageSize, order, 0, err.Error())
 			return err
@@ -66,24 +71,26 @@ func RunDailySummaryForYesterday(
 		if len(items) == 0 {
 			break
 		}
-		content, sumErr := aiModelSvc.Summarize(userID, aiModelID, items)
+		content, sumErr := aiModelSvc.Summarize(userID, aiModelID, items, prompt)
 		errStr := ""
 		if sumErr != nil {
 			errStr = sumErr.Error()
 		}
 		// 保存历史
 		_, _ = historySvc.Create(userID, CreateSummaryHistoryRequest{
-			AIModelID:    aiModelID,
-			FeedIDs:      feedIDs,
-			StartTime:    startStr,
-			EndTime:      endStr,
-			Page:         page,
-			PageSize:     pageSize,
-			Order:        order,
-			ArticleCount: len(items),
-			Total:        total,
-			Content:      content,
-			Error:        errStr,
+			AIModelID:           aiModelID,
+			SummaryTemplateID:   summaryTemplateID,
+			SummaryTemplateName:   summaryTemplateName,
+			FeedIDs:               feedIDs,
+			StartTime:             startStr,
+			EndTime:               endStr,
+			Page:                  page,
+			PageSize:              pageSize,
+			Order:                 order,
+			ArticleCount:          len(items),
+			Total:                 total,
+			Content:               content,
+			Error:                 errStr,
 		})
 
 		// 模型失败时：记录错误并继续下一页，避免阻塞整次总结
@@ -97,15 +104,17 @@ func RunDailySummaryForYesterday(
 		if page > 1000 {
 			errMsg := "分页次数过多，已中止"
 			_, _ = historySvc.Create(userID, CreateSummaryHistoryRequest{
-				AIModelID: aiModelID,
-				FeedIDs:   feedIDs,
-				StartTime: startStr,
-				EndTime:   endStr,
-				Page:      page,
-				PageSize:  pageSize,
-				Order:     order,
-				Error:     errMsg,
-				Content:   "",
+				AIModelID:           aiModelID,
+				SummaryTemplateID:   summaryTemplateID,
+				SummaryTemplateName: summaryTemplateName,
+				FeedIDs:             feedIDs,
+				StartTime:           startStr,
+				EndTime:             endStr,
+				Page:                page,
+				PageSize:            pageSize,
+				Order:               order,
+				Error:               errMsg,
+				Content:             "",
 			})
 			trySendFeishuAlert(feishuBot, db, userID, aiModelID, startStr, endStr, page, pageSize, order, 0, errMsg)
 			return errors.New(errMsg)

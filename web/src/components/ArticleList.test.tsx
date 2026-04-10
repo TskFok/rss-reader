@@ -28,3 +28,15 @@ test('点击标题会触发 onOpen，并高亮选中项', async () => {
   expect(onOpen).toHaveBeenCalledTimes(1);
   expect(onOpen.mock.calls[0][0].link).toBe('https://example.com/a');
 });
+
+test('displayLang=translated 时展示译文标题', () => {
+  render(
+    <ArticleList
+      articles={[makeArticle({ title: '原文', title_translated: '译文标题' })]}
+      selectedId={null}
+      displayLang="translated"
+      onOpen={() => {}}
+    />
+  );
+  expect(screen.getByRole('button', { name: '译文标题' })).toBeInTheDocument();
+});

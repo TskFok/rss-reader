@@ -19,25 +19,27 @@ type Scheduler struct {
 	articleSvc   *services.ArticleService
 	aiModelSvc   *services.AIModelService
 	historySvc   *services.SummaryHistoryService
+	templateSvc  *services.SummaryTemplateService
 	feishuBot    services.FeishuBotClient
 	cron         *cron.Cron
 	workers      int
 }
 
 // New 创建调度器
-func New(db *gorm.DB, rssSvc *services.RSSService, articleSvc *services.ArticleService, aiModelSvc *services.AIModelService, historySvc *services.SummaryHistoryService, feishuBot services.FeishuBotClient, workers int) *Scheduler {
+func New(db *gorm.DB, rssSvc *services.RSSService, articleSvc *services.ArticleService, aiModelSvc *services.AIModelService, historySvc *services.SummaryHistoryService, templateSvc *services.SummaryTemplateService, feishuBot services.FeishuBotClient, workers int) *Scheduler {
 	if workers <= 0 {
 		workers = 3
 	}
 	return &Scheduler{
-		db:         db,
-		rssSvc:     rssSvc,
-		articleSvc: articleSvc,
-		aiModelSvc: aiModelSvc,
-		historySvc: historySvc,
-		feishuBot:  feishuBot,
-		cron:       cron.New(),
-		workers:    workers,
+		db:          db,
+		rssSvc:      rssSvc,
+		articleSvc:  articleSvc,
+		aiModelSvc:  aiModelSvc,
+		historySvc:  historySvc,
+		templateSvc: templateSvc,
+		feishuBot:   feishuBot,
+		cron:        cron.New(),
+		workers:     workers,
 	}
 }
 
@@ -164,6 +166,17 @@ func (s *Scheduler) runSummarySchedules() {
 			if schedule.FeedIDsJSON != "" {
 				_ = json.Unmarshal([]byte(schedule.FeedIDsJSON), &feedIDs)
 			}
+			var prompt *services.SummaryPromptOptions
+			var tplID *uint
+			tplName := ""
+			if s.templateSvc != nil && schedule.SummaryTemplateID != nil && *schedule.SummaryTemplateID != 0 {
+				id := *schedule.SummaryTemplateID
+				tplID = &id
+				if t, err := s.templateSvc.GetByID(schedule.UserID, id); err == nil {
+					prompt = services.PromptOptionsFromTemplate(t)
+					tplName = t.Name
+				}
+			}
 			err := services.RunDailySummaryForYesterday(
 				schedule.UserID,
 				s.aiModelSvc,
@@ -177,6 +190,9 @@ func (s *Scheduler) runSummarySchedules() {
 				loc,
 				s.feishuBot,
 				s.db,
+				prompt,
+				tplID,
+				tplName,
 			)
 			if err != nil {
 				logger.Error("scheduler: run summary schedule %d error: %v", schedule.ID, err)

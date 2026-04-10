@@ -21,13 +21,19 @@ var (
 
 // RSSService RSS 抓取服务
 type RSSService struct {
-	db *gorm.DB
-	fp *gofeed.Parser
+	db        *gorm.DB
+	fp        *gofeed.Parser
+	articleAI *ArticleAIProcessor
 }
 
 // NewRSSService 创建 RSS 服务
 func NewRSSService(db *gorm.DB) *RSSService {
 	return &RSSService{db: db, fp: gofeed.NewParser()}
+}
+
+// SetArticleAI 设置文章入库后的异步 AI 处理器（可选）
+func (s *RSSService) SetArticleAI(p *ArticleAIProcessor) {
+	s.articleAI = p
 }
 
 // parserWithProxy 返回配置了代理的 Parser，proxyURL 为空则直连
@@ -100,10 +106,14 @@ func (s *RSSService) FetchFeed(feed *models.Feed) error {
 	}
 	now := time.Now()
 	for _, item := range parsed.Items {
-		guid := item.GUID
-		if guid == "" {
-			guid = item.Link
+		raw := strings.TrimSpace(item.GUID)
+		if raw == "" {
+			raw = strings.TrimSpace(item.Link)
 		}
+		if raw == "" {
+			continue
+		}
+		guid := models.ArticleGUIDHash(raw)
 		if guid == "" {
 			continue
 		}
@@ -122,16 +132,25 @@ func (s *RSSService) FetchFeed(feed *models.Feed) error {
 		} else if item.Description != "" {
 			content = item.Description
 		}
+		st := ""
+		if FeedNeedsAIProcessing(feed) {
+			st = models.AIProcessPending
+		}
 		article := models.Article{
-			FeedID:      feed.ID,
-			GUID:        guid,
-			Title:       item.Title,
-			Link:        item.Link,
-			Content:     content,
-			PublishedAt: pubAt,
+			FeedID:          feed.ID,
+			GUID:            guid,
+			GUIDRaw:         raw,
+			Title:           item.Title,
+			Link:            item.Link,
+			Content:         content,
+			PublishedAt:     pubAt,
+			AIProcessStatus: st,
 		}
 		if err := s.db.Create(&article).Error; err != nil {
 			return err
+		}
+		if s.articleAI != nil {
+			s.articleAI.Enqueue(feed, article.ID)
 		}
 	}
 	return s.db.Model(feed).Update("last_fetched_at", now).Error

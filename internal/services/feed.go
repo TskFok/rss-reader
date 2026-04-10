@@ -2,6 +2,7 @@ package services
 
 import (
 	"errors"
+	"strings"
 
 	"github.com/ushopal/rss-reader/internal/models"
 	"gorm.io/gorm"
@@ -29,6 +30,30 @@ type CreateFeedRequest struct {
 	UpdateIntervalMinutes int    `json:"update_interval_minutes" binding:"required,min=5,max=10080"`
 	ProxyID               *uint  `json:"proxy_id"`
 	ExpireDays            *int   `json:"expire_days"` // nil=默认90天，0=永不过期，>0=保留天数
+	AIModelID             *uint  `json:"ai_model_id"`
+	AIClassifyEnabled     bool   `json:"ai_classify_enabled"`
+	AITranslateEnabled    bool   `json:"ai_translate_enabled"`
+	AITargetLanguage      string `json:"ai_target_language"`
+}
+
+func (s *FeedService) validateFeedAI(userID uint, classify, translate bool, modelID *uint, targetLang string) error {
+	if !classify && !translate {
+		return nil
+	}
+	if modelID == nil || *modelID == 0 {
+		return errors.New("开启 AI 分类或翻译时需选择模型")
+	}
+	if translate && strings.TrimSpace(targetLang) == "" {
+		return errors.New("开启 AI 翻译时需填写目标语言")
+	}
+	var m models.AIModel
+	if err := s.db.Where("user_id = ? AND id = ?", userID, *modelID).First(&m).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return errors.New("AI 模型不存在")
+		}
+		return err
+	}
+	return nil
 }
 
 // Create 添加订阅
@@ -54,6 +79,10 @@ func (s *FeedService) Create(userID uint, req CreateFeedRequest) (*models.Feed, 
 		proxyURL = p.URL
 	}
 
+	if err := s.validateFeedAI(userID, req.AIClassifyEnabled, req.AITranslateEnabled, req.AIModelID, req.AITargetLanguage); err != nil {
+		return nil, err
+	}
+
 	title, err := s.rss.FetchAndParse(req.URL, proxyURL)
 	if err != nil {
 		return nil, err
@@ -77,6 +106,10 @@ func (s *FeedService) Create(userID uint, req CreateFeedRequest) (*models.Feed, 
 		Title:                 title,
 		UpdateIntervalMinutes: req.UpdateIntervalMinutes,
 		ExpireDays:            expireDays,
+		AIModelID:             req.AIModelID,
+		AIClassifyEnabled:     req.AIClassifyEnabled,
+		AITranslateEnabled:    req.AITranslateEnabled,
+		AITargetLanguage:      strings.TrimSpace(req.AITargetLanguage),
 	}
 	if err := s.db.Create(feed).Error; err != nil {
 		return nil, err
@@ -114,12 +147,41 @@ type UpdateFeedRequest struct {
 	UpdateIntervalMinutes int   `json:"update_interval_minutes" binding:"required,min=5,max=10080"`
 	ProxyID               *uint `json:"proxy_id"`
 	ExpireDays            *int  `json:"expire_days"` // 0=永不过期，nil 表示不修改
+	AIModelID             *uint `json:"ai_model_id"` // nil 不修改；0 清空
+	AIClassifyEnabled     *bool `json:"ai_classify_enabled"`
+	AITranslateEnabled    *bool `json:"ai_translate_enabled"`
+	AITargetLanguage      *string `json:"ai_target_language"` // nil 不修改；可传 "" 清空
 }
 
 // Update 更新订阅设置
 func (s *FeedService) Update(userID uint, id uint, req UpdateFeedRequest) (*models.Feed, error) {
 	feed, err := s.GetByID(userID, id)
 	if err != nil {
+		return nil, err
+	}
+
+	nextClassify := feed.AIClassifyEnabled
+	if req.AIClassifyEnabled != nil {
+		nextClassify = *req.AIClassifyEnabled
+	}
+	nextTranslate := feed.AITranslateEnabled
+	if req.AITranslateEnabled != nil {
+		nextTranslate = *req.AITranslateEnabled
+	}
+	nextModelID := feed.AIModelID
+	if req.AIModelID != nil {
+		if *req.AIModelID == 0 {
+			nextModelID = nil
+		} else {
+			v := *req.AIModelID
+			nextModelID = &v
+		}
+	}
+	nextTarget := feed.AITargetLanguage
+	if req.AITargetLanguage != nil {
+		nextTarget = strings.TrimSpace(*req.AITargetLanguage)
+	}
+	if err := s.validateFeedAI(userID, nextClassify, nextTranslate, nextModelID, nextTarget); err != nil {
 		return nil, err
 	}
 	if req.CategoryID != nil {
@@ -148,6 +210,22 @@ func (s *FeedService) Update(userID uint, id uint, req UpdateFeedRequest) (*mode
 	}
 	if req.ExpireDays != nil {
 		updates["expire_days"] = *req.ExpireDays
+	}
+	if req.AIModelID != nil {
+		if *req.AIModelID == 0 {
+			updates["ai_model_id"] = nil
+		} else {
+			updates["ai_model_id"] = *req.AIModelID
+		}
+	}
+	if req.AIClassifyEnabled != nil {
+		updates["ai_classify_enabled"] = *req.AIClassifyEnabled
+	}
+	if req.AITranslateEnabled != nil {
+		updates["ai_translate_enabled"] = *req.AITranslateEnabled
+	}
+	if req.AITargetLanguage != nil {
+		updates["ai_target_language"] = strings.TrimSpace(*req.AITargetLanguage)
 	}
 	if err := s.db.Model(feed).Updates(updates).Error; err != nil {
 		return nil, err

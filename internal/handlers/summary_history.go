@@ -12,13 +12,14 @@ import (
 )
 
 type SummaryHistoryHandler struct {
-	svc        *services.SummaryHistoryService
-	articleSvc *services.ArticleService
-	aiModelSvc *services.AIModelService
+	svc         *services.SummaryHistoryService
+	articleSvc  *services.ArticleService
+	aiModelSvc  *services.AIModelService
+	templateSvc *services.SummaryTemplateService
 }
 
-func NewSummaryHistoryHandler(svc *services.SummaryHistoryService, articleSvc *services.ArticleService, aiModelSvc *services.AIModelService) *SummaryHistoryHandler {
-	return &SummaryHistoryHandler{svc: svc, articleSvc: articleSvc, aiModelSvc: aiModelSvc}
+func NewSummaryHistoryHandler(svc *services.SummaryHistoryService, articleSvc *services.ArticleService, aiModelSvc *services.AIModelService, templateSvc *services.SummaryTemplateService) *SummaryHistoryHandler {
+	return &SummaryHistoryHandler{svc: svc, articleSvc: articleSvc, aiModelSvc: aiModelSvc, templateSvc: templateSvc}
 }
 
 // List GET /api/summary-histories
@@ -38,17 +39,19 @@ func (h *SummaryHistoryHandler) List(c *gin.Context) {
 }
 
 type CreateSummaryHistoryRequest struct {
-	AIModelID    uint   `json:"ai_model_id" binding:"required"`
-	FeedIDs      []uint `json:"feed_ids"`
-	StartTime    string `json:"start_time"`
-	EndTime      string `json:"end_time"`
-	Page         int    `json:"page"`
-	PageSize     int    `json:"page_size"`
-	Order        string `json:"order"`
-	ArticleCount int    `json:"article_count"`
-	Total        int64  `json:"total"`
-	Content      string `json:"content"`
-	Error        string `json:"error"`
+	AIModelID           uint   `json:"ai_model_id" binding:"required"`
+	SummaryTemplateID   *uint  `json:"summary_template_id"`
+	SummaryTemplateName string `json:"summary_template_name"`
+	FeedIDs             []uint `json:"feed_ids"`
+	StartTime           string `json:"start_time"`
+	EndTime             string `json:"end_time"`
+	Page                int    `json:"page"`
+	PageSize            int    `json:"page_size"`
+	Order               string `json:"order"`
+	ArticleCount        int    `json:"article_count"`
+	Total               int64  `json:"total"`
+	Content             string `json:"content"`
+	Error               string `json:"error"`
 }
 
 // Create POST /api/summary-histories
@@ -60,17 +63,19 @@ func (h *SummaryHistoryHandler) Create(c *gin.Context) {
 		return
 	}
 	item, err := h.svc.Create(userID, services.CreateSummaryHistoryRequest{
-		AIModelID:    req.AIModelID,
-		FeedIDs:      req.FeedIDs,
-		StartTime:    req.StartTime,
-		EndTime:      req.EndTime,
-		Page:         req.Page,
-		PageSize:     req.PageSize,
-		Order:        req.Order,
-		ArticleCount: req.ArticleCount,
-		Total:        req.Total,
-		Content:      req.Content,
-		Error:        req.Error,
+		AIModelID:           req.AIModelID,
+		SummaryTemplateID:   req.SummaryTemplateID,
+		SummaryTemplateName: req.SummaryTemplateName,
+		FeedIDs:             req.FeedIDs,
+		StartTime:           req.StartTime,
+		EndTime:             req.EndTime,
+		Page:                req.Page,
+		PageSize:            req.PageSize,
+		Order:               req.Order,
+		ArticleCount:        req.ArticleCount,
+		Total:               req.Total,
+		Content:             req.Content,
+		Error:               req.Error,
 	})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "保存失败"})
@@ -147,7 +152,13 @@ func (h *SummaryHistoryHandler) Retry(c *gin.Context) {
 		return
 	}
 
-	content, sumErr := h.aiModelSvc.Summarize(userID, his.AIModelID, articles)
+	var prompt *services.SummaryPromptOptions
+	if h.templateSvc != nil && his.SummaryTemplateID != nil && *his.SummaryTemplateID != 0 {
+		if t, err := h.templateSvc.GetByID(userID, *his.SummaryTemplateID); err == nil {
+			prompt = services.PromptOptionsFromTemplate(t)
+		}
+	}
+	content, sumErr := h.aiModelSvc.Summarize(userID, his.AIModelID, articles, prompt)
 	errStr := ""
 	if sumErr != nil {
 		errStr = sumErr.Error()

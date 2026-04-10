@@ -23,21 +23,23 @@ func NewSummaryScheduleService(db *gorm.DB) *SummaryScheduleService {
 }
 
 type CreateSummaryScheduleRequest struct {
-	AIModelID uint   `json:"ai_model_id" binding:"required"`
-	FeedIDs   []uint `json:"feed_ids"`
-	RunAt     string `json:"run_at" binding:"required"` // HH:MM
-	PageSize  int    `json:"page_size"`
-	Order     string `json:"order"`
-	Enabled   *bool  `json:"enabled"`
+	AIModelID           uint   `json:"ai_model_id" binding:"required"`
+	SummaryTemplateID   *uint  `json:"summary_template_id"`
+	FeedIDs             []uint `json:"feed_ids"`
+	RunAt               string `json:"run_at" binding:"required"` // HH:MM
+	PageSize            int    `json:"page_size"`
+	Order               string `json:"order"`
+	Enabled             *bool  `json:"enabled"`
 }
 
 type UpdateSummaryScheduleRequest struct {
-	AIModelID uint   `json:"ai_model_id" binding:"required"`
-	FeedIDs   []uint `json:"feed_ids"`
-	RunAt     string `json:"run_at" binding:"required"`
-	PageSize  int    `json:"page_size"`
-	Order     string `json:"order"`
-	Enabled   *bool  `json:"enabled"`
+	AIModelID           uint   `json:"ai_model_id" binding:"required"`
+	SummaryTemplateID   *uint  `json:"summary_template_id"`
+	FeedIDs             []uint `json:"feed_ids"`
+	RunAt               string `json:"run_at" binding:"required"`
+	PageSize            int    `json:"page_size"`
+	Order               string `json:"order"`
+	Enabled             *bool  `json:"enabled"`
 }
 
 func normalizeRunAt(s string) (string, error) {
@@ -59,6 +61,15 @@ func (s *SummaryScheduleService) List(userID uint) ([]models.AISummarySchedule, 
 }
 
 func (s *SummaryScheduleService) Create(userID uint, req CreateSummaryScheduleRequest) (*models.AISummarySchedule, error) {
+	if req.SummaryTemplateID != nil && *req.SummaryTemplateID != 0 {
+		var tpl models.AISummaryTemplate
+		if err := s.db.Where("user_id = ? AND id = ?", userID, *req.SummaryTemplateID).First(&tpl).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil, errors.New("总结模版不存在")
+			}
+			return nil, err
+		}
+	}
 	runAt, err := normalizeRunAt(req.RunAt)
 	if err != nil {
 		return nil, err
@@ -76,13 +87,14 @@ func (s *SummaryScheduleService) Create(userID uint, req CreateSummaryScheduleRe
 		enabled = *req.Enabled
 	}
 	m := &models.AISummarySchedule{
-		UserID:     userID,
-		AIModelID:  req.AIModelID,
-		FeedIDsJSON: string(b),
-		RunAt:      runAt,
-		PageSize:   pageSize,
-		Order:      normalizeOrder(req.Order),
-		Enabled:    enabled,
+		UserID:              userID,
+		AIModelID:           req.AIModelID,
+		SummaryTemplateID:   req.SummaryTemplateID,
+		FeedIDsJSON:         string(b),
+		RunAt:               runAt,
+		PageSize:            pageSize,
+		Order:               normalizeOrder(req.Order),
+		Enabled:             enabled,
 	}
 	if err := s.db.Create(m).Error; err != nil {
 		return nil, err
@@ -98,6 +110,15 @@ func (s *SummaryScheduleService) Update(userID uint, id uint, req UpdateSummaryS
 		}
 		return nil, err
 	}
+	if req.SummaryTemplateID != nil && *req.SummaryTemplateID != 0 {
+		var tpl models.AISummaryTemplate
+		if err := s.db.Where("user_id = ? AND id = ?", userID, *req.SummaryTemplateID).First(&tpl).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil, errors.New("总结模版不存在")
+			}
+			return nil, err
+		}
+	}
 	runAt, err := normalizeRunAt(req.RunAt)
 	if err != nil {
 		return nil, err
@@ -111,6 +132,7 @@ func (s *SummaryScheduleService) Update(userID uint, id uint, req UpdateSummaryS
 		return nil, err
 	}
 	m.AIModelID = req.AIModelID
+	m.SummaryTemplateID = req.SummaryTemplateID
 	m.FeedIDsJSON = string(b)
 	m.RunAt = runAt
 	m.PageSize = pageSize

@@ -100,6 +100,9 @@ export default function SummaryHistory() {
                         <span className="feeds-proxy-url">文章：{it.article_count} / {it.total}</span>
                         <span className="feeds-proxy-url">页码：{it.page}（每页 {it.page_size}）</span>
                         <span className="feeds-proxy-url">排序：{it.order === 'asc' ? '从旧到新' : '从新到旧'}</span>
+                        {it.summary_template_name ? (
+                          <span className="feeds-proxy-url">模版：{it.summary_template_name}</span>
+                        ) : null}
                       </div>
                       {(it.start_time || it.end_time) && (
                         <div className="feeds-proxy-url">

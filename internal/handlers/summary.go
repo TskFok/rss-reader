@@ -11,25 +11,27 @@ import (
 
 // SummaryHandler AI 总结处理器
 type SummaryHandler struct {
-	articleSvc *services.ArticleService
-	aiModelSvc *services.AIModelService
-	errLogSvc  *services.ErrorLogService
+	articleSvc  *services.ArticleService
+	aiModelSvc  *services.AIModelService
+	templateSvc *services.SummaryTemplateService
+	errLogSvc   *services.ErrorLogService
 }
 
 // NewSummaryHandler 创建总结处理器
-func NewSummaryHandler(articleSvc *services.ArticleService, aiModelSvc *services.AIModelService, errLogSvc *services.ErrorLogService) *SummaryHandler {
-	return &SummaryHandler{articleSvc: articleSvc, aiModelSvc: aiModelSvc, errLogSvc: errLogSvc}
+func NewSummaryHandler(articleSvc *services.ArticleService, aiModelSvc *services.AIModelService, templateSvc *services.SummaryTemplateService, errLogSvc *services.ErrorLogService) *SummaryHandler {
+	return &SummaryHandler{articleSvc: articleSvc, aiModelSvc: aiModelSvc, templateSvc: templateSvc, errLogSvc: errLogSvc}
 }
 
 // SummarizeRequest 总结请求
 type SummarizeRequest struct {
-	AIModelID uint     `json:"ai_model_id" binding:"required"`
-	FeedIDs   []uint   `json:"feed_ids"`
-	StartTime string   `json:"start_time"`
-	EndTime   string   `json:"end_time"`
-	Page      int      `json:"page"`
-	PageSize  int      `json:"page_size"`
-	Order     string   `json:"order"` // "desc"(默认)=从新到旧，"asc"=从旧到新
+	AIModelID           uint     `json:"ai_model_id" binding:"required"`
+	SummaryTemplateID   *uint    `json:"summary_template_id"`
+	FeedIDs             []uint   `json:"feed_ids"`
+	StartTime           string   `json:"start_time"`
+	EndTime             string   `json:"end_time"`
+	Page                int      `json:"page"`
+	PageSize            int      `json:"page_size"`
+	Order               string   `json:"order"` // "desc"(默认)=从新到旧，"asc"=从旧到新
 }
 
 // Summarize 流式生成 AI 总结（SSE）
@@ -92,8 +94,14 @@ func (h *SummaryHandler) Summarize(c *gin.Context) {
 		"order":         req.Order,
 	})
 	c.Writer.Flush()
+	var prompt *services.SummaryPromptOptions
+	if h.templateSvc != nil && req.SummaryTemplateID != nil && *req.SummaryTemplateID != 0 {
+		if t, err := h.templateSvc.GetByID(userID, *req.SummaryTemplateID); err == nil {
+			prompt = services.PromptOptionsFromTemplate(t)
+		}
+	}
 	// 流式输出
-	err = h.aiModelSvc.SummarizeStream(userID, req.AIModelID, articles, func(chunk string) error {
+	err = h.aiModelSvc.SummarizeStream(userID, req.AIModelID, articles, prompt, func(chunk string) error {
 		c.SSEvent("", map[string]string{"delta": chunk})
 		c.Writer.Flush()
 		return nil

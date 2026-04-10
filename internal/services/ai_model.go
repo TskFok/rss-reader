@@ -160,6 +160,54 @@ type chatMessage struct {
 	Content string `json:"content"`
 }
 
+// ChatCompletionText 非流式调用 OpenAI 兼容 chat/completions，返回首条回复正文
+func (s *AIModelService) ChatCompletionText(userID uint, modelID uint, maxTokens int, messages []chatMessage) (string, error) {
+	m, err := s.GetByID(userID, modelID)
+	if err != nil {
+		return "", err
+	}
+	baseURL := strings.TrimSuffix(m.BaseURL, "/")
+	chatURL := baseURL
+	if !strings.HasSuffix(chatURL, "/chat/completions") {
+		chatURL = baseURL + "/chat/completions"
+	}
+	body := chatCompletionsRequest{
+		Model:     m.Name,
+		MaxTokens: maxTokens,
+		Stream:    false,
+		Messages:  messages,
+	}
+	bodyBytes, err := json.Marshal(body)
+	if err != nil {
+		return "", err
+	}
+	req, err := http.NewRequest(http.MethodPost, chatURL, bytes.NewReader(bodyBytes))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if m.APIKey != "" {
+		req.Header.Set("Authorization", "Bearer "+m.APIKey)
+	}
+	client := &http.Client{Timeout: 120 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return "", errors.New("模型调用失败: HTTP " + resp.Status)
+	}
+	var respBody chatCompletionsResponse
+	if err := json.NewDecoder(resp.Body).Decode(&respBody); err != nil {
+		return "", err
+	}
+	if len(respBody.Choices) == 0 || respBody.Choices[0].Message.Content == "" {
+		return "", errors.New("模型未返回有效内容")
+	}
+	return strings.TrimSpace(respBody.Choices[0].Message.Content), nil
+}
+
 // chatCompletionsResponse OpenAI 兼容的聊天响应
 type chatCompletionsResponse struct {
 	Choices []struct {
@@ -169,8 +217,8 @@ type chatCompletionsResponse struct {
 	} `json:"choices"`
 }
 
-// Summarize 使用指定 AI 模型对文章列表生成中文总结
-func (s *AIModelService) Summarize(userID uint, modelID uint, articles []ArticleForSummary) (string, error) {
+// Summarize 使用指定 AI 模型对文章列表生成总结；opts 为 nil 时使用内置中文说明前缀
+func (s *AIModelService) Summarize(userID uint, modelID uint, articles []ArticleForSummary, opts *SummaryPromptOptions) (string, error) {
 	if len(articles) == 0 {
 		return "", errors.New("没有可总结的文章")
 	}
@@ -178,25 +226,7 @@ func (s *AIModelService) Summarize(userID uint, modelID uint, articles []Article
 	if err != nil {
 		return "", err
 	}
-	var sb strings.Builder
-	sb.WriteString("以下是用户在指定时间范围内订阅的 RSS 文章列表，请用中文对这些内容进行概括性总结，提炼主要话题、重要信息与趋势。要求：\n1. 总结必须使用中文；\n2. 按主题或订阅源分组归纳；\n3. 突出重要新闻或变化；\n4. 控制在 800 字以内。\n\n---\n\n")
-	for i, a := range articles {
-		sb.WriteString("【")
-		sb.WriteString(a.FeedTitle)
-		sb.WriteString("】")
-		sb.WriteString(a.PublishedAt)
-		sb.WriteString(" - ")
-		sb.WriteString(a.Title)
-		sb.WriteString("\n")
-		sb.WriteString(a.Content)
-		if i < len(articles)-1 {
-			sb.WriteString("\n\n")
-		}
-	}
-	prompt := sb.String()
-	if len(prompt) > 100000 {
-		prompt = prompt[:100000] + "\n\n...(内容已截断)"
-	}
+	msgs := BuildSummaryChatMessages(opts, articles)
 	baseURL := strings.TrimSuffix(m.BaseURL, "/")
 	chatURL := baseURL
 	if !strings.HasSuffix(chatURL, "/chat/completions") {
@@ -205,7 +235,7 @@ func (s *AIModelService) Summarize(userID uint, modelID uint, articles []Article
 	body := chatCompletionsRequest{
 		Model:     m.Name,
 		MaxTokens: 2000,
-		Messages:  []chatMessage{{Role: "user", Content: prompt}},
+		Messages:  msgs,
 	}
 	bodyBytes, err := json.Marshal(body)
 	if err != nil {
@@ -248,8 +278,8 @@ type streamChunk struct {
 	} `json:"choices"`
 }
 
-// SummarizeStream 流式生成 AI 总结，每收到一段内容即调用 onChunk
-func (s *AIModelService) SummarizeStream(userID uint, modelID uint, articles []ArticleForSummary, onChunk func(string) error) error {
+// SummarizeStream 流式生成 AI 总结；opts 为 nil 时使用内置说明前缀
+func (s *AIModelService) SummarizeStream(userID uint, modelID uint, articles []ArticleForSummary, opts *SummaryPromptOptions, onChunk func(string) error) error {
 	if len(articles) == 0 {
 		return errors.New("没有可总结的文章")
 	}
@@ -257,25 +287,7 @@ func (s *AIModelService) SummarizeStream(userID uint, modelID uint, articles []A
 	if err != nil {
 		return err
 	}
-	var sb strings.Builder
-	sb.WriteString("以下是用户在指定时间范围内订阅的 RSS 文章列表，请用中文对这些内容进行概括性总结，提炼主要话题、重要信息与趋势。要求：\n1. 总结必须使用中文；\n2. 按主题或订阅源分组归纳；\n3. 突出重要新闻或变化；\n4. 控制在 800 字以内。\n\n---\n\n")
-	for i, a := range articles {
-		sb.WriteString("【")
-		sb.WriteString(a.FeedTitle)
-		sb.WriteString("】")
-		sb.WriteString(a.PublishedAt)
-		sb.WriteString(" - ")
-		sb.WriteString(a.Title)
-		sb.WriteString("\n")
-		sb.WriteString(a.Content)
-		if i < len(articles)-1 {
-			sb.WriteString("\n\n")
-		}
-	}
-	prompt := sb.String()
-	if len(prompt) > 100000 {
-		prompt = prompt[:100000] + "\n\n...(内容已截断)"
-	}
+	msgs := BuildSummaryChatMessages(opts, articles)
 	baseURL := strings.TrimSuffix(m.BaseURL, "/")
 	chatURL := baseURL
 	if !strings.HasSuffix(chatURL, "/chat/completions") {
@@ -285,7 +297,7 @@ func (s *AIModelService) SummarizeStream(userID uint, modelID uint, articles []A
 		Model:     m.Name,
 		MaxTokens: 2000,
 		Stream:    true,
-		Messages:  []chatMessage{{Role: "user", Content: prompt}},
+		Messages:  msgs,
 	}
 	bodyBytes, err := json.Marshal(body)
 	if err != nil {

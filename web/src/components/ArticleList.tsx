@@ -1,17 +1,27 @@
 import type { Article } from '../api/client';
+import {
+  articleCategoryForDisplay,
+  articleTitleForDisplay,
+  type ArticleDisplayLang,
+} from '../utils/articleDisplayLang';
 
 export default function ArticleList({
   articles,
   onOpen,
   selectedId,
+  displayLang = 'original',
 }: {
   articles: Article[];
   onOpen: (a: Article) => void;
   selectedId?: number | null;
+  displayLang?: ArticleDisplayLang;
 }) {
   return (
     <ul className="article-list">
-      {articles.map((a) => (
+      {articles.map((a) => {
+        const cat = articleCategoryForDisplay(a, displayLang);
+        const title = articleTitleForDisplay(a, displayLang);
+        return (
         <li
           key={a.id}
           data-article-id={a.id}
@@ -27,17 +37,26 @@ export default function ArticleList({
               type="button"
               className="article-title-btn"
               onClick={() => onOpen(a)}
-              title={a.title || '(无标题)'}
+              title={title}
               aria-current={selectedId === a.id ? 'true' : undefined}
             >
-              {a.title || '(无标题)'}
+              {a.ai_process_status === 'pending' && (a.feed_ai_classify_enabled || a.feed_ai_translate_enabled) ? (
+                <span className="article-ai-pending">处理中… </span>
+              ) : null}
+              {title}
             </button>
           </div>
           <div className="article-meta">
+            {cat && (
+              <span className="article-ai-category" title="AI 分类">
+                {cat}
+              </span>
+            )}
             {a.feed_title && <span className="feed">{a.feed_title}</span>}
           </div>
         </li>
-      ))}
+        );
+      })}
     </ul>
   );
 }

@@ -54,6 +54,12 @@ func (h *FeedHandler) Create(c *gin.Context) {
 			c.JSON(http.StatusConflict, gin.H{"error": "订阅已存在"})
 			return
 		}
+		if err.Error() == "开启 AI 分类或翻译时需选择模型" ||
+			err.Error() == "开启 AI 翻译时需填写目标语言" ||
+			err.Error() == "AI 模型不存在" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "添加订阅失败"})
 		return
 	}
@@ -86,6 +92,12 @@ func (h *FeedHandler) Update(c *gin.Context) {
 		}
 		if err.Error() == "代理不存在" {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "代理不存在"})
+			return
+		}
+		if err.Error() == "开启 AI 分类或翻译时需选择模型" ||
+			err.Error() == "开启 AI 翻译时需填写目标语言" ||
+			err.Error() == "AI 模型不存在" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新失败"})

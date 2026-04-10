@@ -13,7 +13,7 @@ import (
 func setupSummaryScheduleDB(t *testing.T) *gorm.DB {
 	db, err := gorm.Open(sqlite.Open("file:"+t.Name()+"?mode=memory&cache=shared"), &gorm.Config{})
 	require.NoError(t, err)
-	require.NoError(t, db.AutoMigrate(&models.User{}, &models.AIModel{}, &models.AISummarySchedule{}))
+	require.NoError(t, db.AutoMigrate(&models.User{}, &models.AIModel{}, &models.AISummaryTemplate{}, &models.AISummarySchedule{}))
 	return db
 }
 
@@ -66,6 +66,22 @@ func TestSummaryScheduleService_RunAtValidation(t *testing.T) {
 	svc := NewSummaryScheduleService(db)
 
 	_, err := svc.Create(1, CreateSummaryScheduleRequest{AIModelID: 1, RunAt: "bad"})
+	assert.Error(t, err)
+}
+
+func TestSummaryScheduleService_InvalidTemplate(t *testing.T) {
+	db := setupSummaryScheduleDB(t)
+	svc := NewSummaryScheduleService(db)
+	u := models.User{Username: "u2", PasswordHash: "h", Status: models.UserStatusActive}
+	require.NoError(t, db.Create(&u).Error)
+	m := models.AIModel{UserID: u.ID, Name: "m", BaseURL: "http://x"}
+	require.NoError(t, db.Create(&m).Error)
+	bad := uint(999)
+	_, err := svc.Create(u.ID, CreateSummaryScheduleRequest{
+		AIModelID:         m.ID,
+		SummaryTemplateID: &bad,
+		RunAt:             "10:00",
+	})
 	assert.Error(t, err)
 }
 

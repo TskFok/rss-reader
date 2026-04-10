@@ -4,6 +4,13 @@ import { articlesApi, feedsApi, categoriesApi } from '../api/client';
 import type { Article, Feed, FeedCategory } from '../api/client';
 import ArticleList from '../components/ArticleList';
 import { nextIndex } from '../utils/arrowNav';
+import {
+  articleCategoryForDisplay,
+  articleTitleForDisplay,
+  getStoredArticleLang,
+  setStoredArticleLang,
+  type ArticleDisplayLang,
+} from '../utils/articleDisplayLang';
 
 const PAGE_SIZE = 20;
 
@@ -28,6 +35,9 @@ export default function Home() {
   const [total, setTotal] = useState(0);
   const [selected, setSelected] = useState<Article | null>(null);
   const [collapsedCategories, setCollapsedCategories] = useState<Set<number>>(initialCollapsed);
+  const [articleDisplayLang, setArticleDisplayLang] = useState<ArticleDisplayLang>(() =>
+    getStoredArticleLang()
+  );
   const sidebarLoadedRef = useRef(false);
   const listScrollRef = useRef<HTMLDivElement>(null);
 
@@ -163,6 +173,9 @@ export default function Home() {
   };
 
   const currentFeed = filterFeed ? feeds.find((f) => f.id === filterFeed) : undefined;
+  const showArticleLangToggle =
+    feeds.some((f) => f.ai_translate_enabled) &&
+    (filterFeed === '' || !!currentFeed?.ai_translate_enabled);
 
   const feedsByCategory = categories.map((c) => ({
     category: c,
@@ -338,6 +351,22 @@ export default function Home() {
           <div className="home-current-feed">
             {currentFeed ? `当前订阅：${currentFeed.title || currentFeed.url}` : '当前订阅：全部订阅'}
           </div>
+          {showArticleLangToggle && (
+            <label className="home-lang-toggle">
+              显示
+              <select
+                value={articleDisplayLang}
+                onChange={(e) => {
+                  const v = e.target.value as ArticleDisplayLang;
+                  setStoredArticleLang(v);
+                  setArticleDisplayLang(v);
+                }}
+              >
+                <option value="original">原文</option>
+                <option value="translated">译文</option>
+              </select>
+            </label>
+          )}
           <select
             value={filterRead}
             onChange={(e) => {
@@ -361,6 +390,7 @@ export default function Home() {
               <ArticleList
                 articles={articles}
                 selectedId={selected?.id ?? null}
+                displayLang={articleDisplayLang}
                 onOpen={(a) => {
                   setSelected(a);
                   markRead(a.id);
@@ -385,7 +415,7 @@ export default function Home() {
                 rel="noopener noreferrer"
                 title="打开原文"
               >
-                {selected.title || '(无标题)'}
+                {articleTitleForDisplay(selected, articleDisplayLang)}
               </a>
               <div className="article-detail-actions">
                 <button
@@ -403,13 +433,24 @@ export default function Home() {
               </div>
             </div>
             <div className="article-detail-meta">
+              {articleCategoryForDisplay(selected, articleDisplayLang) && (
+                <span className="article-detail-ai-cat">
+                  {articleCategoryForDisplay(selected, articleDisplayLang)}
+                </span>
+              )}
               {selected.feed_title && <span className="feed">{selected.feed_title}</span>}
               <span className="date">{formatDate(selected.published_at || selected.created_at)}</span>
             </div>
-            <div
-              className="article-detail-content"
-              dangerouslySetInnerHTML={{ __html: selected.content || '<p>(暂无内容)</p>' }}
-            />
+            {articleDisplayLang === 'translated' &&
+            selected.feed_ai_translate_enabled &&
+            selected.content_translated?.trim() ? (
+              <div className="article-detail-content article-detail-plain">{selected.content_translated}</div>
+            ) : (
+              <div
+                className="article-detail-content"
+                dangerouslySetInnerHTML={{ __html: selected.content || '<p>(暂无内容)</p>' }}
+              />
+            )}
           </div>
         )}
       </section>

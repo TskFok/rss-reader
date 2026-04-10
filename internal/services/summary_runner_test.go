@@ -59,13 +59,13 @@ func TestRunDailySummaryForYesterday_CreatesHistoriesUntilEmpty(t *testing.T) {
 	y := now.AddDate(0, 0, -1)
 	t1 := time.Date(y.Year(), y.Month(), y.Day(), 9, 0, 0, 0, loc)
 	t2 := time.Date(y.Year(), y.Month(), y.Day(), 12, 0, 0, 0, loc)
-	a1 := models.Article{FeedID: feed.ID, GUID: "g1", Title: "a1", Content: "c1", PublishedAt: &t1}
-	a2 := models.Article{FeedID: feed.ID, GUID: "g2", Title: "a2", Content: "c2", PublishedAt: &t2}
+	a1 := models.Article{FeedID: feed.ID, GUID: models.ArticleGUIDHash("g1"), GUIDRaw: "g1", Title: "a1", Content: "c1", PublishedAt: &t1}
+	a2 := models.Article{FeedID: feed.ID, GUID: models.ArticleGUIDHash("g2"), GUIDRaw: "g2", Title: "a2", Content: "c2", PublishedAt: &t2}
 	require.NoError(t, db.Create(&a1).Error)
 	require.NoError(t, db.Create(&a2).Error)
 
 	// page_size=1 -> should generate 2 histories then stop at empty page
-	err = RunDailySummaryForYesterday(u.ID, aiModelSvc, articleSvc, historySvc, m.ID, []uint{feed.ID}, 1, "desc", now, loc, nil, nil)
+	err = RunDailySummaryForYesterday(u.ID, aiModelSvc, articleSvc, historySvc, m.ID, []uint{feed.ID}, 1, "desc", now, loc, nil, nil, nil, nil, "")
 	require.NoError(t, err)
 
 	var count int64
@@ -125,11 +125,11 @@ func TestRunDailySummaryForYesterday_SendsFeishuAlertOnAIFailure(t *testing.T) {
 	now := time.Date(2026, 3, 11, 10, 0, 0, 0, loc)
 	y := now.AddDate(0, 0, -1)
 	t1 := time.Date(y.Year(), y.Month(), y.Day(), 9, 0, 0, 0, loc)
-	a1 := models.Article{FeedID: feed.ID, GUID: "g1", Title: "a1", Content: "c1", PublishedAt: &t1}
+	a1 := models.Article{FeedID: feed.ID, GUID: models.ArticleGUIDHash("g1"), GUIDRaw: "g1", Title: "a1", Content: "c1", PublishedAt: &t1}
 	require.NoError(t, db.Create(&a1).Error)
 
 	mockBot := &mockFeishuBotClient{}
-	err = RunDailySummaryForYesterday(u.ID, aiModelSvc, articleSvc, historySvc, m.ID, []uint{feed.ID}, 1, "desc", now, loc, mockBot, db)
+	err = RunDailySummaryForYesterday(u.ID, aiModelSvc, articleSvc, historySvc, m.ID, []uint{feed.ID}, 1, "desc", now, loc, mockBot, db, nil, nil, "")
 	require.NoError(t, err)
 
 	// 验证飞书告警被调用
@@ -173,11 +173,11 @@ func TestRunDailySummaryForYesterday_SendsFeishuAlertViaAPIOnAIFailure(t *testin
 	now := time.Date(2026, 3, 11, 10, 0, 0, 0, loc)
 	y := now.AddDate(0, 0, -1)
 	t1 := time.Date(y.Year(), y.Month(), y.Day(), 9, 0, 0, 0, loc)
-	a1 := models.Article{FeedID: feed.ID, GUID: "g1", Title: "a1", Content: "c1", PublishedAt: &t1}
+	a1 := models.Article{FeedID: feed.ID, GUID: models.ArticleGUIDHash("g1"), GUIDRaw: "g1", Title: "a1", Content: "c1", PublishedAt: &t1}
 	require.NoError(t, db.Create(&a1).Error)
 
 	mockBot := &mockFeishuBotClient{}
-	_ = RunDailySummaryForYesterday(u.ID, aiModelSvc, articleSvc, historySvc, m.ID, []uint{feed.ID}, 1, "desc", now, loc, mockBot, db)
+	_ = RunDailySummaryForYesterday(u.ID, aiModelSvc, articleSvc, historySvc, m.ID, []uint{feed.ID}, 1, "desc", now, loc, mockBot, db, nil, nil, "")
 
 	require.Len(t, mockBot.apiSendCalls, 1)
 	call := mockBot.apiSendCalls[0]
@@ -209,11 +209,11 @@ func TestRunDailySummaryForYesterday_NoFeishuAlertWhenWebhookEmpty(t *testing.T)
 	now := time.Date(2026, 3, 11, 10, 0, 0, 0, loc)
 	y := now.AddDate(0, 0, -1)
 	t1 := time.Date(y.Year(), y.Month(), y.Day(), 9, 0, 0, 0, loc)
-	a1 := models.Article{FeedID: feed.ID, GUID: "g1", Title: "a1", Content: "c1", PublishedAt: &t1}
+	a1 := models.Article{FeedID: feed.ID, GUID: models.ArticleGUIDHash("g1"), GUIDRaw: "g1", Title: "a1", Content: "c1", PublishedAt: &t1}
 	require.NoError(t, db.Create(&a1).Error)
 
 	mockBot := &mockFeishuBotClient{}
-	_ = RunDailySummaryForYesterday(u.ID, aiModelSvc, articleSvc, historySvc, m.ID, []uint{feed.ID}, 1, "desc", now, loc, mockBot, db)
+	_ = RunDailySummaryForYesterday(u.ID, aiModelSvc, articleSvc, historySvc, m.ID, []uint{feed.ID}, 1, "desc", now, loc, mockBot, db, nil, nil, "")
 	assert.Len(t, mockBot.sendCalls, 0)
 }
 
@@ -245,11 +245,11 @@ func TestRunDailySummaryForYesterday_NoFeishuAlertWhenFeishuBotNil(t *testing.T)
 	now := time.Date(2026, 3, 11, 10, 0, 0, 0, loc)
 	y := now.AddDate(0, 0, -1)
 	t1 := time.Date(y.Year(), y.Month(), y.Day(), 9, 0, 0, 0, loc)
-	a1 := models.Article{FeedID: feed.ID, GUID: "g1", Title: "a1", Content: "c1", PublishedAt: &t1}
+	a1 := models.Article{FeedID: feed.ID, GUID: models.ArticleGUIDHash("g1"), GUIDRaw: "g1", Title: "a1", Content: "c1", PublishedAt: &t1}
 	require.NoError(t, db.Create(&a1).Error)
 
 	// feishuBot 为 nil，即使配置了 Webhook 也不发送
-	err := RunDailySummaryForYesterday(u.ID, aiModelSvc, articleSvc, historySvc, m.ID, []uint{feed.ID}, 1, "desc", now, loc, nil, db)
+	err := RunDailySummaryForYesterday(u.ID, aiModelSvc, articleSvc, historySvc, m.ID, []uint{feed.ID}, 1, "desc", now, loc, nil, db, nil, nil, "")
 	require.NoError(t, err)
 	// 无 mock 可验证，主要确保传 nil 不 panic
 }
@@ -282,11 +282,11 @@ func TestRunDailySummaryForYesterday_FeishuSendFailureDoesNotAffectMainFlow(t *t
 	now := time.Date(2026, 3, 11, 10, 0, 0, 0, loc)
 	y := now.AddDate(0, 0, -1)
 	t1 := time.Date(y.Year(), y.Month(), y.Day(), 9, 0, 0, 0, loc)
-	a1 := models.Article{FeedID: feed.ID, GUID: "g1", Title: "a1", Content: "c1", PublishedAt: &t1}
+	a1 := models.Article{FeedID: feed.ID, GUID: models.ArticleGUIDHash("g1"), GUIDRaw: "g1", Title: "a1", Content: "c1", PublishedAt: &t1}
 	require.NoError(t, db.Create(&a1).Error)
 
 	mockBot := &mockFeishuBotClient{sendErr: assert.AnError}
-	err := RunDailySummaryForYesterday(u.ID, aiModelSvc, articleSvc, historySvc, m.ID, []uint{feed.ID}, 1, "desc", now, loc, mockBot, db)
+	err := RunDailySummaryForYesterday(u.ID, aiModelSvc, articleSvc, historySvc, m.ID, []uint{feed.ID}, 1, "desc", now, loc, mockBot, db, nil, nil, "")
 	require.NoError(t, err)
 	// 飞书告警仍被尝试发送
 	require.Len(t, mockBot.sendCalls, 1)
@@ -341,12 +341,12 @@ func TestRunDailySummaryForYesterday_ModelNotFoundShowsUnknown(t *testing.T) {
 	now := time.Date(2026, 3, 11, 10, 0, 0, 0, loc)
 	y := now.AddDate(0, 0, -1)
 	t1 := time.Date(y.Year(), y.Month(), y.Day(), 9, 0, 0, 0, loc)
-	a1 := models.Article{FeedID: feed.ID, GUID: "g1", Title: "a1", Content: "c1", PublishedAt: &t1}
+	a1 := models.Article{FeedID: feed.ID, GUID: models.ArticleGUIDHash("g1"), GUIDRaw: "g1", Title: "a1", Content: "c1", PublishedAt: &t1}
 	require.NoError(t, db.Create(&a1).Error)
 
 	mockBot := &mockFeishuBotClient{}
 	// aiModelID=999 不存在，Summarize 会失败
-	err := RunDailySummaryForYesterday(u.ID, aiModelSvc, articleSvc, historySvc, 999, []uint{feed.ID}, 1, "desc", now, loc, mockBot, db)
+	err := RunDailySummaryForYesterday(u.ID, aiModelSvc, articleSvc, historySvc, 999, []uint{feed.ID}, 1, "desc", now, loc, mockBot, db, nil, nil, "")
 	require.NoError(t, err)
 
 	require.Len(t, mockBot.sendCalls, 1)

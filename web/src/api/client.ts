@@ -45,6 +45,10 @@ export interface Feed {
   user_id: number;
   category_id: number | null;
   proxy_id: number | null;
+  ai_model_id: number | null;
+  ai_classify_enabled: boolean;
+  ai_translate_enabled: boolean;
+  ai_target_language: string;
   category?: FeedCategory;
   proxy?: Proxy | null;
   url: string;
@@ -87,21 +91,34 @@ export interface AIModel {
 export interface Article {
   id: number;
   feed_id: number;
+  /** SHA256 十六进制 64 字符，对应 RSS 原始标识见 guid_raw */
   guid: string;
+  /** RSS 条目的原始 guid 或用于去重的 link */
+  guid_raw?: string;
   title: string;
   link: string;
   content: string;
+  ai_process_status?: string;
+  ai_last_error?: string;
+  ai_category?: string;
+  ai_category_translated?: string;
+  title_translated?: string;
+  content_translated?: string;
   published_at: string | null;
   created_at: string;
   read: boolean;
   favorite?: boolean;
   feed_title?: string;
+  feed_ai_translate_enabled?: boolean;
+  feed_ai_classify_enabled?: boolean;
 }
 
 export interface SummaryHistoryItem {
   id: number;
   ai_model_id: number;
   ai_model_name: string;
+  summary_template_id?: number | null;
+  summary_template_name?: string;
   start_time: string;
   end_time: string;
   page: number;
@@ -114,10 +131,22 @@ export interface SummaryHistoryItem {
   created_at: string;
 }
 
+export interface SummaryTemplate {
+  id: number;
+  user_id: number;
+  name: string;
+  system_prompt: string;
+  user_prompt_prefix: string;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface SummarySchedule {
   id: number;
   user_id: number;
   ai_model_id: number;
+  summary_template_id?: number | null;
   feed_ids_json: string;
   run_at: string; // HH:MM
   page_size: number;
@@ -150,6 +179,13 @@ export const authApi = {
     client.get<{ url: string; goto: string }>('/auth/feishu/login-url'),
 };
 
+export interface FeedAIOptions {
+  ai_model_id?: number | null;
+  ai_classify_enabled?: boolean;
+  ai_translate_enabled?: boolean;
+  ai_target_language?: string;
+}
+
 export const feedsApi = {
   list: () => client.get<Feed[]>('/feeds'),
   create: (
@@ -157,7 +193,8 @@ export const feedsApi = {
     category_id: number,
     update_interval_minutes: number,
     proxy_id?: number | null,
-    expire_days?: number
+    expire_days?: number,
+    ai?: FeedAIOptions
   ) =>
     client.post<Feed>('/feeds', {
       url,
@@ -165,19 +202,28 @@ export const feedsApi = {
       update_interval_minutes,
       proxy_id: proxy_id ?? null,
       expire_days: expire_days ?? 90,
+      ...(ai?.ai_model_id !== undefined && { ai_model_id: ai.ai_model_id }),
+      ...(ai?.ai_classify_enabled !== undefined && { ai_classify_enabled: ai.ai_classify_enabled }),
+      ...(ai?.ai_translate_enabled !== undefined && { ai_translate_enabled: ai.ai_translate_enabled }),
+      ...(ai?.ai_target_language !== undefined && { ai_target_language: ai.ai_target_language }),
     }),
   update: (
     id: number,
     update_interval_minutes: number,
     proxy_id?: number | null,
     expire_days?: number,
-    category_id?: number | null
+    category_id?: number | null,
+    ai?: FeedAIOptions
   ) =>
     client.put<Feed>(`/feeds/${id}`, {
       update_interval_minutes,
       proxy_id: proxy_id ?? null,
       ...(expire_days !== undefined && { expire_days }),
       ...(category_id !== undefined && { category_id }),
+      ...(ai?.ai_model_id !== undefined && { ai_model_id: ai.ai_model_id }),
+      ...(ai?.ai_classify_enabled !== undefined && { ai_classify_enabled: ai.ai_classify_enabled }),
+      ...(ai?.ai_translate_enabled !== undefined && { ai_translate_enabled: ai.ai_translate_enabled }),
+      ...(ai?.ai_target_language !== undefined && { ai_target_language: ai.ai_target_language }),
     }),
   delete: (id: number) => client.delete(`/feeds/${id}`),
 };
@@ -252,6 +298,7 @@ export const articlesApi = {
   summarizeStream: async (
     params: {
       ai_model_id: number;
+      summary_template_id?: number;
       feed_ids?: number[];
       start_time?: string;
       end_time?: string;
@@ -335,6 +382,8 @@ export const summaryHistoriesApi = {
     client.get<{ items: SummaryHistoryItem[]; total: number }>('/summary-histories', { params }),
   create: (params: {
     ai_model_id: number;
+    summary_template_id?: number;
+    summary_template_name?: string;
     feed_ids?: number[];
     start_time?: string;
     end_time?: string;
@@ -352,11 +401,39 @@ export const summaryHistoriesApi = {
 
 export const summarySchedulesApi = {
   list: () => client.get<SummarySchedule[]>('/summary-schedules'),
-  create: (params: { ai_model_id: number; feed_ids?: number[]; run_at: string; page_size?: number; order?: 'desc' | 'asc'; enabled?: boolean }) =>
-    client.post<SummarySchedule>('/summary-schedules', params),
-  update: (id: number, params: { ai_model_id: number; feed_ids?: number[]; run_at: string; page_size?: number; order?: 'desc' | 'asc'; enabled?: boolean }) =>
-    client.put<SummarySchedule>(`/summary-schedules/${id}`, params),
+  create: (params: {
+    ai_model_id: number;
+    summary_template_id?: number;
+    feed_ids?: number[];
+    run_at: string;
+    page_size?: number;
+    order?: 'desc' | 'asc';
+    enabled?: boolean;
+  }) => client.post<SummarySchedule>('/summary-schedules', params),
+  update: (
+    id: number,
+    params: {
+      ai_model_id: number;
+      summary_template_id?: number;
+      feed_ids?: number[];
+      run_at: string;
+      page_size?: number;
+      order?: 'desc' | 'asc';
+      enabled?: boolean;
+    }
+  ) => client.put<SummarySchedule>(`/summary-schedules/${id}`, params),
   delete: (id: number) => client.delete(`/summary-schedules/${id}`),
+};
+
+export const summaryTemplatesApi = {
+  list: () => client.get<{ items: SummaryTemplate[] }>('/summary-templates'),
+  create: (params: { name: string; system_prompt?: string; user_prompt_prefix?: string; sort_order?: number }) =>
+    client.post<SummaryTemplate>('/summary-templates', params),
+  update: (
+    id: number,
+    params: { name: string; system_prompt?: string; user_prompt_prefix?: string; sort_order?: number }
+  ) => client.put<SummaryTemplate>(`/summary-templates/${id}`, params),
+  delete: (id: number) => client.delete(`/summary-templates/${id}`),
 };
 
 export const errorLogsApi = {
