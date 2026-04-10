@@ -23,21 +23,23 @@ func NewSummaryScheduleService(db *gorm.DB) *SummaryScheduleService {
 }
 
 type CreateSummaryScheduleRequest struct {
-	AIModelID uint   `json:"ai_model_id" binding:"required"`
-	FeedIDs   []uint `json:"feed_ids"`
-	RunAt     string `json:"run_at" binding:"required"` // HH:MM
-	PageSize  int    `json:"page_size"`
-	Order     string `json:"order"`
-	Enabled   *bool  `json:"enabled"`
+	AIModelID  uint   `json:"ai_model_id" binding:"required"`
+	TemplateID *uint  `json:"template_id"`
+	FeedIDs    []uint `json:"feed_ids"`
+	RunAt      string `json:"run_at" binding:"required"` // HH:MM
+	PageSize   int    `json:"page_size"`
+	Order      string `json:"order"`
+	Enabled    *bool  `json:"enabled"`
 }
 
 type UpdateSummaryScheduleRequest struct {
-	AIModelID uint   `json:"ai_model_id" binding:"required"`
-	FeedIDs   []uint `json:"feed_ids"`
-	RunAt     string `json:"run_at" binding:"required"`
-	PageSize  int    `json:"page_size"`
-	Order     string `json:"order"`
-	Enabled   *bool  `json:"enabled"`
+	AIModelID  uint   `json:"ai_model_id" binding:"required"`
+	TemplateID *uint  `json:"template_id"`
+	FeedIDs    []uint `json:"feed_ids"`
+	RunAt      string `json:"run_at" binding:"required"`
+	PageSize   int    `json:"page_size"`
+	Order      string `json:"order"`
+	Enabled    *bool  `json:"enabled"`
 }
 
 func normalizeRunAt(s string) (string, error) {
@@ -76,13 +78,14 @@ func (s *SummaryScheduleService) Create(userID uint, req CreateSummaryScheduleRe
 		enabled = *req.Enabled
 	}
 	m := &models.AISummarySchedule{
-		UserID:     userID,
-		AIModelID:  req.AIModelID,
+		UserID:      userID,
+		AIModelID:   req.AIModelID,
+		TemplateID:  normalizeOptionalUint(req.TemplateID),
 		FeedIDsJSON: string(b),
-		RunAt:      runAt,
-		PageSize:   pageSize,
-		Order:      normalizeOrder(req.Order),
-		Enabled:    enabled,
+		RunAt:       runAt,
+		PageSize:    pageSize,
+		Order:       normalizeOrder(req.Order),
+		Enabled:     enabled,
 	}
 	if err := s.db.Create(m).Error; err != nil {
 		return nil, err
@@ -111,6 +114,7 @@ func (s *SummaryScheduleService) Update(userID uint, id uint, req UpdateSummaryS
 		return nil, err
 	}
 	m.AIModelID = req.AIModelID
+	m.TemplateID = normalizeOptionalUint(req.TemplateID)
 	m.FeedIDsJSON = string(b)
 	m.RunAt = runAt
 	m.PageSize = pageSize
@@ -124,6 +128,13 @@ func (s *SummaryScheduleService) Update(userID uint, id uint, req UpdateSummaryS
 	return &m, nil
 }
 
+func normalizeOptionalUint(v *uint) *uint {
+	if v == nil || *v == 0 {
+		return nil
+	}
+	return v
+}
+
 func (s *SummaryScheduleService) Delete(userID uint, id uint) error {
 	res := s.db.Where("user_id = ? AND id = ?", userID, id).Delete(&models.AISummarySchedule{})
 	if res.Error != nil {
@@ -134,4 +145,3 @@ func (s *SummaryScheduleService) Delete(userID uint, id uint) error {
 	}
 	return nil
 }
-

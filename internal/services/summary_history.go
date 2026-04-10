@@ -23,18 +23,26 @@ func NewSummaryHistoryService(db *gorm.DB) *SummaryHistoryService {
 }
 
 type CreateSummaryHistoryRequest struct {
-	AIModelID    uint
-	FeedIDs      []uint
-	StartTime    string
-	EndTime      string
-	Page         int
-	PageSize     int
-	Order        string
-	ArticleCount int
-	Total        int64
-	Content      string
-	Error        string
-	CreatedAt    *time.Time
+	AIModelID     uint
+	TemplateID    *uint
+	RuleID        *uint
+	TemplateName  string
+	RuleName      string
+	FeedIDs       []uint
+	StartTime     string
+	EndTime       string
+	Page          int
+	PageSize      int
+	Order         string
+	ArticleCount  int
+	Total         int64
+	JobType       string
+	Status        string
+	TriggerSource string
+	BatchID       string
+	Content       string
+	Error         string
+	CreatedAt     *time.Time
 }
 
 type UpdateSummaryHistoryResultRequest struct {
@@ -42,6 +50,7 @@ type UpdateSummaryHistoryResultRequest struct {
 	Total        int64
 	Content      string
 	Error        string
+	Status       string
 	// nil 表示不更新 created_at
 	CreatedAt *time.Time
 }
@@ -68,18 +77,26 @@ func (s *SummaryHistoryService) Create(userID uint, req CreateSummaryHistoryRequ
 		pageSize = 20
 	}
 	h := &models.AISummaryHistory{
-		UserID:       userID,
-		AIModelID:    req.AIModelID,
-		FeedIDsJSON:  string(b),
-		StartTime:    strings.TrimSpace(req.StartTime),
-		EndTime:      strings.TrimSpace(req.EndTime),
-		Page:         page,
-		PageSize:     pageSize,
-		Order:        normalizeOrder(req.Order),
-		ArticleCount: req.ArticleCount,
-		Total:        req.Total,
-		Content:      req.Content,
-		Error:        req.Error,
+		UserID:        userID,
+		AIModelID:     req.AIModelID,
+		TemplateID:    req.TemplateID,
+		RuleID:        req.RuleID,
+		FeedIDsJSON:   string(b),
+		StartTime:     strings.TrimSpace(req.StartTime),
+		EndTime:       strings.TrimSpace(req.EndTime),
+		Page:          page,
+		PageSize:      pageSize,
+		Order:         normalizeOrder(req.Order),
+		ArticleCount:  req.ArticleCount,
+		Total:         req.Total,
+		JobType:       normalizeSummaryHistoryValue(req.JobType, "summary"),
+		Status:        normalizeSummaryHistoryValue(req.Status, statusFromError(req.Error)),
+		TriggerSource: normalizeSummaryHistoryValue(req.TriggerSource, "manual"),
+		BatchID:       strings.TrimSpace(req.BatchID),
+		TemplateName:  strings.TrimSpace(req.TemplateName),
+		RuleName:      strings.TrimSpace(req.RuleName),
+		Content:       req.Content,
+		Error:         req.Error,
 	}
 	if req.CreatedAt != nil {
 		h.CreatedAt = *req.CreatedAt
@@ -91,24 +108,38 @@ func (s *SummaryHistoryService) Create(userID uint, req CreateSummaryHistoryRequ
 }
 
 type ListSummaryHistoriesRequest struct {
-	Page     int `form:"page"`
-	PageSize int `form:"page_size"`
+	ID            *uint  `form:"id"`
+	Page          int    `form:"page"`
+	PageSize      int    `form:"page_size"`
+	JobType       string `form:"job_type"`
+	Status        string `form:"status"`
+	TriggerSource string `form:"trigger_source"`
+	BatchID       string `form:"batch_id"`
+	RuleID        *uint  `form:"rule_id"`
 }
 
 type SummaryHistoryItem struct {
-	ID          uint      `json:"id"`
-	AIModelID   uint      `json:"ai_model_id"`
-	AIModelName string    `json:"ai_model_name"`
-	StartTime   string    `json:"start_time"`
-	EndTime     string    `json:"end_time"`
-	Page        int       `json:"page"`
-	PageSize    int       `json:"page_size"`
-	Order       string    `json:"order"`
-	ArticleCount int      `json:"article_count"`
-	Total       int64     `json:"total"`
-	Content     string    `json:"content"`
-	Error       string    `json:"error"`
-	CreatedAt   time.Time `json:"created_at"`
+	ID            uint      `json:"id"`
+	AIModelID     uint      `json:"ai_model_id"`
+	AIModelName   string    `json:"ai_model_name"`
+	TemplateID    *uint     `json:"template_id"`
+	RuleID        *uint     `json:"rule_id"`
+	TemplateName  string    `json:"template_name"`
+	RuleName      string    `json:"rule_name"`
+	StartTime     string    `json:"start_time"`
+	EndTime       string    `json:"end_time"`
+	Page          int       `json:"page"`
+	PageSize      int       `json:"page_size"`
+	Order         string    `json:"order"`
+	ArticleCount  int       `json:"article_count"`
+	Total         int64     `json:"total"`
+	JobType       string    `json:"job_type"`
+	Status        string    `json:"status"`
+	TriggerSource string    `json:"trigger_source"`
+	BatchID       string    `json:"batch_id"`
+	Content       string    `json:"content"`
+	Error         string    `json:"error"`
+	CreatedAt     time.Time `json:"created_at"`
 }
 
 func (s *SummaryHistoryService) List(userID uint, req ListSummaryHistoriesRequest) ([]SummaryHistoryItem, int64, error) {
@@ -123,6 +154,24 @@ func (s *SummaryHistoryService) List(userID uint, req ListSummaryHistoriesReques
 	q := s.db.Model(&models.AISummaryHistory{}).
 		Where("ai_summary_histories.user_id = ?", userID).
 		Joins("LEFT JOIN ai_models ON ai_models.id = ai_summary_histories.ai_model_id AND ai_models.deleted_at IS NULL")
+	if req.ID != nil {
+		q = q.Where("ai_summary_histories.id = ?", *req.ID)
+	}
+	if jobType := strings.TrimSpace(req.JobType); jobType != "" {
+		q = q.Where("ai_summary_histories.job_type = ?", jobType)
+	}
+	if status := strings.TrimSpace(req.Status); status != "" {
+		q = q.Where("ai_summary_histories.status = ?", status)
+	}
+	if trigger := strings.TrimSpace(req.TriggerSource); trigger != "" {
+		q = q.Where("ai_summary_histories.trigger_source = ?", trigger)
+	}
+	if batchID := strings.TrimSpace(req.BatchID); batchID != "" {
+		q = q.Where("ai_summary_histories.batch_id = ?", batchID)
+	}
+	if req.RuleID != nil {
+		q = q.Where("ai_summary_histories.rule_id = ?", *req.RuleID)
+	}
 	var total int64
 	if err := q.Count(&total).Error; err != nil {
 		return nil, 0, err
@@ -141,19 +190,27 @@ func (s *SummaryHistoryService) List(userID uint, req ListSummaryHistoriesReques
 	items := make([]SummaryHistoryItem, 0, len(rows))
 	for _, r := range rows {
 		items = append(items, SummaryHistoryItem{
-			ID:           r.ID,
-			AIModelID:    r.AIModelID,
-			AIModelName:  r.AIModelName,
-			StartTime:    r.StartTime,
-			EndTime:      r.EndTime,
-			Page:         r.Page,
-			PageSize:     r.PageSize,
-			Order:        r.Order,
-			ArticleCount: r.ArticleCount,
-			Total:        r.Total,
-			Content:      r.Content,
-			Error:        r.Error,
-			CreatedAt:    r.CreatedAt,
+			ID:            r.ID,
+			AIModelID:     r.AIModelID,
+			AIModelName:   r.AIModelName,
+			TemplateID:    r.TemplateID,
+			RuleID:        r.RuleID,
+			TemplateName:  r.TemplateName,
+			RuleName:      r.RuleName,
+			StartTime:     r.StartTime,
+			EndTime:       r.EndTime,
+			Page:          r.Page,
+			PageSize:      r.PageSize,
+			Order:         r.Order,
+			ArticleCount:  r.ArticleCount,
+			Total:         r.Total,
+			JobType:       r.JobType,
+			Status:        r.Status,
+			TriggerSource: r.TriggerSource,
+			BatchID:       r.BatchID,
+			Content:       r.Content,
+			Error:         r.Error,
+			CreatedAt:     r.CreatedAt,
 		})
 	}
 	return items, total, nil
@@ -182,6 +239,11 @@ func (s *SummaryHistoryService) UpdateResult(userID uint, id uint, req UpdateSum
 	h.Total = req.Total
 	h.Content = req.Content
 	h.Error = req.Error
+	if strings.TrimSpace(req.Status) != "" {
+		h.Status = strings.TrimSpace(req.Status)
+	} else {
+		h.Status = statusFromError(req.Error)
+	}
 	if req.CreatedAt != nil {
 		h.CreatedAt = *req.CreatedAt
 	}
@@ -189,6 +251,21 @@ func (s *SummaryHistoryService) UpdateResult(userID uint, id uint, req UpdateSum
 		return nil, err
 	}
 	return &h, nil
+}
+
+func normalizeSummaryHistoryValue(raw, fallback string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return fallback
+	}
+	return raw
+}
+
+func statusFromError(errText string) string {
+	if strings.TrimSpace(errText) != "" {
+		return "failed"
+	}
+	return "success"
 }
 
 func (s *SummaryHistoryService) Delete(userID uint, id uint) error {
@@ -201,4 +278,3 @@ func (s *SummaryHistoryService) Delete(userID uint, id uint) error {
 	}
 	return nil
 }
-

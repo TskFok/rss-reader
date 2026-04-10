@@ -1,6 +1,7 @@
 package services
 
 import (
+	"crypto/sha1"
 	"errors"
 	"fmt"
 	"strconv"
@@ -24,6 +25,9 @@ func RunDailySummaryForYesterday(
 	articleSvc *ArticleService,
 	historySvc *SummaryHistoryService,
 	aiModelID uint,
+	templateID *uint,
+	templateName string,
+	templatePrompt string,
 	feedIDs []uint,
 	pageSize int,
 	order string,
@@ -41,6 +45,7 @@ func RunDailySummaryForYesterday(
 	end := time.Date(yesterday.Year(), yesterday.Month(), yesterday.Day(), 23, 59, 59, 0, yesterday.Location())
 	startStr := start.Format("2006-01-02")
 	endStr := end.Format("2006-01-02")
+	batchID := buildSummaryBatchID(userID, aiModelID, startStr, endStr, now)
 
 	// 生成时仍复用现有查询逻辑：start/end 传入 time，handler 中对 end 会加 24h-1s，这里直接传整日范围
 	page := 1
@@ -48,17 +53,23 @@ func RunDailySummaryForYesterday(
 		items, total, err := articleSvc.ListForSummary(userID, feedIDs, &start, &end, page, pageSize, order)
 		if err != nil {
 			_, _ = historySvc.Create(userID, CreateSummaryHistoryRequest{
-				AIModelID:    aiModelID,
-				FeedIDs:      feedIDs,
-				StartTime:    startStr,
-				EndTime:      endStr,
-				Page:         page,
-				PageSize:     pageSize,
-				Order:        order,
-				ArticleCount: 0,
-				Total:        total,
-				Content:      "",
-				Error:        err.Error(),
+				AIModelID:     aiModelID,
+				TemplateID:    templateID,
+				TemplateName:  templateName,
+				FeedIDs:       feedIDs,
+				StartTime:     startStr,
+				EndTime:       endStr,
+				Page:          page,
+				PageSize:      pageSize,
+				Order:         order,
+				ArticleCount:  0,
+				Total:         total,
+				JobType:       "schedule",
+				Status:        "failed",
+				TriggerSource: "scheduler",
+				BatchID:       batchID,
+				Content:       "",
+				Error:         err.Error(),
 			})
 			trySendFeishuAlert(feishuBot, db, userID, aiModelID, startStr, endStr, page, pageSize, order, 0, err.Error())
 			return err
@@ -66,24 +77,30 @@ func RunDailySummaryForYesterday(
 		if len(items) == 0 {
 			break
 		}
-		content, sumErr := aiModelSvc.Summarize(userID, aiModelID, items)
+		content, sumErr := aiModelSvc.SummarizeWithTemplate(userID, aiModelID, items, templatePrompt)
 		errStr := ""
 		if sumErr != nil {
 			errStr = sumErr.Error()
 		}
 		// 保存历史
 		_, _ = historySvc.Create(userID, CreateSummaryHistoryRequest{
-			AIModelID:    aiModelID,
-			FeedIDs:      feedIDs,
-			StartTime:    startStr,
-			EndTime:      endStr,
-			Page:         page,
-			PageSize:     pageSize,
-			Order:        order,
-			ArticleCount: len(items),
-			Total:        total,
-			Content:      content,
-			Error:        errStr,
+			AIModelID:     aiModelID,
+			TemplateID:    templateID,
+			TemplateName:  templateName,
+			FeedIDs:       feedIDs,
+			StartTime:     startStr,
+			EndTime:       endStr,
+			Page:          page,
+			PageSize:      pageSize,
+			Order:         order,
+			ArticleCount:  len(items),
+			Total:         total,
+			JobType:       "schedule",
+			Status:        statusFromError(errStr),
+			TriggerSource: "scheduler",
+			BatchID:       batchID,
+			Content:       content,
+			Error:         errStr,
 		})
 
 		// 模型失败时：记录错误并继续下一页，避免阻塞整次总结
@@ -97,15 +114,160 @@ func RunDailySummaryForYesterday(
 		if page > 1000 {
 			errMsg := "分页次数过多，已中止"
 			_, _ = historySvc.Create(userID, CreateSummaryHistoryRequest{
-				AIModelID: aiModelID,
-				FeedIDs:   feedIDs,
-				StartTime: startStr,
-				EndTime:   endStr,
-				Page:      page,
-				PageSize:  pageSize,
-				Order:     order,
-				Error:     errMsg,
-				Content:   "",
+				AIModelID:     aiModelID,
+				TemplateID:    templateID,
+				TemplateName:  templateName,
+				FeedIDs:       feedIDs,
+				StartTime:     startStr,
+				EndTime:       endStr,
+				Page:          page,
+				PageSize:      pageSize,
+				Order:         order,
+				JobType:       "schedule",
+				Status:        "failed",
+				TriggerSource: "scheduler",
+				BatchID:       batchID,
+				Error:         errMsg,
+				Content:       "",
+			})
+			trySendFeishuAlert(feishuBot, db, userID, aiModelID, startStr, endStr, page, pageSize, order, 0, errMsg)
+			return errors.New(errMsg)
+		}
+	}
+	return nil
+}
+
+func uintPtr(v uint) *uint {
+	if v == 0 {
+		return nil
+	}
+	cp := v
+	return &cp
+}
+
+func buildSummaryBatchID(userID uint, aiModelID uint, startStr, endStr string, now time.Time) string {
+	sum := sha1.Sum([]byte(fmt.Sprintf("%d:%d:%s:%s:%s", userID, aiModelID, startStr, endStr, now.Format(time.RFC3339Nano))))
+	return fmt.Sprintf("batch-%x", sum[:6])
+}
+
+// RunAutomationRuleForYesterday 执行自动规则（昨天时间窗）。
+func RunAutomationRuleForYesterday(
+	userID uint,
+	ruleID uint,
+	ruleName string,
+	aiModelSvc *AIModelService,
+	articleSvc *ArticleService,
+	historySvc *SummaryHistoryService,
+	aiModelID uint,
+	templateID *uint,
+	templateName string,
+	templatePrompt string,
+	feedIDs []uint,
+	query string,
+	minImportance int,
+	pageSize int,
+	order string,
+	now time.Time,
+	loc *time.Location,
+	feishuBot FeishuBotClient,
+	db *gorm.DB,
+) error {
+	if loc != nil {
+		now = now.In(loc)
+	}
+	yesterday := now.AddDate(0, 0, -1)
+	start := time.Date(yesterday.Year(), yesterday.Month(), yesterday.Day(), 0, 0, 0, 0, yesterday.Location())
+	end := time.Date(yesterday.Year(), yesterday.Month(), yesterday.Day(), 23, 59, 59, 0, yesterday.Location())
+	startStr := start.Format("2006-01-02")
+	endStr := end.Format("2006-01-02")
+	batchID := buildSummaryBatchID(userID, aiModelID, startStr, endStr, now)
+
+	page := 1
+	for {
+		items, total, err := articleSvc.ListForSummaryWithFilters(
+			userID, feedIDs, &start, &end, page, pageSize, order,
+			SummaryArticleFilter{Query: query, MinImportance: minImportance},
+		)
+		if err != nil {
+			_, _ = historySvc.Create(userID, CreateSummaryHistoryRequest{
+				AIModelID:     aiModelID,
+				TemplateID:    templateID,
+				RuleID:        uintPtr(ruleID),
+				TemplateName:  templateName,
+				RuleName:      ruleName,
+				FeedIDs:       feedIDs,
+				StartTime:     startStr,
+				EndTime:       endStr,
+				Page:          page,
+				PageSize:      pageSize,
+				Order:         order,
+				ArticleCount:  0,
+				Total:         total,
+				JobType:       "automation_rule",
+				Status:        "failed",
+				TriggerSource: "rule",
+				BatchID:       batchID,
+				Content:       "",
+				Error:         fmt.Sprintf("规则[%d %s]执行失败: %v", ruleID, ruleName, err),
+			})
+			trySendFeishuAlert(feishuBot, db, userID, aiModelID, startStr, endStr, page, pageSize, order, 0, err.Error())
+			return err
+		}
+		if len(items) == 0 {
+			break
+		}
+		content, sumErr := aiModelSvc.SummarizeWithTemplate(userID, aiModelID, items, templatePrompt)
+		errStr := ""
+		if sumErr != nil {
+			errStr = sumErr.Error()
+		}
+		_, _ = historySvc.Create(userID, CreateSummaryHistoryRequest{
+			AIModelID:     aiModelID,
+			TemplateID:    templateID,
+			RuleID:        uintPtr(ruleID),
+			TemplateName:  templateName,
+			RuleName:      ruleName,
+			FeedIDs:       feedIDs,
+			StartTime:     startStr,
+			EndTime:       endStr,
+			Page:          page,
+			PageSize:      pageSize,
+			Order:         order,
+			ArticleCount:  len(items),
+			Total:         total,
+			JobType:       "automation_rule",
+			Status:        statusFromError(errStr),
+			TriggerSource: "rule",
+			BatchID:       batchID,
+			Content:       content,
+			Error:         errStr,
+		})
+		if sumErr != nil {
+			trySendFeishuAlert(feishuBot, db, userID, aiModelID, startStr, endStr, page, pageSize, order, len(items), sumErr.Error())
+			page++
+			continue
+		}
+		page++
+		if page > 1000 {
+			errMsg := "分页次数过多，已中止"
+			_, _ = historySvc.Create(userID, CreateSummaryHistoryRequest{
+				AIModelID:     aiModelID,
+				TemplateID:    templateID,
+				RuleID:        uintPtr(ruleID),
+				TemplateName:  templateName,
+				RuleName:      ruleName,
+				FeedIDs:       feedIDs,
+				StartTime:     startStr,
+				EndTime:       endStr,
+				Page:          page,
+				PageSize:      pageSize,
+				Order:         order,
+				JobType:       "automation_rule",
+				Status:        "failed",
+				TriggerSource: "rule",
+				BatchID:       batchID,
+				Error:         errMsg,
+				Content:       "",
 			})
 			trySendFeishuAlert(feishuBot, db, userID, aiModelID, startStr, endStr, page, pageSize, order, 0, errMsg)
 			return errors.New(errMsg)
@@ -179,5 +341,3 @@ func truncateString(s string, maxRunes int) string {
 	runes := []rune(s)
 	return string(runes[:maxRunes]) + "..."
 }
-
-

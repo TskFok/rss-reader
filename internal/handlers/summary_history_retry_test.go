@@ -25,9 +25,13 @@ func setupSummaryHistoryRetryHandlers(t *testing.T, aiBaseURL string) (*gin.Engi
 		&models.User{},
 		&models.Feed{},
 		&models.Article{},
+		&models.ArticleCluster{},
+		&models.ArticleAIMetadata{},
 		&models.UserArticle{},
 		&models.AIModel{},
+		&models.SummaryTemplate{},
 		&models.AISummaryHistory{},
+		&models.KnowledgeEntry{},
 	))
 
 	u := models.User{Username: "u", PasswordHash: "h", Status: models.UserStatusActive}
@@ -39,7 +43,9 @@ func setupSummaryHistoryRetryHandlers(t *testing.T, aiBaseURL string) (*gin.Engi
 	articleSvc := services.NewArticleService(db)
 	historySvc := services.NewSummaryHistoryService(db)
 	aiModelSvc := services.NewAIModelService(db)
-	h := NewSummaryHistoryHandler(historySvc, articleSvc, aiModelSvc)
+	templateSvc := services.NewSummaryTemplateService(db)
+	knowledgeSvc := services.NewKnowledgeEntryService(db)
+	h := NewSummaryHistoryHandler(historySvc, articleSvc, aiModelSvc, templateSvc, knowledgeSvc)
 
 	r := gin.New()
 	r.Use(func(c *gin.Context) {
@@ -104,4 +110,3 @@ func TestSummaryHistoryHandler_Retry_OverwritesHistory(t *testing.T) {
 	assert.Equal(t, 1, h.ArticleCount)
 	assert.Equal(t, int64(1), h.Total)
 }
-

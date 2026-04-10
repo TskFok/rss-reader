@@ -11,25 +11,27 @@ import (
 
 // SummaryHandler AI 总结处理器
 type SummaryHandler struct {
-	articleSvc *services.ArticleService
-	aiModelSvc *services.AIModelService
-	errLogSvc  *services.ErrorLogService
+	articleSvc  *services.ArticleService
+	aiModelSvc  *services.AIModelService
+	templateSvc *services.SummaryTemplateService
+	errLogSvc   *services.ErrorLogService
 }
 
 // NewSummaryHandler 创建总结处理器
-func NewSummaryHandler(articleSvc *services.ArticleService, aiModelSvc *services.AIModelService, errLogSvc *services.ErrorLogService) *SummaryHandler {
-	return &SummaryHandler{articleSvc: articleSvc, aiModelSvc: aiModelSvc, errLogSvc: errLogSvc}
+func NewSummaryHandler(articleSvc *services.ArticleService, aiModelSvc *services.AIModelService, templateSvc *services.SummaryTemplateService, errLogSvc *services.ErrorLogService) *SummaryHandler {
+	return &SummaryHandler{articleSvc: articleSvc, aiModelSvc: aiModelSvc, templateSvc: templateSvc, errLogSvc: errLogSvc}
 }
 
 // SummarizeRequest 总结请求
 type SummarizeRequest struct {
-	AIModelID uint     `json:"ai_model_id" binding:"required"`
-	FeedIDs   []uint   `json:"feed_ids"`
-	StartTime string   `json:"start_time"`
-	EndTime   string   `json:"end_time"`
-	Page      int      `json:"page"`
-	PageSize  int      `json:"page_size"`
-	Order     string   `json:"order"` // "desc"(默认)=从新到旧，"asc"=从旧到新
+	AIModelID  uint   `json:"ai_model_id" binding:"required"`
+	TemplateID *uint  `json:"template_id"`
+	FeedIDs    []uint `json:"feed_ids"`
+	StartTime  string `json:"start_time"`
+	EndTime    string `json:"end_time"`
+	Page       int    `json:"page"`
+	PageSize   int    `json:"page_size"`
+	Order      string `json:"order"` // "desc"(默认)=从新到旧，"asc"=从旧到新
 }
 
 // Summarize 流式生成 AI 总结（SSE）
@@ -69,6 +71,21 @@ func (h *SummaryHandler) Summarize(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "指定条件下没有文章可总结"})
 		return
 	}
+	templatePrompt := ""
+	templateName := ""
+	if req.TemplateID != nil && h.templateSvc != nil {
+		tpl, tplErr := h.templateSvc.GetByID(userID, *req.TemplateID)
+		if tplErr != nil {
+			if tplErr == services.ErrSummaryTemplateNotFound {
+				c.JSON(http.StatusNotFound, gin.H{"error": "总结模板不存在"})
+				return
+			}
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "获取总结模板失败"})
+			return
+		}
+		templatePrompt = tpl.Prompt
+		templateName = tpl.Name
+	}
 	// 先检查模型是否存在
 	if _, err := h.aiModelSvc.GetByID(userID, req.AIModelID); err != nil {
 		if err == services.ErrAIModelNotFound {
@@ -90,10 +107,11 @@ func (h *SummaryHandler) Summarize(c *gin.Context) {
 		"page":          req.Page,
 		"page_size":     req.PageSize,
 		"order":         req.Order,
+		"template_name": templateName,
 	})
 	c.Writer.Flush()
 	// 流式输出
-	err = h.aiModelSvc.SummarizeStream(userID, req.AIModelID, articles, func(chunk string) error {
+	err = h.aiModelSvc.SummarizeStreamWithTemplate(userID, req.AIModelID, articles, templatePrompt, func(chunk string) error {
 		c.SSEvent("", map[string]string{"delta": chunk})
 		c.Writer.Flush()
 		return nil

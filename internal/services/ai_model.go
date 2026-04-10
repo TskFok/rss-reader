@@ -149,10 +149,10 @@ func (s *AIModelService) Reorder(userID uint, idList []uint) error {
 
 // chatCompletionsRequest OpenAI 兼容的聊天请求
 type chatCompletionsRequest struct {
-	Model       string        `json:"model"`
-	Messages    []chatMessage `json:"messages"`
-	MaxTokens   int           `json:"max_tokens,omitempty"`
-	Stream      bool          `json:"stream,omitempty"`
+	Model     string        `json:"model"`
+	Messages  []chatMessage `json:"messages"`
+	MaxTokens int           `json:"max_tokens,omitempty"`
+	Stream    bool          `json:"stream,omitempty"`
 }
 
 type chatMessage struct {
@@ -171,6 +171,10 @@ type chatCompletionsResponse struct {
 
 // Summarize 使用指定 AI 模型对文章列表生成中文总结
 func (s *AIModelService) Summarize(userID uint, modelID uint, articles []ArticleForSummary) (string, error) {
+	return s.SummarizeWithTemplate(userID, modelID, articles, "")
+}
+
+func (s *AIModelService) SummarizeWithTemplate(userID uint, modelID uint, articles []ArticleForSummary, templatePrompt string) (string, error) {
 	if len(articles) == 0 {
 		return "", errors.New("没有可总结的文章")
 	}
@@ -179,7 +183,8 @@ func (s *AIModelService) Summarize(userID uint, modelID uint, articles []Article
 		return "", err
 	}
 	var sb strings.Builder
-	sb.WriteString("以下是用户在指定时间范围内订阅的 RSS 文章列表，请用中文对这些内容进行概括性总结，提炼主要话题、重要信息与趋势。要求：\n1. 总结必须使用中文；\n2. 按主题或订阅源分组归纳；\n3. 突出重要新闻或变化；\n4. 控制在 800 字以内。\n\n---\n\n")
+	sb.WriteString(buildSummaryInstruction(templatePrompt))
+	sb.WriteString("\n\n---\n\n")
 	for i, a := range articles {
 		sb.WriteString("【")
 		sb.WriteString(a.FeedTitle)
@@ -250,6 +255,10 @@ type streamChunk struct {
 
 // SummarizeStream 流式生成 AI 总结，每收到一段内容即调用 onChunk
 func (s *AIModelService) SummarizeStream(userID uint, modelID uint, articles []ArticleForSummary, onChunk func(string) error) error {
+	return s.SummarizeStreamWithTemplate(userID, modelID, articles, "", onChunk)
+}
+
+func (s *AIModelService) SummarizeStreamWithTemplate(userID uint, modelID uint, articles []ArticleForSummary, templatePrompt string, onChunk func(string) error) error {
 	if len(articles) == 0 {
 		return errors.New("没有可总结的文章")
 	}
@@ -258,7 +267,8 @@ func (s *AIModelService) SummarizeStream(userID uint, modelID uint, articles []A
 		return err
 	}
 	var sb strings.Builder
-	sb.WriteString("以下是用户在指定时间范围内订阅的 RSS 文章列表，请用中文对这些内容进行概括性总结，提炼主要话题、重要信息与趋势。要求：\n1. 总结必须使用中文；\n2. 按主题或订阅源分组归纳；\n3. 突出重要新闻或变化；\n4. 控制在 800 字以内。\n\n---\n\n")
+	sb.WriteString(buildSummaryInstruction(templatePrompt))
+	sb.WriteString("\n\n---\n\n")
 	for i, a := range articles {
 		sb.WriteString("【")
 		sb.WriteString(a.FeedTitle)
@@ -330,6 +340,15 @@ func (s *AIModelService) SummarizeStream(userID uint, modelID uint, articles []A
 		}
 	}
 	return scanner.Err()
+}
+
+func buildSummaryInstruction(templatePrompt string) string {
+	base := "以下是用户在指定时间范围内订阅的 RSS 文章列表，请用中文对这些内容进行概括性总结，提炼主要话题、重要信息与趋势。要求：\n1. 总结必须使用中文；\n2. 按主题或订阅源分组归纳；\n3. 突出重要新闻或变化；\n4. 控制在 800 字以内。"
+	templatePrompt = strings.TrimSpace(templatePrompt)
+	if templatePrompt == "" {
+		return base
+	}
+	return base + "\n5. 额外遵循以下模板要求：" + templatePrompt
 }
 
 // Test 检测模型是否可用，向 API 发送简单请求

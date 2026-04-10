@@ -1,4 +1,4 @@
-.PHONY: build build-web build-local build-linux-amd64 build-linux-arm64 build-darwin-amd64 build-darwin-arm64 build-windows-amd64 docker-build docker-build-cross docker-build-cross-push docker-build-linux-amd64 docker-build-linux-arm64 test run
+.PHONY: build build-web build-local build-linux-amd64 build-linux-arm64 build-darwin-amd64 build-darwin-arm64 build-windows-amd64 docker-build docker-build-cross docker-build-cross-push docker-build-linux-amd64 docker-build-linux-arm64 test test-local test-compile-local run
 
 build-web:
 	cd web && npm ci && npm run build
@@ -42,10 +42,18 @@ build-local: build-web
 
 # run 前会先构建前端并拷贝到 cmd/server/static，保证用最新前端
 run: build-web
-	go run ./cmd/server
+	GOOS=darwin GOARCH=arm64 CGO_ENABLED=1 GOCACHE=$(PWD)/.gocache go run ./cmd/server
 
 test:
 	go test ./...
+
+# 本机测试（避免环境变量把测试二进制编译成 linux/amd64 导致 exec format error）
+test-local:
+	GOOS=darwin GOARCH=arm64 CGO_ENABLED=1 GOCACHE=$(PWD)/.gocache go test ./internal/services/... ./internal/handlers/... ./internal/scheduler/...
+
+# 仅做本机编译校验，不执行测试（适用于端口受限/沙箱环境）
+test-compile-local:
+	GOOS=darwin GOARCH=arm64 CGO_ENABLED=1 GOCACHE=$(PWD)/.gocache go test -run '^$$' ./internal/services/... ./internal/handlers/... ./internal/scheduler/...
 
 docker-build:
 	docker build -t rss-reader:latest .

@@ -11,6 +11,7 @@ vi.mock('../api/client', async () => {
     categoriesApi: { list: vi.fn().mockResolvedValue({ data: [] }) },
     proxiesApi: { list: vi.fn().mockResolvedValue({ data: [] }) },
     aiModelsApi: { list: vi.fn().mockResolvedValue({ data: [{ id: 1, name: 'm', base_url: 'u', user_id: 1, created_at: '', updated_at: '' }] }) },
+    summaryTemplatesApi: { list: vi.fn().mockResolvedValue({ data: [{ id: 1, user_id: 1, name: '日报', prompt: 'p', scene: 'daily', is_default: true, created_at: '', updated_at: '' }] }) },
     articlesApi: { summarizeStream: vi.fn().mockImplementation(async (_params: unknown, cb: { onMeta: (n: number) => void; onChunk: (s: string) => void; onMetaAll?: (m: { total?: number }) => void }) => {
       cb.onMeta(2);
       cb.onMetaAll?.({ total: 2 });
@@ -23,6 +24,12 @@ vi.mock('../api/client', async () => {
     },
     summarySchedulesApi: {
       list: vi.fn().mockResolvedValue({ data: [{ id: 1, user_id: 1, ai_model_id: 1, feed_ids_json: '[]', run_at: '08:30', page_size: 20, order: 'desc', enabled: true, last_run_at: null, created_at: '', updated_at: '' }] }),
+      create: vi.fn().mockResolvedValue({}),
+      update: vi.fn().mockResolvedValue({}),
+      delete: vi.fn().mockResolvedValue({}),
+    },
+    automationRulesApi: {
+      list: vi.fn().mockResolvedValue({ data: [] }),
       create: vi.fn().mockResolvedValue({}),
       update: vi.fn().mockResolvedValue({}),
       delete: vi.fn().mockResolvedValue({}),
@@ -139,4 +146,3 @@ test('生成总结完成后点击保存会创建历史记录（生成中不可�
   const mod = await import('../api/client');
   await waitFor(() => expect(mod.summaryHistoriesApi.create).toHaveBeenCalledTimes(1));
 });
-

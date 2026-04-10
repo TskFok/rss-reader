@@ -20,7 +20,7 @@ func setupAuthHandlers(t *testing.T) (*gin.Engine, *services.AuthService, *gorm.
 	gin.SetMode(gin.TestMode)
 	db, err := gorm.Open(sqlite.Open("file:"+t.Name()+"?mode=memory&cache=shared"), &gorm.Config{})
 	require.NoError(t, err)
-	require.NoError(t, db.AutoMigrate(&models.User{}, &models.FeedCategory{}, &models.Feed{}, &models.Article{}, &models.UserArticle{}))
+	require.NoError(t, db.AutoMigrate(&models.User{}, &models.FeedCategory{}, &models.Feed{}, &models.Article{}, &models.UserArticle{}, &models.ArticleAIMetadataJob{}, &models.ArticleAIMetadata{}, &models.ArticleCluster{}))
 	authSvc := services.NewAuthService(db, "secret", 24, "")
 	h := NewAuthHandler(authSvc)
 	r := gin.New()

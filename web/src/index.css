@@ -948,6 +948,18 @@ a:hover {
   font-size: 0.8rem;
 }
 
+.feeds-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(99, 102, 241, 0.12);
+  color: var(--nice-admin-text);
+  border: 1px solid rgba(99, 102, 241, 0.22);
+  font-size: 0.78rem;
+  line-height: 1.2;
+}
+
 .feeds-layout-grid {
   display: grid;
   grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
@@ -1881,6 +1893,13 @@ label.feeds-summary-feed-check input {
   margin-bottom: 6px;
 }
 
+.feeds-modal-hint {
+  margin: 8px 0 0;
+  font-size: 0.8rem;
+  color: var(--nice-admin-text-muted);
+  line-height: 1.4;
+}
+
 /* 订阅源复选项：覆盖 modal 内 label 的 block 样式，防止错行 */
 .feeds-modal-form label.feeds-summary-feed-check {
   display: flex;
@@ -1914,7 +1933,8 @@ label.feeds-summary-feed-check input {
 }
 
 .feeds-modal-form input,
-.feeds-modal-form select {
+.feeds-modal-form select,
+.feeds-modal-form textarea.feeds-modal-textarea {
   width: 100%;
   padding: 10px 12px;
   border: 1px solid var(--nice-admin-input-border);
@@ -1923,6 +1943,14 @@ label.feeds-summary-feed-check input {
   color: var(--nice-admin-text);
   font-size: 0.95rem;
   box-sizing: border-box;
+}
+
+.feeds-modal-form textarea.feeds-modal-textarea {
+  resize: vertical;
+  min-height: 88px;
+  line-height: 1.45;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.86rem;
 }
 
 .feeds-modal-form .feeds-modal-actions {

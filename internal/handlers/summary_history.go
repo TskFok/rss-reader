@@ -12,13 +12,15 @@ import (
 )
 
 type SummaryHistoryHandler struct {
-	svc        *services.SummaryHistoryService
-	articleSvc *services.ArticleService
-	aiModelSvc *services.AIModelService
+	svc          *services.SummaryHistoryService
+	articleSvc   *services.ArticleService
+	aiModelSvc   *services.AIModelService
+	templateSvc  *services.SummaryTemplateService
+	knowledgeSvc *services.KnowledgeEntryService
 }
 
-func NewSummaryHistoryHandler(svc *services.SummaryHistoryService, articleSvc *services.ArticleService, aiModelSvc *services.AIModelService) *SummaryHistoryHandler {
-	return &SummaryHistoryHandler{svc: svc, articleSvc: articleSvc, aiModelSvc: aiModelSvc}
+func NewSummaryHistoryHandler(svc *services.SummaryHistoryService, articleSvc *services.ArticleService, aiModelSvc *services.AIModelService, templateSvc *services.SummaryTemplateService, knowledgeSvc *services.KnowledgeEntryService) *SummaryHistoryHandler {
+	return &SummaryHistoryHandler{svc: svc, articleSvc: articleSvc, aiModelSvc: aiModelSvc, templateSvc: templateSvc, knowledgeSvc: knowledgeSvc}
 }
 
 // List GET /api/summary-histories
@@ -38,17 +40,25 @@ func (h *SummaryHistoryHandler) List(c *gin.Context) {
 }
 
 type CreateSummaryHistoryRequest struct {
-	AIModelID    uint   `json:"ai_model_id" binding:"required"`
-	FeedIDs      []uint `json:"feed_ids"`
-	StartTime    string `json:"start_time"`
-	EndTime      string `json:"end_time"`
-	Page         int    `json:"page"`
-	PageSize     int    `json:"page_size"`
-	Order        string `json:"order"`
-	ArticleCount int    `json:"article_count"`
-	Total        int64  `json:"total"`
-	Content      string `json:"content"`
-	Error        string `json:"error"`
+	AIModelID     uint   `json:"ai_model_id" binding:"required"`
+	TemplateID    *uint  `json:"template_id"`
+	RuleID        *uint  `json:"rule_id"`
+	TemplateName  string `json:"template_name"`
+	RuleName      string `json:"rule_name"`
+	FeedIDs       []uint `json:"feed_ids"`
+	StartTime     string `json:"start_time"`
+	EndTime       string `json:"end_time"`
+	Page          int    `json:"page"`
+	PageSize      int    `json:"page_size"`
+	Order         string `json:"order"`
+	ArticleCount  int    `json:"article_count"`
+	Total         int64  `json:"total"`
+	JobType       string `json:"job_type"`
+	Status        string `json:"status"`
+	TriggerSource string `json:"trigger_source"`
+	BatchID       string `json:"batch_id"`
+	Content       string `json:"content"`
+	Error         string `json:"error"`
 }
 
 // Create POST /api/summary-histories
@@ -60,17 +70,25 @@ func (h *SummaryHistoryHandler) Create(c *gin.Context) {
 		return
 	}
 	item, err := h.svc.Create(userID, services.CreateSummaryHistoryRequest{
-		AIModelID:    req.AIModelID,
-		FeedIDs:      req.FeedIDs,
-		StartTime:    req.StartTime,
-		EndTime:      req.EndTime,
-		Page:         req.Page,
-		PageSize:     req.PageSize,
-		Order:        req.Order,
-		ArticleCount: req.ArticleCount,
-		Total:        req.Total,
-		Content:      req.Content,
-		Error:        req.Error,
+		AIModelID:     req.AIModelID,
+		TemplateID:    req.TemplateID,
+		RuleID:        req.RuleID,
+		TemplateName:  req.TemplateName,
+		RuleName:      req.RuleName,
+		FeedIDs:       req.FeedIDs,
+		StartTime:     req.StartTime,
+		EndTime:       req.EndTime,
+		Page:          req.Page,
+		PageSize:      req.PageSize,
+		Order:         req.Order,
+		ArticleCount:  req.ArticleCount,
+		Total:         req.Total,
+		JobType:       req.JobType,
+		Status:        req.Status,
+		TriggerSource: req.TriggerSource,
+		BatchID:       req.BatchID,
+		Content:       req.Content,
+		Error:         req.Error,
 	})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "保存失败"})
@@ -147,7 +165,14 @@ func (h *SummaryHistoryHandler) Retry(c *gin.Context) {
 		return
 	}
 
-	content, sumErr := h.aiModelSvc.Summarize(userID, his.AIModelID, articles)
+	templatePrompt := ""
+	if his.TemplateID != nil && h.templateSvc != nil {
+		if tpl, tplErr := h.templateSvc.GetByID(userID, *his.TemplateID); tplErr == nil {
+			templatePrompt = tpl.Prompt
+			his.TemplateName = tpl.Name
+		}
+	}
+	content, sumErr := h.aiModelSvc.SummarizeWithTemplate(userID, his.AIModelID, articles, templatePrompt)
 	errStr := ""
 	if sumErr != nil {
 		errStr = sumErr.Error()
@@ -159,6 +184,7 @@ func (h *SummaryHistoryHandler) Retry(c *gin.Context) {
 		Total:        total,
 		Content:      content,
 		Error:        errStr,
+		Status:       map[bool]string{true: "failed", false: "success"}[errStr != ""],
 		CreatedAt:    &now,
 	})
 	if updateErr != nil {
@@ -173,3 +199,69 @@ func (h *SummaryHistoryHandler) Retry(c *gin.Context) {
 	})
 }
 
+// ArchiveToKnowledge POST /api/summary-histories/:id/knowledge
+func (h *SummaryHistoryHandler) ArchiveToKnowledge(c *gin.Context) {
+	if h.knowledgeSvc == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "知识库服务不可用"})
+		return
+	}
+	userID := middleware.GetUserID(c)
+	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的 ID"})
+		return
+	}
+	his, err := h.svc.GetByID(userID, uint(id))
+	if err != nil {
+		if err == services.ErrSummaryHistoryNotFound {
+			c.JSON(http.StatusNotFound, gin.H{"error": "记录不存在"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取记录失败"})
+		return
+	}
+	item, err := h.knowledgeSvc.CreateFromSummaryHistory(userID, his)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "归档失败"})
+		return
+	}
+	c.JSON(http.StatusCreated, gin.H{"id": item.ID})
+}
+
+type ArchiveBatchRequest struct {
+	IDs []uint `json:"ids" binding:"required"`
+}
+
+// ArchiveBatchToKnowledge POST /api/summary-histories/archive/knowledge
+func (h *SummaryHistoryHandler) ArchiveBatchToKnowledge(c *gin.Context) {
+	if h.knowledgeSvc == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "知识库服务不可用"})
+		return
+	}
+	userID := middleware.GetUserID(c)
+	var req ArchiveBatchRequest
+	if err := c.ShouldBindJSON(&req); err != nil || len(req.IDs) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
+		return
+	}
+	createdIDs := make([]uint, 0, len(req.IDs))
+	failedIDs := make([]uint, 0)
+	for _, id := range req.IDs {
+		his, err := h.svc.GetByID(userID, id)
+		if err != nil {
+			failedIDs = append(failedIDs, id)
+			continue
+		}
+		item, err := h.knowledgeSvc.CreateFromSummaryHistory(userID, his)
+		if err != nil {
+			failedIDs = append(failedIDs, id)
+			continue
+		}
+		createdIDs = append(createdIDs, item.ID)
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"created_ids": createdIDs,
+		"failed_ids":  failedIDs,
+		"total":       len(req.IDs),
+	})
+}

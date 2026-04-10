@@ -8,6 +8,9 @@ import Favorites from './pages/Favorites';
 import Feeds from './pages/Feeds';
 import SummaryHistory from './pages/SummaryHistory';
 import ErrorLogs from './pages/ErrorLogs';
+import Clusters from './pages/Clusters';
+import Knowledge from './pages/Knowledge';
+import AutomationRuns from './pages/AutomationRuns';
 import Layout from './components/Layout';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -35,6 +38,9 @@ function AppRoutes() {
       >
         <Route index element={<Home />} />
         <Route path="favorites" element={<Favorites />} />
+        <Route path="clusters" element={<Clusters />} />
+        <Route path="knowledge" element={<Knowledge />} />
+        <Route path="automation-runs" element={<AutomationRuns />} />
         <Route path="feeds" element={<Feeds />} />
         <Route path="summary-history" element={<SummaryHistory />} />
         <Route path="error-logs" element={<ErrorLogs />} />

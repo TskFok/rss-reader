@@ -8,9 +8,10 @@ import (
 
 // AISummarySchedule 定时总结配置
 type AISummarySchedule struct {
-	ID        uint           `gorm:"primaryKey" json:"id"`
-	UserID    uint           `gorm:"not null;index" json:"user_id"`
-	AIModelID uint           `gorm:"not null;index" json:"ai_model_id"`
+	ID         uint  `gorm:"primaryKey" json:"id"`
+	UserID     uint  `gorm:"not null;index" json:"user_id"`
+	AIModelID  uint  `gorm:"not null;index" json:"ai_model_id"`
+	TemplateID *uint `gorm:"index" json:"template_id"`
 
 	FeedIDsJSON string `gorm:"type:text" json:"feed_ids_json"`
 
@@ -26,11 +27,11 @@ type AISummarySchedule struct {
 	UpdatedAt time.Time      `json:"updated_at"`
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
 
-	AIModel AIModel `gorm:"foreignKey:AIModelID" json:"-"`
-	User    User    `gorm:"foreignKey:UserID" json:"-"`
+	AIModel  AIModel          `gorm:"foreignKey:AIModelID" json:"-"`
+	User     User             `gorm:"foreignKey:UserID" json:"-"`
+	Template *SummaryTemplate `gorm:"foreignKey:TemplateID" json:"-"`
 }
 
 func (AISummarySchedule) TableName() string {
 	return "ai_summary_schedules"
 }
-

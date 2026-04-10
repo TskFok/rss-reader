@@ -99,6 +99,9 @@ func (s *RSSService) FetchFeed(feed *models.Feed) error {
 		return err
 	}
 	now := time.Now()
+	createdAny := false
+	jobSvc := NewArticleAIMetadataJobService(s.db)
+	feedClassJobSvc := NewFeedAIClassificationJobService(s.db)
 	for _, item := range parsed.Items {
 		guid := item.GUID
 		if guid == "" {
@@ -133,6 +136,18 @@ func (s *RSSService) FetchFeed(feed *models.Feed) error {
 		if err := s.db.Create(&article).Error; err != nil {
 			return err
 		}
+		createdAny = true
+		article.Feed = *feed
+		// 入库只入队：元数据生成/聚类由异步任务处理，避免请求链路做写入与重算。
+		if err := jobSvc.Enqueue(feed.UserID, article.ID); err != nil {
+			return err
+		}
 	}
+
+	// 订阅级 AI 分类/总结：异步入队（避免阻塞 RSS 抓取）
+	if createdAny {
+		_ = feedClassJobSvc.Enqueue(feed.UserID, feed.ID)
+	}
+	_ = createdAny // 保留语义：有新文章时 last_fetched_at 仍要更新
 	return s.db.Model(feed).Update("last_fetched_at", now).Error
 }

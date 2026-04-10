@@ -43,17 +43,20 @@ func main() {
 	articleSvc := services.NewArticleService(db)
 	summaryHistorySvc := services.NewSummaryHistoryService(db)
 	summaryScheduleSvc := services.NewSummaryScheduleService(db)
+	summaryTemplateSvc := services.NewSummaryTemplateService(db)
+	automationRuleSvc := services.NewAutomationRuleService(db)
+	knowledgeEntrySvc := services.NewKnowledgeEntryService(db)
 	errorLogSvc := services.NewErrorLogService(db)
 	adminSvc := services.NewAdminService(db)
 	userSettingSvc := services.NewUserSettingService(db)
-	summaryHistoryHandler := handlers.NewSummaryHistoryHandler(summaryHistorySvc, articleSvc, aiModelSvc)
+	summaryHistoryHandler := handlers.NewSummaryHistoryHandler(summaryHistorySvc, articleSvc, aiModelSvc, summaryTemplateSvc, knowledgeEntrySvc)
 	opmlHandler := handlers.NewOPMLHandler(feedSvc, categorySvc)
 	feishuAPI := services.NewFeishuHTTPClient(cfg.Feishu.AppID, cfg.Feishu.AppSecret, cfg.Feishu.Redirect)
 	feishuAuthSvc := services.NewFeishuAuthService(db)
 	feishuHandler := handlers.NewFeishuHandler(&cfg.Feishu, feishuAPI, authSvc, feishuAuthSvc)
 
 	feishuBotSvc := services.NewFeishuBotService(&cfg.Feishu)
-	sched := scheduler.New(db, rssSvc, articleSvc, aiModelSvc, summaryHistorySvc, feishuBotSvc, 3)
+	sched := scheduler.New(db, rssSvc, articleSvc, aiModelSvc, summaryHistorySvc, automationRuleSvc, feishuBotSvc, 3)
 	sched.Start()
 	defer sched.Stop()
 
@@ -85,8 +88,8 @@ func main() {
 		auth := api.Group("")
 		auth.Use(middleware.Auth(authSvc))
 		{
-				auth.GET("/feeds/opml", opmlHandler.Export)
-				auth.POST("/feeds/opml", opmlHandler.Import)
+			auth.GET("/feeds/opml", opmlHandler.Export)
+			auth.POST("/feeds/opml", opmlHandler.Import)
 
 			auth.GET("/categories", handlers.NewCategoryHandler(categorySvc).List)
 			auth.POST("/categories", handlers.NewCategoryHandler(categorySvc).Create)
@@ -111,19 +114,42 @@ func main() {
 			auth.PUT("/feeds/:id", handlers.NewFeedHandler(feedSvc).Update)
 			auth.DELETE("/feeds/:id", handlers.NewFeedHandler(feedSvc).Delete)
 			auth.GET("/articles", handlers.NewArticleHandler(articleSvc).List)
+			auth.GET("/article-topics", handlers.NewArticleTopicHandler(articleSvc).List)
+			auth.GET("/article-clusters", handlers.NewArticleClusterHandler(articleSvc).List)
 			auth.PUT("/articles/:id/read", handlers.NewArticleHandler(articleSvc).MarkRead)
 			auth.PUT("/articles/:id/favorite", handlers.NewArticleHandler(articleSvc).ToggleFavorite)
-			auth.POST("/articles/summarize", handlers.NewSummaryHandler(articleSvc, aiModelSvc, errorLogSvc).Summarize)
+			auth.POST("/articles/summarize", handlers.NewSummaryHandler(articleSvc, aiModelSvc, summaryTemplateSvc, errorLogSvc).Summarize)
+
+			auth.GET("/summary-templates", handlers.NewSummaryTemplateHandler(summaryTemplateSvc).List)
+			auth.POST("/summary-templates", handlers.NewSummaryTemplateHandler(summaryTemplateSvc).Create)
+			auth.PUT("/summary-templates/:id", handlers.NewSummaryTemplateHandler(summaryTemplateSvc).Update)
+			auth.DELETE("/summary-templates/:id", handlers.NewSummaryTemplateHandler(summaryTemplateSvc).Delete)
 
 			auth.GET("/summary-histories", summaryHistoryHandler.List)
 			auth.POST("/summary-histories", summaryHistoryHandler.Create)
 			auth.POST("/summary-histories/:id/retry", summaryHistoryHandler.Retry)
+			auth.POST("/summary-histories/:id/knowledge", summaryHistoryHandler.ArchiveToKnowledge)
+			auth.POST("/summary-histories/archive/knowledge", summaryHistoryHandler.ArchiveBatchToKnowledge)
 			auth.DELETE("/summary-histories/:id", summaryHistoryHandler.Delete)
+
+			auth.GET("/knowledge-entries", handlers.NewKnowledgeEntryHandler(knowledgeEntrySvc).List)
+			auth.GET("/knowledge-entries/stats", handlers.NewKnowledgeEntryHandler(knowledgeEntrySvc).Stats)
+			auth.GET("/knowledge-entries/export", handlers.NewKnowledgeEntryHandler(knowledgeEntrySvc).Export)
+			auth.POST("/knowledge-entries", handlers.NewKnowledgeEntryHandler(knowledgeEntrySvc).Create)
+			auth.POST("/knowledge-entries/batch/tokens", handlers.NewKnowledgeEntryHandler(knowledgeEntrySvc).BatchPatchTokens)
+			auth.POST("/knowledge-entries/batch/delete", handlers.NewKnowledgeEntryHandler(knowledgeEntrySvc).BatchDelete)
+			auth.PUT("/knowledge-entries/:id", handlers.NewKnowledgeEntryHandler(knowledgeEntrySvc).Update)
+			auth.DELETE("/knowledge-entries/:id", handlers.NewKnowledgeEntryHandler(knowledgeEntrySvc).Delete)
 
 			auth.GET("/summary-schedules", handlers.NewSummaryScheduleHandler(summaryScheduleSvc).List)
 			auth.POST("/summary-schedules", handlers.NewSummaryScheduleHandler(summaryScheduleSvc).Create)
 			auth.PUT("/summary-schedules/:id", handlers.NewSummaryScheduleHandler(summaryScheduleSvc).Update)
 			auth.DELETE("/summary-schedules/:id", handlers.NewSummaryScheduleHandler(summaryScheduleSvc).Delete)
+
+			auth.GET("/automation-rules", handlers.NewAutomationRuleHandler(automationRuleSvc).List)
+			auth.POST("/automation-rules", handlers.NewAutomationRuleHandler(automationRuleSvc).Create)
+			auth.PUT("/automation-rules/:id", handlers.NewAutomationRuleHandler(automationRuleSvc).Update)
+			auth.DELETE("/automation-rules/:id", handlers.NewAutomationRuleHandler(automationRuleSvc).Delete)
 
 			auth.GET("/error-logs", handlers.NewErrorLogHandler(errorLogSvc).List)
 			auth.DELETE("/error-logs/:id", handlers.NewErrorLogHandler(errorLogSvc).Delete)
@@ -184,4 +210,3 @@ func registerStatic(r *gin.Engine) {
 		c.FileFromFS(path, http.FS(fs))
 	})
 }
-

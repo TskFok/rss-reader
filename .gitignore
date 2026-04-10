@@ -30,6 +30,8 @@ coverage.out
 coverage/
 *.cover
 *.coverprofile
+.gocache/
+.gomodcache/
 
 # Web / Node
 node_modules/

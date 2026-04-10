@@ -15,6 +15,8 @@ vi.mock('../api/client', async () => {
               id: 1,
               ai_model_id: 1,
               ai_model_name: 'm',
+              template_id: 1,
+              template_name: '日报',
               start_time: '',
               end_time: '',
               page: 1,
@@ -22,6 +24,10 @@ vi.mock('../api/client', async () => {
               order: 'desc',
               article_count: 2,
               total: 2,
+              job_type: 'summary',
+              status: 'success',
+              trigger_source: 'manual',
+              batch_id: '',
               content: '总结内容',
               error: '',
               created_at: '2026-03-11T00:00:00Z',
@@ -32,6 +38,7 @@ vi.mock('../api/client', async () => {
       }),
       delete: vi.fn().mockResolvedValue({}),
       retry: vi.fn().mockResolvedValue({ data: { id: 2, content: 'ok', error: '' } }),
+      archiveToKnowledge: vi.fn().mockResolvedValue({ data: { id: 3 } }),
     },
   };
 });
@@ -88,6 +95,8 @@ test('失败记录展示重试按钮并可触发重试接口', async () => {
           id: 9,
           ai_model_id: 1,
           ai_model_name: 'm',
+          template_id: 1,
+          template_name: '日报',
           start_time: '',
           end_time: '',
           page: 1,
@@ -95,6 +104,10 @@ test('失败记录展示重试按钮并可触发重试接口', async () => {
           order: 'desc',
           article_count: 2,
           total: 2,
+          job_type: 'summary',
+          status: 'failed',
+          trigger_source: 'manual',
+          batch_id: '',
           content: '',
           error: 'boom',
           created_at: '2026-03-11T00:00:00Z',
@@ -120,4 +133,3 @@ test('失败记录展示重试按钮并可触发重试接口', async () => {
   await waitFor(() => expect(summaryHistoriesApi.retry).toHaveBeenCalledTimes(1));
   expect((summaryHistoriesApi.retry as unknown as { mock: { calls: unknown[][] } }).mock.calls[0][0]).toBe(9);
 });
-

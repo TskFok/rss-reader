@@ -1,14 +1,14 @@
 import { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { feedsApi, categoriesApi, opmlApi, proxiesApi, aiModelsApi, articlesApi, summarySchedulesApi, summaryHistoriesApi, userSettingsApi } from '../api/client';
-import type { Feed, FeedCategory, Proxy, AIModel, SummarySchedule } from '../api/client';
+import { feedsApi, categoriesApi, opmlApi, proxiesApi, aiModelsApi, articlesApi, summarySchedulesApi, summaryHistoriesApi, userSettingsApi, summaryTemplatesApi, automationRulesApi } from '../api/client';
+import type { Feed, FeedCategory, Proxy, AIModel, SummarySchedule, SummaryTemplate, AutomationRule } from '../api/client';
 import { useAuth } from '../contexts/AuthContext';
 import Modal from '../components/Modal';
 import Admin from './Admin';
 
 const PAGE_SIZE_OPTIONS = [5, 8, 10, 20, 50] as const;
 const SUMMARY_PAGE_SIZE_OPTIONS = [10, 20, 50, 100] as const;
-const TAB_OPTIONS = ['categories', 'feeds', 'proxies', 'ai-models', 'ai-summary', 'ai-summary-schedule', 'feishu', 'users'] as const;
+const TAB_OPTIONS = ['categories', 'feeds', 'proxies', 'ai-models', 'summary-templates', 'ai-summary', 'ai-summary-schedule', 'automation-rules', 'feishu', 'users'] as const;
 type TabType = (typeof TAB_OPTIONS)[number];
 
 /** 上海时区当日的 YYYY-MM-DD */
@@ -34,6 +34,9 @@ export default function Feeds() {
   const [editInterval, setEditInterval] = useState(60);
   const [editExpireDays, setEditExpireDays] = useState(90);
   const [editCategoryId, setEditCategoryId] = useState<number | ''>('');
+  const [editAIEnabled, setEditAIEnabled] = useState(false);
+  const [editAIModelId, setEditAIModelId] = useState<number | ''>('');
+  const [editAIClassifierPrompt, setEditAIClassifierPrompt] = useState('');
   const [catName, setCatName] = useState('');
   const [catError, setCatError] = useState('');
   const [catLoading, setCatLoading] = useState(false);
@@ -108,6 +111,8 @@ export default function Feeds() {
 
   // AI 总结（默认时间范围：上海时区当日）
   const [summaryAiModelId, setSummaryAiModelId] = useState<number | ''>('');
+  const [summaryTemplateId, setSummaryTemplateId] = useState<number | ''>('');
+  const [summaryTemplates, setSummaryTemplates] = useState<SummaryTemplate[]>([]);
   const [summaryFeedIds, setSummaryFeedIds] = useState<Set<number>>(new Set());
   const [summaryStartDate, setSummaryStartDate] = useState(getTodayShanghai);
   const [summaryEndDate, setSummaryEndDate] = useState(getTodayShanghai);
@@ -128,12 +133,35 @@ export default function Feeds() {
   const [scheduleLoading, setScheduleLoading] = useState(false);
   const [scheduleError, setScheduleError] = useState('');
   const [scheduleAiModelId, setScheduleAiModelId] = useState<number | ''>('');
+  const [scheduleTemplateId, setScheduleTemplateId] = useState<number | ''>('');
   const [scheduleFeedIds, setScheduleFeedIds] = useState<Set<number>>(new Set());
   const [scheduleRunAt, setScheduleRunAt] = useState('08:30');
   const [schedulePageSize, setSchedulePageSize] = useState(20);
   const [scheduleOrder, setScheduleOrder] = useState<'desc' | 'asc'>('desc');
   const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
   const [editingScheduleId, setEditingScheduleId] = useState<number | null>(null);
+  const [templateName, setTemplateName] = useState('');
+  const [templatePrompt, setTemplatePrompt] = useState('');
+  const [templateScene, setTemplateScene] = useState('custom');
+  const [templateError, setTemplateError] = useState('');
+  const [templateLoading, setTemplateLoading] = useState(false);
+  const [editingTemplateId, setEditingTemplateId] = useState<number | null>(null);
+
+  // 自动任务规则
+  const [ruleItems, setRuleItems] = useState<AutomationRule[]>([]);
+  const [ruleLoading, setRuleLoading] = useState(false);
+  const [ruleError, setRuleError] = useState('');
+  const [ruleModalOpen, setRuleModalOpen] = useState(false);
+  const [editingRuleId, setEditingRuleId] = useState<number | null>(null);
+  const [ruleName, setRuleName] = useState('');
+  const [ruleAiModelId, setRuleAiModelId] = useState<number | ''>('');
+  const [ruleTemplateId, setRuleTemplateId] = useState<number | ''>('');
+  const [ruleFeedIds, setRuleFeedIds] = useState<Set<number>>(new Set());
+  const [ruleKeywordQuery, setRuleKeywordQuery] = useState('');
+  const [ruleMinImportance, setRuleMinImportance] = useState(0);
+  const [ruleRunAt, setRuleRunAt] = useState('09:00');
+  const [rulePageSize, setRulePageSize] = useState(20);
+  const [ruleOrder, setRuleOrder] = useState<'desc' | 'asc'>('desc');
 
   // 飞书机器人配置（Webhook 或服务端 API 二选一，API 模式使用 config 的 app_id/app_secret，接收者为 users.feishu_id）
   const [feishuNotifyType, setFeishuNotifyType] = useState<'webhook' | 'api' | ''>('');
@@ -185,6 +213,12 @@ export default function Feeds() {
         } catch {
           if (!cancelled) setAiModels([]);
         }
+        try {
+          const tr = await summaryTemplatesApi.list();
+          if (!cancelled) setSummaryTemplates(tr.data);
+        } catch {
+          if (!cancelled) setSummaryTemplates([]);
+        }
       })();
       return () => {
         cancelled = true;
@@ -206,6 +240,12 @@ export default function Feeds() {
           if (!cancelled) setAiModels([]);
         }
         try {
+          const tr = await summaryTemplatesApi.list();
+          if (!cancelled) setSummaryTemplates(tr.data);
+        } catch {
+          if (!cancelled) setSummaryTemplates([]);
+        }
+        try {
           const sr = await summarySchedulesApi.list();
           if (!cancelled) setScheduleItems(sr.data);
         } catch {
@@ -217,6 +257,52 @@ export default function Feeds() {
         }
       })();
       return () => { cancelled = true; };
+    }
+    if (activeTab === 'summary-templates') {
+      let cancelled = false;
+      (async () => {
+        try {
+          const tr = await summaryTemplatesApi.list();
+          if (!cancelled) setSummaryTemplates(tr.data);
+        } catch {
+          if (!cancelled) setSummaryTemplates([]);
+        }
+      })();
+      return () => {
+        cancelled = true;
+      };
+    }
+    if (activeTab === 'automation-rules') {
+      let cancelled = false;
+      (async () => {
+        try {
+          const fr = await feedsApi.list();
+          if (!cancelled) setFeeds(fr.data);
+        } catch {
+          if (!cancelled) setFeeds([]);
+        }
+        try {
+          const mr = await aiModelsApi.list();
+          if (!cancelled) setAiModels(mr.data);
+        } catch {
+          if (!cancelled) setAiModels([]);
+        }
+        try {
+          const tr = await summaryTemplatesApi.list();
+          if (!cancelled) setSummaryTemplates(tr.data);
+        } catch {
+          if (!cancelled) setSummaryTemplates([]);
+        }
+        try {
+          const rr = await automationRulesApi.list();
+          if (!cancelled) setRuleItems(rr.data);
+        } catch {
+          if (!cancelled) setRuleItems([]);
+        }
+      })();
+      return () => {
+        cancelled = true;
+      };
     }
     if (activeTab === 'feishu') {
       let cancelled = false;
@@ -262,6 +348,12 @@ export default function Feeds() {
         } catch {
           if (!cancelled) setProxies([]);
         }
+        try {
+          const mr = await aiModelsApi.list();
+          if (!cancelled) setAiModels(mr.data);
+        } catch {
+          if (!cancelled) setAiModels([]);
+        }
       })();
       return () => {
         cancelled = true;
@@ -285,10 +377,37 @@ export default function Feeds() {
   }, [activeTab, aiModels, summaryAiModelId]);
 
   useEffect(() => {
+    if (activeTab === 'ai-summary' && summaryTemplates.length > 0 && summaryTemplateId === '') {
+      const defaultTemplate = summaryTemplates.find((tpl) => tpl.is_default) ?? summaryTemplates[0];
+      if (defaultTemplate) setSummaryTemplateId(defaultTemplate.id);
+    }
+  }, [activeTab, summaryTemplates, summaryTemplateId]);
+
+  useEffect(() => {
     if (activeTab === 'ai-summary-schedule' && aiModels.length > 0 && scheduleAiModelId === '') {
       setScheduleAiModelId(aiModels[0].id);
     }
   }, [activeTab, aiModels, scheduleAiModelId]);
+
+  useEffect(() => {
+    if (activeTab === 'automation-rules' && aiModels.length > 0 && ruleAiModelId === '') {
+      setRuleAiModelId(aiModels[0].id);
+    }
+  }, [activeTab, aiModels, ruleAiModelId]);
+
+  useEffect(() => {
+    if (activeTab === 'ai-summary-schedule' && summaryTemplates.length > 0 && scheduleTemplateId === '') {
+      const defaultTemplate = summaryTemplates.find((tpl) => tpl.is_default) ?? summaryTemplates[0];
+      if (defaultTemplate) setScheduleTemplateId(defaultTemplate.id);
+    }
+  }, [activeTab, summaryTemplates, scheduleTemplateId]);
+
+  useEffect(() => {
+    if (activeTab === 'automation-rules' && summaryTemplates.length > 0 && ruleTemplateId === '') {
+      const defaultTemplate = summaryTemplates.find((tpl) => tpl.is_default) ?? summaryTemplates[0];
+      if (defaultTemplate) setRuleTemplateId(defaultTemplate.id);
+    }
+  }, [activeTab, summaryTemplates, ruleTemplateId]);
 
   const toggleScheduleFeed = (feedId: number) => {
     setScheduleFeedIds((prev) => {
@@ -319,6 +438,7 @@ export default function Feeds() {
     try {
       const payload = {
         ai_model_id: scheduleAiModelId,
+        template_id: scheduleTemplateId === '' ? undefined : scheduleTemplateId,
         feed_ids: scheduleFeedIds.size > 0 ? [...scheduleFeedIds] : [],
         run_at: scheduleRunAt,
         page_size: schedulePageSize,
@@ -359,6 +479,7 @@ export default function Feeds() {
       }
       await summarySchedulesApi.update(s.id, {
         ai_model_id: s.ai_model_id,
+        template_id: s.template_id ?? undefined,
         feed_ids: ids,
         run_at: s.run_at,
         page_size: s.page_size,
@@ -379,6 +500,7 @@ export default function Feeds() {
     setSchedulePageSize(20);
     setScheduleOrder('desc');
     setScheduleFeedIds(new Set());
+    setScheduleTemplateId(summaryTemplates.find((tpl) => tpl.is_default)?.id ?? '');
     if (aiModels.length > 0 && scheduleAiModelId === '') {
       setScheduleAiModelId(aiModels[0].id);
     }
@@ -389,6 +511,7 @@ export default function Feeds() {
     setScheduleError('');
     setEditingScheduleId(s.id);
     setScheduleAiModelId(s.ai_model_id);
+    setScheduleTemplateId(s.template_id ?? '');
     setScheduleRunAt(s.run_at || '08:30');
     setSchedulePageSize(s.page_size || 20);
     setScheduleOrder((s.order === 'asc' ? 'asc' : 'desc') as 'asc' | 'desc');
@@ -401,8 +524,189 @@ export default function Feeds() {
     setScheduleModalOpen(true);
   };
 
+  const loadAutomationRules = async () => {
+    try {
+      const r = await automationRulesApi.list();
+      setRuleItems(r.data);
+    } catch {
+      setRuleItems([]);
+    }
+  };
+
+  const toggleRuleFeed = (feedId: number) => {
+    setRuleFeedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(feedId)) next.delete(feedId);
+      else next.add(feedId);
+      return next;
+    });
+  };
+
+  const openCreateRuleModal = () => {
+    setRuleError('');
+    setEditingRuleId(null);
+    setRuleName('');
+    setRuleKeywordQuery('');
+    setRuleMinImportance(0);
+    setRuleRunAt('09:00');
+    setRulePageSize(20);
+    setRuleOrder('desc');
+    setRuleFeedIds(new Set());
+    setRuleTemplateId(summaryTemplates.find((tpl) => tpl.is_default)?.id ?? '');
+    if (aiModels.length > 0 && ruleAiModelId === '') {
+      setRuleAiModelId(aiModels[0].id);
+    }
+    setRuleModalOpen(true);
+  };
+
+  const openEditRuleModal = (r: AutomationRule) => {
+    setRuleError('');
+    setEditingRuleId(r.id);
+    setRuleName(r.name);
+    setRuleAiModelId(r.ai_model_id);
+    setRuleTemplateId(r.template_id ?? '');
+    setRuleKeywordQuery(r.keyword_query || '');
+    setRuleMinImportance(r.min_importance || 0);
+    setRuleRunAt(r.run_at || '09:00');
+    setRulePageSize(r.page_size || 20);
+    setRuleOrder((r.order === 'asc' ? 'asc' : 'desc') as 'asc' | 'desc');
+    try {
+      const ids = JSON.parse(r.feed_ids_json || '[]') as number[];
+      setRuleFeedIds(new Set(ids));
+    } catch {
+      setRuleFeedIds(new Set());
+    }
+    setRuleModalOpen(true);
+  };
+
+  const handleSaveRule = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setRuleError('');
+    if (ruleAiModelId === '') {
+      setRuleError('请选择 AI 模型');
+      return;
+    }
+    if (!ruleName.trim()) {
+      setRuleError('请输入规则名称');
+      return;
+    }
+    setRuleLoading(true);
+    try {
+      const payload = {
+        name: ruleName.trim(),
+        ai_model_id: ruleAiModelId,
+        template_id: ruleTemplateId === '' ? undefined : ruleTemplateId,
+        feed_ids: ruleFeedIds.size > 0 ? [...ruleFeedIds] : [],
+        keyword_query: ruleKeywordQuery.trim() || undefined,
+        min_importance: ruleMinImportance,
+        run_at: ruleRunAt,
+        page_size: rulePageSize,
+        order: ruleOrder,
+      };
+      if (editingRuleId !== null) {
+        await automationRulesApi.update(editingRuleId, payload);
+      } else {
+        await automationRulesApi.create(payload);
+      }
+      await loadAutomationRules();
+      setRuleModalOpen(false);
+      setEditingRuleId(null);
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      setRuleError(msg || '保存失败');
+    } finally {
+      setRuleLoading(false);
+    }
+  };
+
+  const handleDeleteRule = async (id: number) => {
+    if (!confirm('确定删除这条自动任务规则？')) return;
+    try {
+      await automationRulesApi.delete(id);
+      setRuleItems((prev) => prev.filter((x) => x.id !== id));
+    } catch {}
+  };
+
+  const handleToggleRuleEnabled = async (r: AutomationRule) => {
+    setRuleError('');
+    try {
+      let ids: number[] = [];
+      try {
+        ids = JSON.parse(r.feed_ids_json || '[]') as number[];
+      } catch {
+        ids = [];
+      }
+      await automationRulesApi.update(r.id, {
+        name: r.name,
+        ai_model_id: r.ai_model_id,
+        template_id: r.template_id ?? undefined,
+        feed_ids: ids,
+        keyword_query: r.keyword_query || undefined,
+        min_importance: r.min_importance,
+        run_at: r.run_at,
+        page_size: r.page_size,
+        order: (r.order === 'asc' ? 'asc' : 'desc') as 'asc' | 'desc',
+        enabled: !r.enabled,
+      });
+      setRuleItems((prev) => prev.map((x) => (x.id === r.id ? { ...x, enabled: !x.enabled } : x)));
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      setRuleError(msg || '更新失败');
+    }
+  };
+
   const loadFeeds = () => {
     feedsApi.list().then((r) => setFeeds(r.data)).catch(() => setFeeds([]));
+  };
+
+  const loadSummaryTemplates = () => {
+    summaryTemplatesApi.list().then((r) => setSummaryTemplates(r.data)).catch(() => setSummaryTemplates([]));
+  };
+
+  const resetTemplateForm = () => {
+    setEditingTemplateId(null);
+    setTemplateName('');
+    setTemplatePrompt('');
+    setTemplateScene('custom');
+    setTemplateError('');
+  };
+
+  const handleSaveTemplate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setTemplateError('');
+    setTemplateLoading(true);
+    try {
+      const payload = {
+        name: templateName,
+        prompt: templatePrompt,
+        scene: templateScene,
+      };
+      if (editingTemplateId !== null) {
+        await summaryTemplatesApi.update(editingTemplateId, payload);
+      } else {
+        await summaryTemplatesApi.create(payload);
+      }
+      loadSummaryTemplates();
+      resetTemplateForm();
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      setTemplateError(msg || '保存模板失败');
+    } finally {
+      setTemplateLoading(false);
+    }
+  };
+
+  const handleDeleteTemplate = async (id: number) => {
+    if (!confirm('确定删除这条总结模板？')) return;
+    try {
+      await summaryTemplatesApi.delete(id);
+      loadSummaryTemplates();
+      if (scheduleTemplateId === id) setScheduleTemplateId('');
+      if (summaryTemplateId === id) setSummaryTemplateId('');
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      setTemplateError(msg || '删除模板失败');
+    }
   };
 
   const loadCategories = () => {
@@ -526,7 +830,10 @@ export default function Feeds() {
         editInterval,
         editProxyId === '' ? null : editProxyId,
         editExpireDays,
-        editCategoryId === '' ? 0 : editCategoryId
+        editCategoryId === '' ? 0 : editCategoryId,
+        editAIEnabled,
+        editAIModelId === '' ? null : editAIModelId,
+        editAIClassifierPrompt
       );
       setEditing(null);
       loadFeeds();
@@ -704,6 +1011,7 @@ export default function Feeds() {
       const pageToUse = overridePage ?? Math.max(1, summaryPage);
       const params: {
         ai_model_id: number;
+        template_id?: number;
         feed_ids?: number[];
         start_time?: string;
         end_time?: string;
@@ -711,6 +1019,7 @@ export default function Feeds() {
         page_size?: number;
         order?: 'desc' | 'asc';
       } = { ai_model_id: summaryAiModelId };
+      if (summaryTemplateId !== '') params.template_id = summaryTemplateId;
       if (summaryFeedIds.size > 0) {
         params.feed_ids = [...summaryFeedIds];
       }
@@ -754,6 +1063,8 @@ export default function Feeds() {
     try {
       await summaryHistoriesApi.create({
         ai_model_id: summaryAiModelId,
+        template_id: summaryTemplateId === '' ? undefined : summaryTemplateId,
+        template_name: summaryTemplateId === '' ? undefined : (summaryTemplates.find((t) => t.id === summaryTemplateId)?.name ?? undefined),
         feed_ids: summaryFeedIds.size > 0 ? [...summaryFeedIds] : [],
         start_time: summaryStartDate || undefined,
         end_time: summaryEndDate || undefined,
@@ -762,7 +1073,11 @@ export default function Feeds() {
         order: summaryOrder,
         article_count: summaryArticleCount,
         total: summaryTotal ?? undefined,
+        job_type: 'summary',
+        status: summaryError ? 'failed' : 'success',
+        trigger_source: 'manual',
         content: summaryResult,
+        error: summaryError || undefined,
       });
       setSummarySavedMsg('已保存到总结历史');
     } catch (err: unknown) {
@@ -1146,6 +1461,47 @@ export default function Feeds() {
                     <option value={365}>1 年</option>
                   </select>
                 </div>
+                <div className="feeds-modal-row">
+                  <label>AI 分类总结</label>
+                  <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <label style={{ display: 'inline-flex', gap: 8, alignItems: 'center' }}>
+                      <input
+                        type="checkbox"
+                        checked={editAIEnabled}
+                        onChange={(e) => setEditAIEnabled(e.target.checked)}
+                      />
+                      启用
+                    </label>
+                    <select
+                      value={editAIModelId}
+                      onChange={(e) => setEditAIModelId(e.target.value === '' ? '' : Number(e.target.value))}
+                      disabled={!editAIEnabled}
+                    >
+                      <option value="">不选择模型（不记录元数据）</option>
+                      {aiModels.map((m) => (
+                        <option key={m.id} value={m.id}>
+                          {m.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  {!editAIEnabled && (
+                    <p className="feeds-modal-hint">勾选「启用」后可选择模型。</p>
+                  )}
+                  {editAIEnabled && aiModels.length === 0 && (
+                    <p className="feeds-modal-hint">暂无可用模型，请先到左侧「AI 模型」页添加。</p>
+                  )}
+                </div>
+                <div className="feeds-modal-row">
+                  <label>分类/总结 Prompt</label>
+                  <textarea
+                    className="feeds-modal-textarea"
+                    rows={5}
+                    placeholder="留空使用系统默认模板。可在此约束 JSON 结构、分类粒度、语言等。"
+                    value={editAIClassifierPrompt}
+                    onChange={(e) => setEditAIClassifierPrompt(e.target.value)}
+                  />
+                </div>
                 <div className="feeds-modal-actions">
                   <button type="button" onClick={() => { setEditing(null); setEditError(''); }}>取消</button>
                   <button type="submit">保存</button>
@@ -1192,6 +1548,7 @@ export default function Feeds() {
                         <th>更新间隔</th>
                         <th>内容保留</th>
                         <th>上次更新</th>
+                        <th>AI 分类</th>
                         <th style={{ width: '160px' }}>操作</th>
                       </tr>
                     </thead>
@@ -1210,6 +1567,19 @@ export default function Feeds() {
                           <td>{f.expire_days === 0 ? '永不过期' : `${f.expire_days} 天`}</td>
                           <td>{formatDate(f.last_fetched_at)}</td>
                           <td>
+                            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                              {(f.ai_categories || []).slice(0, 5).map((c) => (
+                                <span key={c} className="feeds-pill">{c}</span>
+                              ))}
+                              {(!f.ai_categories || f.ai_categories.length === 0) && (
+                                <span style={{ color: '#999' }}>{f.ai_enabled ? '未生成' : '未启用'}</span>
+                              )}
+                            </div>
+                            {f.ai_summary ? (
+                              <div className="feeds-table-sub" style={{ marginTop: 4 }}>{f.ai_summary}</div>
+                            ) : null}
+                          </td>
+                          <td>
                             <div className="feeds-row-actions">
                               <button
                                 type="button"
@@ -1219,6 +1589,9 @@ export default function Feeds() {
                                   setEditExpireDays(f.expire_days ?? 90);
                                   setEditProxyId(f.proxy_id ?? '');
                                   setEditCategoryId(f.category_id ?? '');
+                                  setEditAIEnabled(!!f.ai_enabled);
+                                  setEditAIModelId(f.ai_model_id ?? '');
+                                  setEditAIClassifierPrompt(f.ai_classifier_prompt ?? '');
                                 }}
                               >
                                 编辑
@@ -1673,6 +2046,27 @@ export default function Feeds() {
                     {aiModels.length === 0 && (
                       <p className="feeds-summary-hint">请先在「AI 模型」中添加模型</p>
                     )}
+                    <div className="feeds-summary-row">
+                      <label>总结模板</label>
+                      <select
+                        value={summaryTemplateId}
+                        onChange={(e) =>
+                          setSummaryTemplateId(e.target.value === '' ? '' : Number(e.target.value))
+                        }
+                      >
+                        <option value="">默认模板</option>
+                        {summaryTemplates.map((tpl) => (
+                          <option key={tpl.id} value={tpl.id}>
+                            {tpl.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    {summaryTemplates.length > 0 && summaryTemplateId !== '' && (
+                      <p className="feeds-summary-hint">
+                        当前模板：{summaryTemplates.find((tpl) => tpl.id === summaryTemplateId)?.scene || 'custom'}
+                      </p>
+                    )}
 
                     <div className="feeds-summary-row">
                       <label>开始时间</label>
@@ -1793,6 +2187,18 @@ export default function Feeds() {
                   </select>
                 </div>
                 <div className="feeds-modal-row">
+                  <label>总结模板</label>
+                  <select
+                    value={scheduleTemplateId}
+                    onChange={(e) => setScheduleTemplateId(e.target.value === '' ? '' : Number(e.target.value))}
+                  >
+                    <option value="">默认模板</option>
+                    {summaryTemplates.map((tpl) => (
+                      <option key={tpl.id} value={tpl.id}>{tpl.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="feeds-modal-row">
                   <label>每天执行时间</label>
                   <input type="time" value={scheduleRunAt} onChange={(e) => setScheduleRunAt(e.target.value)} required />
                 </div>
@@ -1857,6 +2263,9 @@ export default function Feeds() {
                           {s.enabled ? '已启用' : '未启用'} · {s.run_at} · 每页 {s.page_size} · {s.order === 'asc' ? '从旧到新' : '从新到旧'}
                         </span>
                         <span className="feeds-proxy-url">模型 ID：{s.ai_model_id}</span>
+                        <span className="feeds-proxy-url">
+                          模板：{summaryTemplates.find((tpl) => tpl.id === s.template_id)?.name || '默认模板'}
+                        </span>
                         <span className="feeds-proxy-url">上次执行：{s.last_run_at ? formatDate(s.last_run_at) : '从未'}</span>
                       </div>
                       <div className="feeds-category-actions">
@@ -1865,6 +2274,207 @@ export default function Feeds() {
                           {s.enabled ? '停用' : '启用'}
                         </button>
                         <button type="button" className="danger" onClick={() => handleDeleteSchedule(s.id)}>删除</button>
+                      </div>
+                    </li>
+                  ))
+                )}
+              </ul>
+            </div>
+          </section>
+        )}
+
+        {activeTab === 'summary-templates' && (
+          <section className="feeds-card">
+            <div className="feeds-card-header">
+              <div>
+                <h2>总结模板</h2>
+                <p>维护日报、快讯、风险预警等模板，供手动总结和定时总结复用</p>
+              </div>
+              <div className="feeds-card-header-right">
+                <span className="feeds-card-sub">{summaryTemplates.length} 个模板</span>
+              </div>
+            </div>
+            {templateError && <p className="error">{templateError}</p>}
+            <form onSubmit={handleSaveTemplate} className="feeds-modal-form" style={{ maxWidth: '720px' }}>
+              <div className="feeds-modal-row">
+                <label>模板名称</label>
+                <input value={templateName} onChange={(e) => setTemplateName(e.target.value)} placeholder="例如：竞品日报" required />
+              </div>
+              <div className="feeds-modal-row">
+                <label>模板场景</label>
+                <input value={templateScene} onChange={(e) => setTemplateScene(e.target.value)} placeholder="daily / tech / risk / custom" />
+              </div>
+              <div className="feeds-modal-row">
+                <label>模板提示词</label>
+                <textarea value={templatePrompt} onChange={(e) => setTemplatePrompt(e.target.value)} rows={5} placeholder="描述输出结构、重点和风格" required />
+              </div>
+              <div className="feeds-modal-actions">
+                {editingTemplateId !== null && (
+                  <button type="button" onClick={resetTemplateForm}>取消编辑</button>
+                )}
+                <button type="submit" disabled={templateLoading}>
+                  {templateLoading ? '保存中...' : editingTemplateId !== null ? '更新模板' : '新建模板'}
+                </button>
+              </div>
+            </form>
+            <div className="feeds-list-scroll">
+              <ul className="feeds-category-list">
+                {summaryTemplates.map((tpl) => (
+                  <li key={tpl.id} style={{ alignItems: 'flex-start' }}>
+                    <div className="feeds-category-main" style={{ gap: '8px' }}>
+                      <span className="feeds-category-name">
+                        {tpl.name} {tpl.is_default ? '· 系统默认' : ''}
+                      </span>
+                      <span className="feeds-proxy-url">场景：{tpl.scene || 'custom'}</span>
+                      <div className="feeds-summary-result-content" style={{ padding: 0 }}>
+                        {tpl.prompt}
+                      </div>
+                    </div>
+                    <div className="feeds-category-actions">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingTemplateId(tpl.id);
+                          setTemplateName(tpl.name);
+                          setTemplateScene(tpl.scene || 'custom');
+                          setTemplatePrompt(tpl.prompt);
+                          setTemplateError('');
+                        }}
+                      >
+                        编辑
+                      </button>
+                      {!tpl.is_default && (
+                        <button type="button" className="danger" onClick={() => handleDeleteTemplate(tpl.id)}>
+                          删除
+                        </button>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </section>
+        )}
+
+        {activeTab === 'automation-rules' && (
+          <section className="feeds-card">
+            <div className="feeds-card-header">
+              <div>
+                <h2>自动任务规则</h2>
+                <p>按关键词、订阅源和重要度每天自动生成总结并写入历史</p>
+              </div>
+              <div className="feeds-card-header-right">
+                <span className="feeds-card-sub">{ruleItems.length} 条规则</span>
+                <button type="button" className="feeds-primary-btn" onClick={openCreateRuleModal}>
+                  新增规则
+                </button>
+              </div>
+            </div>
+            {ruleError && <p className="error">{ruleError}</p>}
+
+            <Modal
+              open={ruleModalOpen}
+              onClose={() => { setRuleModalOpen(false); setEditingRuleId(null); setRuleError(''); }}
+              title={editingRuleId === null ? '新增自动任务规则' : '编辑自动任务规则'}
+            >
+              <form onSubmit={handleSaveRule} className="feeds-modal-form">
+                {ruleError && <p className="error">{ruleError}</p>}
+                <div className="feeds-modal-row">
+                  <label>规则名称</label>
+                  <input value={ruleName} onChange={(e) => setRuleName(e.target.value)} required />
+                </div>
+                <div className="feeds-modal-row">
+                  <label>AI 模型</label>
+                  <select value={ruleAiModelId} onChange={(e) => setRuleAiModelId(e.target.value === '' ? '' : Number(e.target.value))} required>
+                    <option value="">选择模型</option>
+                    {aiModels.map((m) => (
+                      <option key={m.id} value={m.id}>{m.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="feeds-modal-row">
+                  <label>总结模板</label>
+                  <select value={ruleTemplateId} onChange={(e) => setRuleTemplateId(e.target.value === '' ? '' : Number(e.target.value))}>
+                    <option value="">默认模板</option>
+                    {summaryTemplates.map((tpl) => (
+                      <option key={tpl.id} value={tpl.id}>{tpl.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="feeds-modal-row">
+                  <label>关键词过滤</label>
+                  <input value={ruleKeywordQuery} onChange={(e) => setRuleKeywordQuery(e.target.value)} placeholder="例如：OpenAI Agent" />
+                </div>
+                <div className="feeds-modal-row">
+                  <label>最小重要度</label>
+                  <input type="number" min={0} max={5} value={ruleMinImportance} onChange={(e) => setRuleMinImportance(Math.max(0, Math.min(5, Number(e.target.value || 0))))} />
+                </div>
+                <div className="feeds-modal-row">
+                  <label>每天执行时间</label>
+                  <input type="time" value={ruleRunAt} onChange={(e) => setRuleRunAt(e.target.value)} required />
+                </div>
+                <div className="feeds-modal-row">
+                  <label>每页条数</label>
+                  <select value={rulePageSize} onChange={(e) => setRulePageSize(Number(e.target.value))}>
+                    {SUMMARY_PAGE_SIZE_OPTIONS.map((n) => (
+                      <option key={n} value={n}>{n}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="feeds-modal-row">
+                  <label>排序</label>
+                  <select value={ruleOrder} onChange={(e) => setRuleOrder(e.target.value as 'desc' | 'asc')}>
+                    <option value="desc">从新到旧</option>
+                    <option value="asc">从旧到新</option>
+                  </select>
+                </div>
+                <div className="feeds-modal-row">
+                  <label>订阅源（不选表示全部订阅）</label>
+                  <div className="feeds-summary-feeds" style={{ maxHeight: '220px' }}>
+                    {feeds.length === 0 ? (
+                      <span className="feeds-summary-empty">暂无订阅</span>
+                    ) : (
+                      feeds.map((f) => (
+                        <label key={f.id} className="feeds-summary-feed-check">
+                          <input type="checkbox" checked={ruleFeedIds.has(f.id)} onChange={() => toggleRuleFeed(f.id)} />
+                          <span>{f.title || f.url}</span>
+                        </label>
+                      ))
+                    )}
+                  </div>
+                </div>
+                <div className="feeds-modal-actions">
+                  <button type="button" onClick={() => { setRuleModalOpen(false); setEditingRuleId(null); setRuleError(''); }}>取消</button>
+                  <button type="submit" disabled={ruleLoading}>{ruleLoading ? '保存中...' : '保存'}</button>
+                </div>
+              </form>
+            </Modal>
+
+            <div className="feeds-list-scroll">
+              <ul className="feeds-category-list">
+                {ruleItems.length === 0 ? (
+                  <li>
+                    <div className="feeds-category-main">
+                      <span className="feeds-category-name">暂无规则</span>
+                    </div>
+                  </li>
+                ) : (
+                  ruleItems.map((r) => (
+                    <li key={r.id}>
+                      <div className="feeds-category-main">
+                        <span className="feeds-category-name">
+                          {r.enabled ? '已启用' : '未启用'} · {r.name} · {r.run_at}
+                        </span>
+                        <span className="feeds-proxy-url">模型 ID：{r.ai_model_id} · 模板：{summaryTemplates.find((tpl) => tpl.id === r.template_id)?.name || '默认模板'}</span>
+                        <span className="feeds-proxy-url">关键词：{r.keyword_query || '(无)'} · 最小重要度：{r.min_importance}</span>
+                        <span className="feeds-proxy-url">上次执行：{r.last_run_at ? formatDate(r.last_run_at) : '从未'}</span>
+                      </div>
+                      <div className="feeds-category-actions">
+                        <button type="button" onClick={() => openEditRuleModal(r)}>编辑</button>
+                        <button type="button" onClick={() => handleToggleRuleEnabled(r)}>
+                          {r.enabled ? '停用' : '启用'}
+                        </button>
+                        <button type="button" className="danger" onClick={() => handleDeleteRule(r.id)}>删除</button>
                       </div>
                     </li>
                   ))

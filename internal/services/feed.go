@@ -1,7 +1,9 @@
 package services
 
 import (
+	"encoding/json"
 	"errors"
+	"strings"
 
 	"github.com/ushopal/rss-reader/internal/models"
 	"gorm.io/gorm"
@@ -29,10 +31,15 @@ type CreateFeedRequest struct {
 	UpdateIntervalMinutes int    `json:"update_interval_minutes" binding:"required,min=5,max=10080"`
 	ProxyID               *uint  `json:"proxy_id"`
 	ExpireDays            *int   `json:"expire_days"` // nil=默认90天，0=永不过期，>0=保留天数
+
+	AIEnabled *bool `json:"ai_enabled"`  // 可选：创建时配置
+	AIModelID *uint `json:"ai_model_id"` // 可选：创建时配置，0=清空
+	// AIClassifierPrompt 可选；nil 不写库；空字符串表示使用内置默认（存库为空）
+	AIClassifierPrompt *string `json:"ai_classifier_prompt"`
 }
 
 // Create 添加订阅
-func (s *FeedService) Create(userID uint, req CreateFeedRequest) (*models.Feed, error) {
+func (s *FeedService) Create(userID uint, req CreateFeedRequest) (*FeedWithAI, error) {
 	// 校验分类归属与存在（放在抓取 RSS 之前，避免无意义的网络请求）
 	var cat models.FeedCategory
 	if err := s.db.Where("user_id = ? AND id = ?", userID, req.CategoryID).First(&cat).Error; err != nil {
@@ -86,14 +93,45 @@ func (s *FeedService) Create(userID uint, req CreateFeedRequest) (*models.Feed, 
 	}
 	s.db.Preload("Proxy").First(feed, feed.ID)
 	_ = s.rss.FetchFeed(feed)
-	return feed, nil
+
+	// 创建时可选写入 AI 设置
+	if req.AIEnabled != nil || req.AIModelID != nil || req.AIClassifierPrompt != nil {
+		if err := s.upsertFeedAISetting(userID, feed.ID, req.AIEnabled, req.AIModelID, req.AIClassifierPrompt); err != nil {
+			return nil, err
+		}
+	}
+	return s.getFeedWithAI(userID, feed.ID)
 }
 
 // List 获取用户订阅列表
-func (s *FeedService) List(userID uint) ([]models.Feed, error) {
+func (s *FeedService) List(userID uint) ([]FeedWithAI, error) {
 	var feeds []models.Feed
-	err := s.db.Preload("Category").Preload("Proxy").Where("user_id = ?", userID).Order("created_at DESC").Find(&feeds).Error
-	return feeds, err
+	if err := s.db.Preload("Category").Preload("Proxy").Where("user_id = ?", userID).Order("created_at DESC").Find(&feeds).Error; err != nil {
+		return nil, err
+	}
+	if len(feeds) == 0 {
+		return []FeedWithAI{}, nil
+	}
+	feedIDs := make([]uint, 0, len(feeds))
+	for i := range feeds {
+		feedIDs = append(feedIDs, feeds[i].ID)
+	}
+	var settings []models.FeedAISetting
+	_ = s.db.Where("user_id = ? AND feed_id IN ?", userID, feedIDs).Find(&settings).Error
+	settingByFeedID := make(map[uint]models.FeedAISetting, len(settings))
+	for _, st := range settings {
+		settingByFeedID[st.FeedID] = st
+	}
+	out := make([]FeedWithAI, 0, len(feeds))
+	for _, f := range feeds {
+		st, ok := settingByFeedID[f.ID]
+		if !ok {
+			out = append(out, FeedWithAI{Feed: f})
+			continue
+		}
+		out = append(out, s.decorateFeedWithAI(f, &st))
+	}
+	return out, nil
 }
 
 // GetByID 根据 ID 获取订阅
@@ -114,10 +152,24 @@ type UpdateFeedRequest struct {
 	UpdateIntervalMinutes int   `json:"update_interval_minutes" binding:"required,min=5,max=10080"`
 	ProxyID               *uint `json:"proxy_id"`
 	ExpireDays            *int  `json:"expire_days"` // 0=永不过期，nil 表示不修改
+
+	AIEnabled *bool `json:"ai_enabled"` // nil=不修改
+	AIModelID *uint `json:"ai_model_id"` // nil=不修改，0=清空
+	// AIClassifierPrompt nil=不修改；指向空字符串=清空为默认（存库空）
+	AIClassifierPrompt *string `json:"ai_classifier_prompt"`
+}
+
+type FeedWithAI struct {
+	models.Feed
+	AIEnabled          bool     `json:"ai_enabled"`
+	AIModelID          *uint    `json:"ai_model_id"`
+	AIClassifierPrompt string   `json:"ai_classifier_prompt"`
+	AISummary          string   `json:"ai_summary"`
+	AICategories       []string `json:"ai_categories"`
 }
 
 // Update 更新订阅设置
-func (s *FeedService) Update(userID uint, id uint, req UpdateFeedRequest) (*models.Feed, error) {
+func (s *FeedService) Update(userID uint, id uint, req UpdateFeedRequest) (*FeedWithAI, error) {
 	feed, err := s.GetByID(userID, id)
 	if err != nil {
 		return nil, err
@@ -164,11 +216,85 @@ func (s *FeedService) Update(userID uint, id uint, req UpdateFeedRequest) (*mode
 			return nil, err
 		}
 	}
-	var result models.Feed
-	if err := s.db.Preload("Category").Preload("Proxy").First(&result, feed.ID).Error; err != nil {
+	if req.AIEnabled != nil || req.AIModelID != nil || req.AIClassifierPrompt != nil {
+		if err := s.upsertFeedAISetting(userID, feed.ID, req.AIEnabled, req.AIModelID, req.AIClassifierPrompt); err != nil {
+			return nil, err
+		}
+	}
+	return s.getFeedWithAI(userID, feed.ID)
+}
+
+func (s *FeedService) getFeedWithAI(userID uint, feedID uint) (*FeedWithAI, error) {
+	var f models.Feed
+	if err := s.db.Preload("Category").Preload("Proxy").Where("user_id = ? AND id = ?", userID, feedID).First(&f).Error; err != nil {
 		return nil, err
 	}
-	return &result, nil
+	var st models.FeedAISetting
+	err := s.db.Where("user_id = ? AND feed_id = ?", userID, feedID).First(&st).Error
+	if err != nil {
+		return &FeedWithAI{Feed: f}, nil
+	}
+	out := s.decorateFeedWithAI(f, &st)
+	return &out, nil
+}
+
+func (s *FeedService) decorateFeedWithAI(f models.Feed, st *models.FeedAISetting) FeedWithAI {
+	var cats []string
+	raw := strings.TrimSpace(st.CategoriesJSON)
+	if raw != "" {
+		_ = json.Unmarshal([]byte(raw), &cats)
+	}
+	return FeedWithAI{
+		Feed:               f,
+		AIEnabled:          st.Enabled,
+		AIModelID:          st.AIModelID,
+		AIClassifierPrompt: st.ClassifierPrompt,
+		AISummary:          strings.TrimSpace(st.Summary),
+		AICategories:       cats,
+	}
+}
+
+func (s *FeedService) upsertFeedAISetting(userID uint, feedID uint, enabled *bool, aiModelID *uint, classifierPrompt *string) error {
+	var st models.FeedAISetting
+	err := s.db.Where("user_id = ? AND feed_id = ?", userID, feedID).First(&st).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			st = models.FeedAISetting{UserID: userID, FeedID: feedID}
+			if enabled != nil {
+				st.Enabled = *enabled
+			}
+			if aiModelID != nil {
+				if *aiModelID == 0 {
+					st.AIModelID = nil
+				} else {
+					st.AIModelID = aiModelID
+				}
+			}
+			if classifierPrompt != nil {
+				st.ClassifierPrompt = *classifierPrompt
+			}
+			return s.db.Create(&st).Error
+		}
+		return err
+	}
+	updates := map[string]any{}
+	if enabled != nil {
+		updates["enabled"] = *enabled
+	}
+	if aiModelID != nil {
+		if *aiModelID == 0 {
+			updates["ai_model_id"] = nil
+		} else {
+			updates["ai_model_id"] = *aiModelID
+		}
+	}
+	if classifierPrompt != nil {
+		updates["classifier_prompt"] = *classifierPrompt
+	}
+	if len(updates) == 0 {
+		return nil
+	}
+	return s.db.Model(&models.FeedAISetting{}).Where("id = ?", st.ID).Updates(updates).Error
 }
 
 // Delete 删除订阅

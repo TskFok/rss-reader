@@ -53,6 +53,12 @@ export interface Feed {
   expire_days: number; // 0=永不过期
   last_fetched_at: string | null;
   created_at: string;
+
+  ai_enabled?: boolean;
+  ai_model_id?: number | null;
+  ai_classifier_prompt?: string;
+  ai_summary?: string;
+  ai_categories?: string[];
 }
 
 export interface FeedCategory {
@@ -96,12 +102,61 @@ export interface Article {
   read: boolean;
   favorite?: boolean;
   feed_title?: string;
+  ai_summary?: string;
+  tags?: string[];
+  topics?: string[];
+  keywords?: string[];
+  entities?: string[];
+  language?: string;
+  sentiment?: string;
+  importance?: number;
+  cluster_id?: number | null;
+  cluster_title?: string;
+}
+
+export interface ArticleCluster {
+  id: number;
+  cluster_key: string;
+  title: string;
+  summary: string;
+  topics: string[];
+  /** 来自聚类内各订阅 feed_ai_categories 表的去重汇总 */
+  feed_ai_categories: string[];
+  article_count: number;
+  latest_published_at: string | null;
+}
+
+export interface ArticleTopicItem {
+  name: string;
+  count: number;
+}
+
+export interface PagedResponse<T> {
+  items: T[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+export interface SummaryTemplate {
+  id: number;
+  user_id: number;
+  name: string;
+  prompt: string;
+  scene: string;
+  is_default: boolean;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface SummaryHistoryItem {
   id: number;
   ai_model_id: number;
   ai_model_name: string;
+  template_id?: number | null;
+  rule_id?: number | null;
+  template_name: string;
+  rule_name?: string;
   start_time: string;
   end_time: string;
   page: number;
@@ -109,17 +164,60 @@ export interface SummaryHistoryItem {
   order: 'desc' | 'asc' | string;
   article_count: number;
   total: number;
+  job_type: string;
+  status: string;
+  trigger_source: string;
+  batch_id: string;
   content: string;
   error: string;
   created_at: string;
+}
+
+export interface KnowledgeEntry {
+  id: number;
+  title: string;
+  summary: string;
+  content: string;
+  source_type: string;
+  source_id?: number | null;
+  tags: string[];
+  entities: string[];
+  published_at?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface KnowledgeEntryStats {
+  source_types: Array<{ name: string; count: number }>;
+  tags: Array<{ name: string; count: number }>;
+  entities: Array<{ name: string; count: number }>;
 }
 
 export interface SummarySchedule {
   id: number;
   user_id: number;
   ai_model_id: number;
+  template_id?: number | null;
   feed_ids_json: string;
   run_at: string; // HH:MM
+  page_size: number;
+  order: 'desc' | 'asc' | string;
+  enabled: boolean;
+  last_run_at?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AutomationRule {
+  id: number;
+  user_id: number;
+  name: string;
+  ai_model_id: number;
+  template_id?: number | null;
+  feed_ids_json: string;
+  keyword_query: string;
+  min_importance: number;
+  run_at: string;
   page_size: number;
   order: 'desc' | 'asc' | string;
   enabled: boolean;
@@ -157,7 +255,10 @@ export const feedsApi = {
     category_id: number,
     update_interval_minutes: number,
     proxy_id?: number | null,
-    expire_days?: number
+    expire_days?: number,
+    ai_enabled?: boolean,
+    ai_model_id?: number | null,
+    ai_classifier_prompt?: string
   ) =>
     client.post<Feed>('/feeds', {
       url,
@@ -165,19 +266,28 @@ export const feedsApi = {
       update_interval_minutes,
       proxy_id: proxy_id ?? null,
       expire_days: expire_days ?? 90,
+      ...(ai_enabled !== undefined && { ai_enabled }),
+      ...(ai_model_id !== undefined && { ai_model_id: ai_model_id ?? 0 }),
+      ...(ai_classifier_prompt !== undefined && { ai_classifier_prompt }),
     }),
   update: (
     id: number,
     update_interval_minutes: number,
     proxy_id?: number | null,
     expire_days?: number,
-    category_id?: number | null
+    category_id?: number | null,
+    ai_enabled?: boolean,
+    ai_model_id?: number | null,
+    ai_classifier_prompt?: string
   ) =>
     client.put<Feed>(`/feeds/${id}`, {
       update_interval_minutes,
       proxy_id: proxy_id ?? null,
       ...(expire_days !== undefined && { expire_days }),
       ...(category_id !== undefined && { category_id }),
+      ...(ai_enabled !== undefined && { ai_enabled }),
+      ...(ai_model_id !== undefined && { ai_model_id: ai_model_id ?? 0 }),
+      ...(ai_classifier_prompt !== undefined && { ai_classifier_prompt }),
     }),
   delete: (id: number) => client.delete(`/feeds/${id}`),
 };
@@ -244,14 +354,27 @@ export const articlesApi = {
     favorite?: boolean;
     page?: number;
     page_size?: number;
+    q?: string;
+    tag_ids?: string;
+    topic_ids?: string;
+    start_date?: string;
+    end_date?: string;
+    importance?: number;
+    cluster_id?: number;
+    has_ai_metadata?: boolean;
   }) => client.get<{ items: Article[]; total: number }>('/articles', { params }),
   markRead: (id: number) => client.put(`/articles/${id}/read`),
   toggleFavorite: (id: number) =>
     client.put<{ favorite: boolean }>(`/articles/${id}/favorite`),
+  listClusters: (params?: { page?: number; page_size?: number }) =>
+    client.get<PagedResponse<ArticleCluster>>('/article-clusters', { params }),
+  listTopics: (params?: { limit?: number }) =>
+    client.get<{ items: ArticleTopicItem[] }>('/article-topics', { params }),
   /** 流式总结：通过 onChunk 逐段接收内容，onMeta 接收 article_count（onMetaAll 可选接收更多 meta） */
   summarizeStream: async (
     params: {
       ai_model_id: number;
+      template_id?: number;
       feed_ids?: number[];
       start_time?: string;
       end_time?: string;
@@ -331,10 +454,12 @@ export const articlesApi = {
 };
 
 export const summaryHistoriesApi = {
-  list: (params?: { page?: number; page_size?: number }) =>
+  list: (params?: { id?: number; page?: number; page_size?: number; job_type?: string; status?: string; trigger_source?: string; batch_id?: string; rule_id?: number }) =>
     client.get<{ items: SummaryHistoryItem[]; total: number }>('/summary-histories', { params }),
   create: (params: {
     ai_model_id: number;
+    template_id?: number;
+    template_name?: string;
     feed_ids?: number[];
     start_time?: string;
     end_time?: string;
@@ -343,20 +468,61 @@ export const summaryHistoriesApi = {
     order?: 'desc' | 'asc' | string;
     article_count?: number;
     total?: number;
+    job_type?: string;
+    status?: string;
+    trigger_source?: string;
+    batch_id?: string;
     content: string;
     error?: string;
   }) => client.post<{ id: number }>('/summary-histories', params),
   retry: (id: number) => client.post<{ id: number; content: string; error: string }>(`/summary-histories/${id}/retry`),
+  archiveToKnowledge: (id: number) => client.post<{ id: number }>(`/summary-histories/${id}/knowledge`),
+  archiveBatchToKnowledge: (ids: number[]) =>
+    client.post<{ created_ids: number[]; failed_ids: number[]; total: number }>('/summary-histories/archive/knowledge', { ids }),
   delete: (id: number) => client.delete(`/summary-histories/${id}`),
+};
+
+export const summaryTemplatesApi = {
+  list: () => client.get<SummaryTemplate[]>('/summary-templates'),
+  create: (params: { name: string; prompt: string; scene?: string }) => client.post<SummaryTemplate>('/summary-templates', params),
+  update: (id: number, params: { name: string; prompt: string; scene?: string }) => client.put<SummaryTemplate>(`/summary-templates/${id}`, params),
+  delete: (id: number) => client.delete(`/summary-templates/${id}`),
 };
 
 export const summarySchedulesApi = {
   list: () => client.get<SummarySchedule[]>('/summary-schedules'),
-  create: (params: { ai_model_id: number; feed_ids?: number[]; run_at: string; page_size?: number; order?: 'desc' | 'asc'; enabled?: boolean }) =>
+  create: (params: { ai_model_id: number; template_id?: number; feed_ids?: number[]; run_at: string; page_size?: number; order?: 'desc' | 'asc'; enabled?: boolean }) =>
     client.post<SummarySchedule>('/summary-schedules', params),
-  update: (id: number, params: { ai_model_id: number; feed_ids?: number[]; run_at: string; page_size?: number; order?: 'desc' | 'asc'; enabled?: boolean }) =>
+  update: (id: number, params: { ai_model_id: number; template_id?: number; feed_ids?: number[]; run_at: string; page_size?: number; order?: 'desc' | 'asc'; enabled?: boolean }) =>
     client.put<SummarySchedule>(`/summary-schedules/${id}`, params),
   delete: (id: number) => client.delete(`/summary-schedules/${id}`),
+};
+
+export const automationRulesApi = {
+  list: () => client.get<AutomationRule[]>('/automation-rules'),
+  create: (params: { name: string; ai_model_id: number; template_id?: number; feed_ids?: number[]; keyword_query?: string; min_importance?: number; run_at: string; page_size?: number; order?: 'desc' | 'asc'; enabled?: boolean }) =>
+    client.post<AutomationRule>('/automation-rules', params),
+  update: (id: number, params: { name: string; ai_model_id: number; template_id?: number; feed_ids?: number[]; keyword_query?: string; min_importance?: number; run_at: string; page_size?: number; order?: 'desc' | 'asc'; enabled?: boolean }) =>
+    client.put<AutomationRule>(`/automation-rules/${id}`, params),
+  delete: (id: number) => client.delete(`/automation-rules/${id}`),
+};
+
+export const knowledgeEntriesApi = {
+  list: (params?: { page?: number; page_size?: number; sort_by?: 'published_at' | 'updated_at' | 'created_at' | string; sort_order?: 'asc' | 'desc' | string; ids?: string; start_date?: string; end_date?: string; q?: string; source_type?: string; source_id?: number; tag?: string; entity?: string }) =>
+    client.get<{ items: KnowledgeEntry[]; total: number; page: number; page_size: number }>('/knowledge-entries', { params }),
+  stats: (params?: { sort_by?: 'published_at' | 'updated_at' | 'created_at' | string; sort_order?: 'asc' | 'desc' | string; ids?: string; start_date?: string; end_date?: string; q?: string; source_type?: string; source_id?: number; tag?: string; entity?: string }) =>
+    client.get<KnowledgeEntryStats>('/knowledge-entries/stats', { params }),
+  export: (params?: { format?: 'markdown' | 'json' | string; sort_by?: 'published_at' | 'updated_at' | 'created_at' | string; sort_order?: 'asc' | 'desc' | string; ids?: string; start_date?: string; end_date?: string; q?: string; source_type?: string; source_id?: number; tag?: string; entity?: string }) =>
+    client.get('/knowledge-entries/export', { params, responseType: 'blob' }),
+  batchPatchTokens: (params: { ids: number[]; add_tags?: string[]; remove_tags?: string[]; add_entities?: string[]; remove_entities?: string[] }) =>
+    client.post<{ updated: number }>('/knowledge-entries/batch/tokens', params),
+  batchDelete: (ids: number[]) =>
+    client.post<{ deleted: number }>('/knowledge-entries/batch/delete', { ids }),
+  create: (params: { title: string; summary?: string; content: string; source_type?: string; source_id?: number | null; tags?: string[]; entities?: string[] }) =>
+    client.post<KnowledgeEntry>('/knowledge-entries', params),
+  update: (id: number, params: { title: string; summary?: string; content: string; source_type?: string; source_id?: number | null; tags?: string[]; entities?: string[] }) =>
+    client.put<KnowledgeEntry>(`/knowledge-entries/${id}`, params),
+  delete: (id: number) => client.delete(`/knowledge-entries/${id}`),
 };
 
 export const errorLogsApi = {

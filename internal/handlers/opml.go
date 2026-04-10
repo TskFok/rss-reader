@@ -29,7 +29,11 @@ func (h *OPMLHandler) Export(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取订阅列表失败"})
 		return
 	}
-	data, err := opml.Generate("RSS 订阅导出", feeds)
+	raw := make([]models.Feed, 0, len(feeds))
+	for _, f := range feeds {
+		raw = append(raw, f.Feed)
+	}
+	data, err := opml.Generate("RSS 订阅导出", raw)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "生成 OPML 失败"})
 		return

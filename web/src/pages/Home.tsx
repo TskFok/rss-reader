@@ -11,6 +11,8 @@ export default function Home() {
   const [searchParams, setSearchParams] = useSearchParams();
   const feedParam = searchParams.get('feed');
   const initialFeed = feedParam ? (Number.isNaN(Number(feedParam)) ? '' : Number(feedParam)) : '';
+  const clusterParam = searchParams.get('cluster');
+  const initialCluster = clusterParam ? (Number.isNaN(Number(clusterParam)) ? '' : Number(clusterParam)) : '';
   const collapsedParam = searchParams.get('collapsed') ?? '';
   const initialCollapsed = new Set(
     collapsedParam.split(',').map((s) => s.trim()).filter(Boolean).map(Number).filter((n) => !Number.isNaN(n))
@@ -23,7 +25,16 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [filterFeed, setFilterFeed] = useState<number | ''>(initialFeed);
+  const [filterCluster, setFilterCluster] = useState<number | ''>(initialCluster);
   const [filterRead, setFilterRead] = useState<'' | 'read' | 'unread'>('');
+  const [query, setQuery] = useState(searchParams.get('q') ?? '');
+  const [draftQuery, setDraftQuery] = useState(searchParams.get('q') ?? '');
+  const [importance, setImportance] = useState<number | ''>(() => {
+    const v = searchParams.get('importance');
+    if (!v) return '';
+    const parsed = Number(v);
+    return Number.isNaN(parsed) ? '' : parsed;
+  });
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [selected, setSelected] = useState<Article | null>(null);
@@ -56,13 +67,26 @@ export default function Home() {
         sidebarLoadedRef.current = true;
       }
 
-      const params: { feed_id?: number; read?: boolean; page?: number; page_size?: number } = {
+      const params: {
+        feed_id?: number;
+        read?: boolean;
+        page?: number;
+        page_size?: number;
+        cluster_id?: number;
+        q?: string;
+        importance?: number;
+        has_ai_metadata?: boolean;
+      } = {
         page,
         page_size: PAGE_SIZE,
       };
       if (filterFeed) params.feed_id = filterFeed;
+      if (filterCluster) params.cluster_id = filterCluster;
       if (filterRead === 'read') params.read = true;
       if (filterRead === 'unread') params.read = false;
+      if (query.trim()) params.q = query.trim();
+      if (importance !== '') params.importance = importance;
+      params.has_ai_metadata = true;
       try {
         const r = await articlesApi.list(params);
         if (!cancelled) {
@@ -86,13 +110,22 @@ export default function Home() {
     return () => {
       cancelled = true;
     };
-  }, [filterFeed, filterRead, page]);
+  }, [filterFeed, filterCluster, filterRead, query, importance, page]);
 
   // URL 变化时同步 filterFeed、collapsedCategories（如浏览器前进/后退）
   useEffect(() => {
     const p = searchParams.get('feed');
     const next = p ? (Number.isNaN(Number(p)) ? '' : Number(p)) : '';
     setFilterFeed((prev) => (prev !== next ? next : prev));
+    const cp2 = searchParams.get('cluster');
+    const nextCluster = cp2 ? (Number.isNaN(Number(cp2)) ? '' : Number(cp2)) : '';
+    setFilterCluster((prev) => (prev !== nextCluster ? nextCluster : prev));
+    const nextQuery = searchParams.get('q') ?? '';
+    setQuery((prev) => (prev !== nextQuery ? nextQuery : prev));
+    setDraftQuery((prev) => (prev !== nextQuery ? nextQuery : prev));
+    const iv = searchParams.get('importance');
+    const nextImportance = iv ? (Number.isNaN(Number(iv)) ? '' : Number(iv)) : '';
+    setImportance((prev) => (prev !== nextImportance ? nextImportance : prev));
     const cp = searchParams.get('collapsed') ?? '';
     const nextCollapsed = new Set(
       cp.split(',').map((s) => s.trim()).filter(Boolean).map(Number).filter((n) => !Number.isNaN(n))
@@ -163,6 +196,7 @@ export default function Home() {
   };
 
   const currentFeed = filterFeed ? feeds.find((f) => f.id === filterFeed) : undefined;
+  const currentCluster = selected?.cluster_title ?? (filterCluster ? `聚类 #${filterCluster}` : '');
 
   const feedsByCategory = categories.map((c) => ({
     category: c,
@@ -337,7 +371,48 @@ export default function Home() {
         <div className="filters">
           <div className="home-current-feed">
             {currentFeed ? `当前订阅：${currentFeed.title || currentFeed.url}` : '当前订阅：全部订阅'}
+            {filterCluster && ` · 当前聚类：${currentCluster}`}
           </div>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              setPage(1);
+              setQuery(draftQuery);
+              setSearchParams((prev) => {
+                const p = new URLSearchParams(prev);
+                if (draftQuery.trim()) p.set('q', draftQuery.trim());
+                else p.delete('q');
+                return p;
+              });
+            }}
+          >
+            <input
+              type="search"
+              placeholder="搜索标题、正文、来源"
+              value={draftQuery}
+              onChange={(e) => setDraftQuery(e.target.value)}
+            />
+          </form>
+          <select
+            aria-label="重要度"
+            value={importance}
+            onChange={(e) => {
+              const value = e.target.value ? Number(e.target.value) : '';
+              setImportance(value);
+              setPage(1);
+              setSearchParams((prev) => {
+                const p = new URLSearchParams(prev);
+                if (value === '') p.delete('importance');
+                else p.set('importance', String(value));
+                return p;
+              });
+            }}
+          >
+            <option value="">全部重要度</option>
+            <option value="2">2+ 星</option>
+            <option value="3">3+ 星</option>
+            <option value="4">4+ 星</option>
+          </select>
           <select
             value={filterRead}
             onChange={(e) => {
@@ -406,6 +481,37 @@ export default function Home() {
               {selected.feed_title && <span className="feed">{selected.feed_title}</span>}
               <span className="date">{formatDate(selected.published_at || selected.created_at)}</span>
             </div>
+            <div className="article-detail-meta">
+              {selected.cluster_title && (
+                <button
+                  type="button"
+                  className="feed"
+                  onClick={() => {
+                    if (!selected.cluster_id) return;
+                    setFilterCluster(selected.cluster_id);
+                    setPage(1);
+                    setSearchParams((prev) => {
+                      const p = new URLSearchParams(prev);
+                      p.set('cluster', String(selected.cluster_id));
+                      return p;
+                    });
+                  }}
+                >
+                  {selected.cluster_title}
+                </button>
+              )}
+              {selected.importance ? <span className="date">重要度 {selected.importance}/5</span> : null}
+              {selected.language ? <span className="date">{selected.language.toUpperCase()}</span> : null}
+              {selected.sentiment ? <span className="date">{selected.sentiment}</span> : null}
+            </div>
+            {selected.ai_summary && <div className="feeds-summary-result-content">{selected.ai_summary}</div>}
+            {(selected.tags?.length || selected.topics?.length) ? (
+              <div className="article-detail-meta">
+                {[...(selected.topics ?? []), ...(selected.tags ?? [])].slice(0, 8).map((item) => (
+                  <span key={item} className="feed">{item}</span>
+                ))}
+              </div>
+            ) : null}
             <div
               className="article-detail-content"
               dangerouslySetInnerHTML={{ __html: selected.content || '<p>(暂无内容)</p>' }}

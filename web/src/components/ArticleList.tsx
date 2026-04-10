@@ -35,10 +35,14 @@ export default function ArticleList({
           </div>
           <div className="article-meta">
             {a.feed_title && <span className="feed">{a.feed_title}</span>}
+            {a.cluster_title && <span className="feed">{a.cluster_title}</span>}
+            {typeof a.importance === 'number' && a.importance > 0 && <span className="feed">重要度 {a.importance}</span>}
+            {(a.topics ?? []).slice(0, 2).map((topic) => (
+              <span key={topic} className="feed">{topic}</span>
+            ))}
           </div>
         </li>
       ))}
     </ul>
   );
 }
-

@@ -14,7 +14,7 @@ import (
 func setupSummaryHistoryDB(t *testing.T) *gorm.DB {
 	db, err := gorm.Open(sqlite.Open("file:"+t.Name()+"?mode=memory&cache=shared"), &gorm.Config{})
 	require.NoError(t, err)
-	require.NoError(t, db.AutoMigrate(&models.User{}, &models.AIModel{}, &models.AISummaryHistory{}))
+	require.NoError(t, db.AutoMigrate(&models.User{}, &models.AIModel{}, &models.SummaryTemplate{}, &models.AISummaryHistory{}))
 	return db
 }
 
@@ -30,18 +30,22 @@ func TestSummaryHistoryService_CreateListDelete(t *testing.T) {
 
 	now := time.Now()
 	_, err := hsvc.Create(u.ID, CreateSummaryHistoryRequest{
-		AIModelID:    m.ID,
-		FeedIDs:      []uint{1, 2},
-		StartTime:    "2026-03-01",
-		EndTime:      "2026-03-02",
-		Page:         1,
-		PageSize:     20,
-		Order:        "desc",
-		ArticleCount: 2,
-		Total:        10,
-		Content:      "hello",
-		Error:        "",
-		CreatedAt:    &now,
+		AIModelID:     m.ID,
+		TemplateName:  "日报",
+		FeedIDs:       []uint{1, 2},
+		StartTime:     "2026-03-01",
+		EndTime:       "2026-03-02",
+		Page:          1,
+		PageSize:      20,
+		Order:         "desc",
+		ArticleCount:  2,
+		Total:         10,
+		JobType:       "summary",
+		Status:        "success",
+		TriggerSource: "manual",
+		Content:       "hello",
+		Error:         "",
+		CreatedAt:     &now,
 	})
 	require.NoError(t, err)
 
@@ -50,6 +54,7 @@ func TestSummaryHistoryService_CreateListDelete(t *testing.T) {
 	assert.Equal(t, int64(1), total)
 	require.Len(t, items, 1)
 	assert.Equal(t, "m", items[0].AIModelName)
+	assert.Equal(t, "日报", items[0].TemplateName)
 	assert.Equal(t, "hello", items[0].Content)
 	assert.Equal(t, 1, items[0].Page)
 	assert.Equal(t, 20, items[0].PageSize)
@@ -79,4 +84,3 @@ func TestSummaryHistoryService_Delete_OtherUser(t *testing.T) {
 	err = hsvc.Delete(u2.ID, h.ID)
 	assert.ErrorIs(t, err, ErrSummaryHistoryNotFound)
 }
-

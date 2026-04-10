@@ -6,6 +6,9 @@ import { useTheme } from '../contexts/ThemeContext';
 const mainNavItems: { to: string; label: string }[] = [
   { to: '/', label: '首页' },
   { to: '/favorites', label: '收藏' },
+  { to: '/clusters', label: '聚类' },
+  { to: '/knowledge', label: '知识库' },
+  { to: '/automation-runs', label: '规则结果' },
   { to: '/summary-history', label: '总结历史' },
   { to: '/feeds?tab=ai-summary', label: 'AI 总结' },
 ];
@@ -15,7 +18,9 @@ const feedsTabItems: { tab: string; label: string; icon: string; superAdminOnly?
   { tab: 'feeds', label: '订阅列表', icon: '订' },
   { tab: 'proxies', label: '代理', icon: '代' },
   { tab: 'ai-models', label: 'AI 模型', icon: '模' },
+  { tab: 'summary-templates', label: '总结模板', icon: '版' },
   { tab: 'ai-summary-schedule', label: '定时总结', icon: '时' },
+  { tab: 'automation-rules', label: '自动任务', icon: '规' },
   { tab: 'feishu', label: '飞书机器人', icon: '飞' },
   { tab: 'users', label: '用户管理', icon: '用', superAdminOnly: true },
 ];

@@ -46,6 +46,20 @@ func (h *ArticleHandler) List(c *gin.Context) {
 		b := true
 		req.Favorite = &b
 	}
+	if c.Query("cluster_id") != "" {
+		id, err := strconv.ParseUint(c.Query("cluster_id"), 10, 32)
+		if err == nil {
+			uid := uint(id)
+			req.ClusterID = &uid
+		}
+	}
+	if c.Query("has_ai_metadata") == "true" {
+		b := true
+		req.HasAIMetadata = &b
+	} else if c.Query("has_ai_metadata") == "false" {
+		b := false
+		req.HasAIMetadata = &b
+	}
 	articles, total, err := h.articleSvc.List(userID, req)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取文章列表失败"})

@@ -65,7 +65,7 @@ func TestRunDailySummaryForYesterday_CreatesHistoriesUntilEmpty(t *testing.T) {
 	require.NoError(t, db.Create(&a2).Error)
 
 	// page_size=1 -> should generate 2 histories then stop at empty page
-	err = RunDailySummaryForYesterday(u.ID, aiModelSvc, articleSvc, historySvc, m.ID, []uint{feed.ID}, 1, "desc", now, loc, nil, nil)
+	err = RunDailySummaryForYesterday(u.ID, aiModelSvc, articleSvc, historySvc, m.ID, nil, "", "", []uint{feed.ID}, 1, "desc", now, loc, nil, nil)
 	require.NoError(t, err)
 
 	var count int64
@@ -110,7 +110,7 @@ func TestRunDailySummaryForYesterday_SendsFeishuAlertOnAIFailure(t *testing.T) {
 	u := models.User{
 		Username:         "alert-user",
 		PasswordHash:     "h",
-		Status:          models.UserStatusActive,
+		Status:           models.UserStatusActive,
 		FeishuBotWebhook: "https://open.feishu.cn/webhook/test",
 	}
 	require.NoError(t, db.Create(&u).Error)
@@ -129,7 +129,7 @@ func TestRunDailySummaryForYesterday_SendsFeishuAlertOnAIFailure(t *testing.T) {
 	require.NoError(t, db.Create(&a1).Error)
 
 	mockBot := &mockFeishuBotClient{}
-	err = RunDailySummaryForYesterday(u.ID, aiModelSvc, articleSvc, historySvc, m.ID, []uint{feed.ID}, 1, "desc", now, loc, mockBot, db)
+	err = RunDailySummaryForYesterday(u.ID, aiModelSvc, articleSvc, historySvc, m.ID, nil, "", "", []uint{feed.ID}, 1, "desc", now, loc, mockBot, db)
 	require.NoError(t, err)
 
 	// 验证飞书告警被调用
@@ -177,7 +177,7 @@ func TestRunDailySummaryForYesterday_SendsFeishuAlertViaAPIOnAIFailure(t *testin
 	require.NoError(t, db.Create(&a1).Error)
 
 	mockBot := &mockFeishuBotClient{}
-	_ = RunDailySummaryForYesterday(u.ID, aiModelSvc, articleSvc, historySvc, m.ID, []uint{feed.ID}, 1, "desc", now, loc, mockBot, db)
+	_ = RunDailySummaryForYesterday(u.ID, aiModelSvc, articleSvc, historySvc, m.ID, nil, "", "", []uint{feed.ID}, 1, "desc", now, loc, mockBot, db)
 
 	require.Len(t, mockBot.apiSendCalls, 1)
 	call := mockBot.apiSendCalls[0]
@@ -213,7 +213,7 @@ func TestRunDailySummaryForYesterday_NoFeishuAlertWhenWebhookEmpty(t *testing.T)
 	require.NoError(t, db.Create(&a1).Error)
 
 	mockBot := &mockFeishuBotClient{}
-	_ = RunDailySummaryForYesterday(u.ID, aiModelSvc, articleSvc, historySvc, m.ID, []uint{feed.ID}, 1, "desc", now, loc, mockBot, db)
+	_ = RunDailySummaryForYesterday(u.ID, aiModelSvc, articleSvc, historySvc, m.ID, nil, "", "", []uint{feed.ID}, 1, "desc", now, loc, mockBot, db)
 	assert.Len(t, mockBot.sendCalls, 0)
 }
 
@@ -249,7 +249,7 @@ func TestRunDailySummaryForYesterday_NoFeishuAlertWhenFeishuBotNil(t *testing.T)
 	require.NoError(t, db.Create(&a1).Error)
 
 	// feishuBot 为 nil，即使配置了 Webhook 也不发送
-	err := RunDailySummaryForYesterday(u.ID, aiModelSvc, articleSvc, historySvc, m.ID, []uint{feed.ID}, 1, "desc", now, loc, nil, db)
+	err := RunDailySummaryForYesterday(u.ID, aiModelSvc, articleSvc, historySvc, m.ID, nil, "", "", []uint{feed.ID}, 1, "desc", now, loc, nil, db)
 	require.NoError(t, err)
 	// 无 mock 可验证，主要确保传 nil 不 panic
 }
@@ -286,7 +286,7 @@ func TestRunDailySummaryForYesterday_FeishuSendFailureDoesNotAffectMainFlow(t *t
 	require.NoError(t, db.Create(&a1).Error)
 
 	mockBot := &mockFeishuBotClient{sendErr: assert.AnError}
-	err := RunDailySummaryForYesterday(u.ID, aiModelSvc, articleSvc, historySvc, m.ID, []uint{feed.ID}, 1, "desc", now, loc, mockBot, db)
+	err := RunDailySummaryForYesterday(u.ID, aiModelSvc, articleSvc, historySvc, m.ID, nil, "", "", []uint{feed.ID}, 1, "desc", now, loc, mockBot, db)
 	require.NoError(t, err)
 	// 飞书告警仍被尝试发送
 	require.Len(t, mockBot.sendCalls, 1)
@@ -346,7 +346,7 @@ func TestRunDailySummaryForYesterday_ModelNotFoundShowsUnknown(t *testing.T) {
 
 	mockBot := &mockFeishuBotClient{}
 	// aiModelID=999 不存在，Summarize 会失败
-	err := RunDailySummaryForYesterday(u.ID, aiModelSvc, articleSvc, historySvc, 999, []uint{feed.ID}, 1, "desc", now, loc, mockBot, db)
+	err := RunDailySummaryForYesterday(u.ID, aiModelSvc, articleSvc, historySvc, 999, nil, "", "", []uint{feed.ID}, 1, "desc", now, loc, mockBot, db)
 	require.NoError(t, err)
 
 	require.Len(t, mockBot.sendCalls, 1)
@@ -354,4 +354,3 @@ func TestRunDailySummaryForYesterday_ModelNotFoundShowsUnknown(t *testing.T) {
 	assert.Contains(t, call.content, "(未知)")
 	assert.Contains(t, call.content, "ID: 999")
 }
-
