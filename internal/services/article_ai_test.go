@@ -37,6 +37,13 @@ func TestExtractJSONObject(t *testing.T) {
 	assert.Equal(t, "{\"category\":\"科技\"}", extractJSONObject(raw))
 }
 
+func TestBuildClassifySystemPrompt_DomainBuckets(t *testing.T) {
+	s := buildClassifySystemPrompt()
+	assert.Contains(t, s, "财经")
+	assert.Contains(t, s, "军事")
+	assert.Contains(t, s, "归纳")
+}
+
 func TestArticleAIProcessor_run_ClassifyOnly(t *testing.T) {
 	db := setupArticleAIDB(t)
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

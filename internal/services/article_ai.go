@@ -105,7 +105,10 @@ func (p *ArticleAIProcessor) applyAIFailed(articleID uint, errMsg string) {
 func buildClassifySystemPrompt() string {
 	var b strings.Builder
 	b.WriteString("You are a helper for an RSS reader. Reply with a single JSON object only, no markdown code fences.\n")
-	b.WriteString("Field: \"category\" only — short topic label (<= 80 chars) in Chinese.\n")
+	b.WriteString("Field: \"category\" only — a concise Chinese DOMAIN label that summarizes what the article is broadly about (inductive bucketing / 领域归纳), NOT a fine-grained headline or keyword list.\n")
+	b.WriteString("Prefer 2–8 characters. Use common high-level domains when applicable, e.g. 财经、军事、科技、体育、社会、国际、健康、文化、娱乐、房产、汽车、教育、科学、环境、政治；")
+	b.WriteString("pick ONE best-fitting label. Do not use full sentences, product names alone, or person names as the category.\n")
+	b.WriteString("Max length 80 chars (rarely needed); usually a short domain word is enough.\n")
 	return b.String()
 }
 

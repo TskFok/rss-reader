@@ -48,7 +48,7 @@ export default function ArticleList({
           </div>
           <div className="article-meta">
             {cat && (
-              <span className="article-ai-category" title="AI 分类">
+              <span className="article-ai-category" title="AI 领域分类（如财经、军事）">
                 {cat}
               </span>
             )}

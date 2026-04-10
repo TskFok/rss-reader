@@ -1295,7 +1295,7 @@ export default function Feeds() {
                       checked={addAiClassify}
                       onChange={(e) => setAddAiClassify(e.target.checked)}
                     />
-                    AI 分类（仅在新文章入库后异步执行）
+                    AI 分类（领域归纳，如财经、军事；仅在新文章入库后异步执行）
                   </label>
                 </div>
                 <div className="feeds-modal-row feeds-modal-check-row">
@@ -1400,7 +1400,7 @@ export default function Feeds() {
                       checked={editAiClassify}
                       onChange={(e) => setEditAiClassify(e.target.checked)}
                     />
-                    AI 分类（仅在新文章入库后异步执行）
+                    AI 分类（领域归纳，如财经、军事；仅在新文章入库后异步执行）
                   </label>
                 </div>
                 <div className="feeds-modal-row feeds-modal-check-row">
