@@ -5,6 +5,7 @@ import type { Feed, FeedCategory, Proxy, AIModel, SummarySchedule, SummaryTempla
 import { useAuth } from '../contexts/AuthContext';
 import Modal from '../components/Modal';
 import Admin from './Admin';
+import { AI_TARGET_LANGUAGES } from '../constants/aiTargetLanguages';
 
 const PAGE_SIZE_OPTIONS = [5, 8, 10, 20, 50] as const;
 const SUMMARY_PAGE_SIZE_OPTIONS = [10, 20, 50, 100] as const;
@@ -1311,12 +1312,16 @@ export default function Feeds() {
                 {addAiTranslate && (
                   <div className="feeds-modal-row">
                     <label>翻译目标语言</label>
-                    <input
-                      type="text"
-                      placeholder="如 zh-CN、en"
+                    <select
                       value={addAiTargetLang}
                       onChange={(e) => setAddAiTargetLang(e.target.value)}
-                    />
+                    >
+                      {AI_TARGET_LANGUAGES.map((o) => (
+                        <option key={o.code} value={o.code}>
+                          {o.label}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 )}
                 <p className="feeds-summary-hint">AI 功能依赖已配置的模型；翻译开启后可在阅读页切换原文/译文与分类语言。</p>
@@ -1416,12 +1421,16 @@ export default function Feeds() {
                 {editAiTranslate && (
                   <div className="feeds-modal-row">
                     <label>翻译目标语言</label>
-                    <input
-                      type="text"
-                      placeholder="如 zh-CN、en"
+                    <select
                       value={editAiTargetLang}
                       onChange={(e) => setEditAiTargetLang(e.target.value)}
-                    />
+                    >
+                      {AI_TARGET_LANGUAGES.map((o) => (
+                        <option key={o.code} value={o.code}>
+                          {o.label}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 )}
                 <div className="feeds-modal-actions">
@@ -1511,7 +1520,12 @@ export default function Feeds() {
                                   setEditAiModelId(f.ai_model_id ?? '');
                                   setEditAiClassify(!!f.ai_classify_enabled);
                                   setEditAiTranslate(!!f.ai_translate_enabled);
-                                  setEditAiTargetLang(f.ai_target_language || 'zh-CN');
+                                  const rawLang = (f.ai_target_language || 'zh-CN').trim();
+                                  setEditAiTargetLang(
+                                    AI_TARGET_LANGUAGES.some((o) => o.code === rawLang)
+                                      ? rawLang
+                                      : 'zh-CN'
+                                  );
                                 }}
                               >
                                 编辑

@@ -18,3 +18,11 @@ feishu:
   app_secret: ""
   # 飞书回调地址，需在飞书控制台配置一致
   redirect: "http://localhost:8080/api/auth/feishu/callback"
+
+# AI 补漏：定时对「已开 AI 但未成功分类/翻译」的文章分批重试，避免单次打爆模型接口
+ai_backfill:
+  enabled: true
+  interval_minutes: 5
+  classify_batch: 3
+  translate_batch: 3
+  delay_ms_between_calls: 600

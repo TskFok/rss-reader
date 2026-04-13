@@ -2,12 +2,24 @@ package services
 
 import (
 	"encoding/json"
+	"errors"
 	"regexp"
 	"strings"
 	"unicode/utf8"
 
 	"github.com/ushopal/rss-reader/internal/models"
+
 	"gorm.io/gorm"
+)
+
+// 手动 AI 分类/翻译
+var (
+	ErrManualAINoModel             = errors.New("请先在订阅中选择 AI 模型")
+	ErrManualAINoTargetLang        = errors.New("请先在订阅中设置翻译目标语言")
+	ErrManualAIAlreadyClassified   = errors.New("该文章已有 AI 分类")
+	ErrManualAIAlreadyTranslated   = errors.New("该文章已有译文")
+	ErrManualAIPending             = errors.New("AI 正在处理中，请稍后再试")
+	ErrManualAIInvalidTargetLang   = errors.New("不支持的目标语言，请选择：中文、英语、法语、德语、阿拉伯语")
 )
 
 var articleAIHTMLTagRe = regexp.MustCompile(`<[^>]*>`)
@@ -171,6 +183,48 @@ func (p *ArticleAIProcessor) run(userID uint, feed models.Feed, articleID uint) 
 	p.runTranslateOnly(userID, modelID, &f, articleID, title, body)
 }
 
+func (p *ArticleAIProcessor) translateWithOptionalCategory(userID uint, modelID uint, f *models.Feed, articleID uint, title, body, categoryLine string) {
+	target := f.AITargetLanguage
+	topic := strings.TrimSpace(categoryLine)
+	withHint := topic != ""
+	msgs := []chatMessage{
+		{Role: "system", Content: buildTranslateSystemPrompt(target, withHint)},
+		{Role: "user", Content: buildTranslateUserContent(topic, title, body)},
+	}
+	raw, err := p.ai.ChatCompletionText(userID, modelID, 8192, msgs)
+	if err != nil {
+		p.applyAIFailed(articleID, err.Error())
+		return
+	}
+	payload := extractJSONObject(raw)
+	var parsed aiArticleJSON
+	if err := json.Unmarshal([]byte(payload), &parsed); err != nil {
+		p.applyAIFailed(articleID, "解析模型 JSON 失败")
+		return
+	}
+	updates := map[string]interface{}{
+		"ai_process_status":  models.AIProcessDone,
+		"ai_last_error":      "",
+		"title_translated":   truncateRunes(strings.TrimSpace(parsed.TitleTranslated), 1000),
+		"content_translated": truncateRunes(strings.TrimSpace(parsed.ContentTranslated), 200000),
+	}
+	if withHint {
+		updates["ai_category_translated"] = truncateRunes(strings.TrimSpace(parsed.CategoryTranslated), 250)
+	} else {
+		updates["ai_category"] = ""
+		updates["ai_category_translated"] = ""
+	}
+	_ = p.db.Model(&models.Article{}).Where("id = ?", articleID).Updates(updates).Error
+}
+
+func buildTranslateUserContent(topicLine, title, body string) string {
+	userTr := "Title:\n" + title + "\n\nBody:\n" + body
+	if strings.TrimSpace(topicLine) != "" {
+		userTr = "Topic label:\n" + strings.TrimSpace(topicLine) + "\n\n" + userTr
+	}
+	return userTr
+}
+
 func (p *ArticleAIProcessor) runClassifyOnly(userID uint, modelID uint, articleID uint, title, body string) {
 	msgs := []chatMessage{
 		{Role: "system", Content: buildClassifySystemPrompt()},
@@ -199,31 +253,7 @@ func (p *ArticleAIProcessor) runClassifyOnly(userID uint, modelID uint, articleI
 }
 
 func (p *ArticleAIProcessor) runTranslateOnly(userID uint, modelID uint, f *models.Feed, articleID uint, title, body string) {
-	target := f.AITargetLanguage
-	msgs := []chatMessage{
-		{Role: "system", Content: buildTranslateSystemPrompt(target, false)},
-		{Role: "user", Content: "Title:\n" + title + "\n\nBody:\n" + body},
-	}
-	raw, err := p.ai.ChatCompletionText(userID, modelID, 8192, msgs)
-	if err != nil {
-		p.applyAIFailed(articleID, err.Error())
-		return
-	}
-	payload := extractJSONObject(raw)
-	var parsed aiArticleJSON
-	if err := json.Unmarshal([]byte(payload), &parsed); err != nil {
-		p.applyAIFailed(articleID, "解析模型 JSON 失败")
-		return
-	}
-	updates := map[string]interface{}{
-		"ai_process_status":      models.AIProcessDone,
-		"ai_last_error":          "",
-		"ai_category":            "",
-		"ai_category_translated": "",
-		"title_translated":       truncateRunes(strings.TrimSpace(parsed.TitleTranslated), 1000),
-		"content_translated":     truncateRunes(strings.TrimSpace(parsed.ContentTranslated), 200000),
-	}
-	_ = p.db.Model(&models.Article{}).Where("id = ?", articleID).Updates(updates).Error
+	p.translateWithOptionalCategory(userID, modelID, f, articleID, title, body, "")
 }
 
 func (p *ArticleAIProcessor) runClassifyThenTranslate(userID uint, modelID uint, f *models.Feed, articleID uint, title, body string) {
@@ -261,36 +291,129 @@ func (p *ArticleAIProcessor) runClassifyThenTranslate(userID uint, modelID uint,
 		return
 	}
 
+	p.translateWithOptionalCategory(userID, modelID, f, articleID, title, body, cat)
+}
+
+// ManualClassify 同步手动分类（文章尚无分类）。overrideModelID 非空时使用该模型（须属于当前用户），否则使用订阅默认模型。
+func (p *ArticleAIProcessor) ManualClassify(userID uint, articleID uint, overrideModelID *uint) error {
+	if p == nil || p.db == nil || p.ai == nil {
+		return errors.New("AI 服务不可用")
+	}
+	var art models.Article
+	if err := p.db.Preload("Feed").First(&art, articleID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrArticleNotFound
+		}
+		return err
+	}
+	f := art.Feed
+	if f.UserID != userID {
+		return ErrArticleNotFound
+	}
+	if art.AIProcessStatus == models.AIProcessPending {
+		return ErrManualAIPending
+	}
+	if strings.TrimSpace(art.AICategory) != "" {
+		return ErrManualAIAlreadyClassified
+	}
+	modelID, err := p.resolveManualModelID(userID, &f, overrideModelID)
+	if err != nil {
+		return err
+	}
+	title := art.Title
+	body := plainFromHTMLForAI(art.Content)
+	body = truncateRunes(body, 12000)
+	p.runClassifyOnly(userID, modelID, articleID, title, body)
+	return p.errIfArticleAIFailed(articleID)
+}
+
+// ManualTranslate 同步手动翻译（尚无译文）。overrideModelID / overrideTargetLang 可临时覆盖订阅；语言为空串时表示使用订阅默认目标语言。
+func (p *ArticleAIProcessor) ManualTranslate(userID uint, articleID uint, overrideModelID *uint, overrideTargetLang string) error {
+	if p == nil || p.db == nil || p.ai == nil {
+		return errors.New("AI 服务不可用")
+	}
+	var art models.Article
+	if err := p.db.Preload("Feed").First(&art, articleID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrArticleNotFound
+		}
+		return err
+	}
+	f := art.Feed
+	if f.UserID != userID {
+		return ErrArticleNotFound
+	}
+	if art.AIProcessStatus == models.AIProcessPending {
+		return ErrManualAIPending
+	}
+	if strings.TrimSpace(art.TitleTranslated) != "" || strings.TrimSpace(art.ContentTranslated) != "" {
+		return ErrManualAIAlreadyTranslated
+	}
+	modelID, err := p.resolveManualModelID(userID, &f, overrideModelID)
+	if err != nil {
+		return err
+	}
+	ol := strings.TrimSpace(overrideTargetLang)
+	var targetLang string
+	if ol != "" {
+		if !isAllowedManualTargetLang(ol) {
+			return ErrManualAIInvalidTargetLang
+		}
+		targetLang = ol
+	} else {
+		targetLang = strings.TrimSpace(f.AITargetLanguage)
+	}
+	if targetLang == "" {
+		return ErrManualAINoTargetLang
+	}
+	ff := f
+	ff.AITargetLanguage = targetLang
+	mid := modelID
+	ff.AIModelID = &mid
+	title := art.Title
+	body := plainFromHTMLForAI(art.Content)
+	body = truncateRunes(body, 12000)
+	p.translateWithOptionalCategory(userID, modelID, &ff, articleID, title, body, strings.TrimSpace(art.AICategory))
+	return p.errIfArticleAIFailed(articleID)
+}
+
+func isAllowedManualTargetLang(code string) bool {
+	switch strings.TrimSpace(code) {
+	case "zh-CN", "en", "fr", "de", "ar":
+		return true
+	default:
+		return false
+	}
+}
+
+func (p *ArticleAIProcessor) resolveManualModelID(userID uint, f *models.Feed, override *uint) (uint, error) {
+	if override != nil && *override != 0 {
+		_, err := p.ai.GetByID(userID, *override)
+		if err != nil {
+			if errors.Is(err, ErrAIModelNotFound) {
+				return 0, ErrAIModelNotFound
+			}
+			return 0, err
+		}
+		return *override, nil
+	}
+	if f.AIModelID != nil && *f.AIModelID != 0 {
+		return *f.AIModelID, nil
+	}
+	return 0, ErrManualAINoModel
+}
+
+func (p *ArticleAIProcessor) errIfArticleAIFailed(articleID uint) error {
 	var art models.Article
 	if err := p.db.First(&art, articleID).Error; err != nil {
-		return
+		return err
 	}
-	topicLine := strings.TrimSpace(art.AICategory)
-	userTr := "Title:\n" + title + "\n\nBody:\n" + body
-	if topicLine != "" {
-		userTr = "Topic label:\n" + topicLine + "\n\n" + userTr
+	if art.AIProcessStatus == models.AIProcessFailed {
+		msg := strings.TrimSpace(art.AILastError)
+		if msg == "" {
+			msg = "AI 处理失败"
+		}
+		return errors.New(msg)
 	}
-	msgsTr := []chatMessage{
-		{Role: "system", Content: buildTranslateSystemPrompt(f.AITargetLanguage, true)},
-		{Role: "user", Content: userTr},
-	}
-	rawTr, err := p.ai.ChatCompletionText(userID, modelID, 8192, msgsTr)
-	if err != nil {
-		p.applyAIFailed(articleID, "翻译失败: "+err.Error())
-		return
-	}
-	payloadTr := extractJSONObject(rawTr)
-	var parsedTr aiArticleJSON
-	if err := json.Unmarshal([]byte(payloadTr), &parsedTr); err != nil {
-		p.applyAIFailed(articleID, "翻译解析 JSON 失败")
-		return
-	}
-	updates := map[string]interface{}{
-		"ai_process_status":      models.AIProcessDone,
-		"ai_last_error":          "",
-		"ai_category_translated": truncateRunes(strings.TrimSpace(parsedTr.CategoryTranslated), 250),
-		"title_translated":       truncateRunes(strings.TrimSpace(parsedTr.TitleTranslated), 1000),
-		"content_translated":     truncateRunes(strings.TrimSpace(parsedTr.ContentTranslated), 200000),
-	}
-	_ = p.db.Model(&models.Article{}).Where("id = ?", articleID).Updates(updates).Error
+	return nil
 }

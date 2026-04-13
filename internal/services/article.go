@@ -43,6 +43,8 @@ type ArticleWithRead struct {
 	FeedTitle              string `json:"feed_title"`
 	FeedAITranslateEnabled bool   `json:"feed_ai_translate_enabled"`
 	FeedAIClassifyEnabled  bool   `json:"feed_ai_classify_enabled"`
+	FeedAIModelID          *uint  `json:"feed_ai_model_id"`
+	FeedAITargetLanguage   string `json:"feed_ai_target_language"`
 }
 
 // List 获取用户可见的文章列表（通过 feed 归属）
@@ -124,9 +126,46 @@ func (s *ArticleService) List(userID uint, req ListArticlesRequest) ([]ArticleWi
 			FeedTitle:              feedTitle,
 			FeedAITranslateEnabled: a.Feed.AITranslateEnabled,
 			FeedAIClassifyEnabled:  a.Feed.AIClassifyEnabled,
+			FeedAIModelID:          a.Feed.AIModelID,
+			FeedAITargetLanguage:   a.Feed.AITargetLanguage,
 		}
 	}
 	return result, total, nil
+}
+
+// GetWithRead 单篇详情（校验订阅归属），用于手动 AI 等接口返回最新数据
+func (s *ArticleService) GetWithRead(userID uint, articleID uint) (ArticleWithRead, error) {
+	var article models.Article
+	if err := s.db.First(&article, articleID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ArticleWithRead{}, ErrArticleNotFound
+		}
+		return ArticleWithRead{}, err
+	}
+	var feed models.Feed
+	if err := s.db.First(&feed, article.FeedID).Error; err != nil {
+		return ArticleWithRead{}, ErrArticleNotFound
+	}
+	if feed.UserID != userID {
+		return ArticleWithRead{}, ErrArticleNotFound
+	}
+	article.Feed = feed
+	var ua models.UserArticle
+	_ = s.db.Where("user_id = ? AND article_id = ?", userID, articleID).First(&ua).Error
+	feedTitle := ""
+	if article.Feed.ID != 0 {
+		feedTitle = article.Feed.Title
+	}
+	return ArticleWithRead{
+		Article:                article,
+		Read:                   ua.ReadStatus,
+		Favorite:               ua.Favorite,
+		FeedTitle:              feedTitle,
+		FeedAITranslateEnabled: article.Feed.AITranslateEnabled,
+		FeedAIClassifyEnabled:  article.Feed.AIClassifyEnabled,
+		FeedAIModelID:          article.Feed.AIModelID,
+		FeedAITargetLanguage:   article.Feed.AITargetLanguage,
+	}, nil
 }
 
 // MarkRead 标记文章已读

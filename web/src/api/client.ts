@@ -111,6 +111,9 @@ export interface Article {
   feed_title?: string;
   feed_ai_translate_enabled?: boolean;
   feed_ai_classify_enabled?: boolean;
+  /** 订阅上配置的模型，用于手动 AI */
+  feed_ai_model_id?: number | null;
+  feed_ai_target_language?: string;
 }
 
 export interface SummaryHistoryItem {
@@ -294,6 +297,14 @@ export const articlesApi = {
   markRead: (id: number) => client.put(`/articles/${id}/read`),
   toggleFavorite: (id: number) =>
     client.put<{ favorite: boolean }>(`/articles/${id}/favorite`),
+  /** 手动 AI 分类（同步）；body 可传 { ai_model_id } 覆盖订阅默认模型 */
+  manualAIClassify: (id: number, body?: { ai_model_id?: number }) =>
+    client.post<{ article: Article }>(`/articles/${id}/ai/classify`, body ?? {}),
+  /** 手动翻译；body 可传 { ai_model_id, ai_target_language }，空对象表示使用订阅默认 */
+  manualAITranslate: (
+    id: number,
+    body?: { ai_model_id?: number; ai_target_language?: string }
+  ) => client.post<{ article: Article }>(`/articles/${id}/ai/translate`, body ?? {}),
   /** 流式总结：通过 onChunk 逐段接收内容，onMeta 接收 article_count（onMetaAll 可选接收更多 meta） */
   summarizeStream: async (
     params: {

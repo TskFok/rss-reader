@@ -49,6 +49,7 @@ func main() {
 	errorLogSvc := services.NewErrorLogService(db)
 	adminSvc := services.NewAdminService(db)
 	userSettingSvc := services.NewUserSettingService(db)
+	articleHandler := handlers.NewArticleHandler(articleSvc, articleAI)
 	summaryHistoryHandler := handlers.NewSummaryHistoryHandler(summaryHistorySvc, articleSvc, aiModelSvc, summaryTemplateSvc)
 	summaryTemplateHandler := handlers.NewSummaryTemplateHandler(summaryTemplateSvc)
 	opmlHandler := handlers.NewOPMLHandler(feedSvc, categorySvc)
@@ -57,7 +58,7 @@ func main() {
 	feishuHandler := handlers.NewFeishuHandler(&cfg.Feishu, feishuAPI, authSvc, feishuAuthSvc)
 
 	feishuBotSvc := services.NewFeishuBotService(&cfg.Feishu)
-	sched := scheduler.New(db, rssSvc, articleSvc, aiModelSvc, summaryHistorySvc, summaryTemplateSvc, feishuBotSvc, 3)
+	sched := scheduler.New(db, rssSvc, articleSvc, aiModelSvc, summaryHistorySvc, summaryTemplateSvc, feishuBotSvc, 3, articleAI, cfg.AIBackfill)
 	sched.Start()
 	defer sched.Stop()
 
@@ -114,9 +115,11 @@ func main() {
 			auth.POST("/feeds", handlers.NewFeedHandler(feedSvc).Create)
 			auth.PUT("/feeds/:id", handlers.NewFeedHandler(feedSvc).Update)
 			auth.DELETE("/feeds/:id", handlers.NewFeedHandler(feedSvc).Delete)
-			auth.GET("/articles", handlers.NewArticleHandler(articleSvc).List)
-			auth.PUT("/articles/:id/read", handlers.NewArticleHandler(articleSvc).MarkRead)
-			auth.PUT("/articles/:id/favorite", handlers.NewArticleHandler(articleSvc).ToggleFavorite)
+			auth.GET("/articles", articleHandler.List)
+			auth.PUT("/articles/:id/read", articleHandler.MarkRead)
+			auth.PUT("/articles/:id/favorite", articleHandler.ToggleFavorite)
+			auth.POST("/articles/:id/ai/classify", articleHandler.ManualAIClassify)
+			auth.POST("/articles/:id/ai/translate", articleHandler.ManualAITranslate)
 			auth.POST("/articles/summarize", handlers.NewSummaryHandler(articleSvc, aiModelSvc, summaryTemplateSvc, errorLogSvc).Summarize)
 
 			auth.GET("/summary-templates", summaryTemplateHandler.List)

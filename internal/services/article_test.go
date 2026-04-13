@@ -217,3 +217,30 @@ func TestArticleService_ListForSummary(t *testing.T) {
 	assert.Equal(t, int64(0), total)
 	assert.Empty(t, items)
 }
+
+func TestArticleService_GetWithRead(t *testing.T) {
+	db := setupArticleDB(t)
+	svc := NewArticleService(db)
+
+	user := models.User{Username: "gw", PasswordHash: "h"}
+	require.NoError(t, db.Create(&user).Error)
+	mid := uint(7)
+	feed := models.Feed{
+		UserID: user.ID, URL: "http://e.com", Title: "F", UpdateIntervalMinutes: 60,
+		AIModelID: &mid, AITargetLanguage: "en",
+	}
+	require.NoError(t, db.Create(&feed).Error)
+	a := models.Article{FeedID: feed.ID, GUID: models.ArticleGUIDHash("gx"), GUIDRaw: "gx", Title: "T"}
+	require.NoError(t, db.Create(&a).Error)
+
+	ar, err := svc.GetWithRead(user.ID, a.ID)
+	require.NoError(t, err)
+	assert.Equal(t, a.ID, ar.ID)
+	assert.Equal(t, "F", ar.FeedTitle)
+	assert.NotNil(t, ar.FeedAIModelID)
+	assert.Equal(t, uint(7), *ar.FeedAIModelID)
+	assert.Equal(t, "en", ar.FeedAITargetLanguage)
+
+	_, err = svc.GetWithRead(999, a.ID)
+	assert.ErrorIs(t, err, ErrArticleNotFound)
+}

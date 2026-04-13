@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { articlesApi } from '../api/client';
 import type { Article } from '../api/client';
 import ArticleList from '../components/ArticleList';
+import ArticleManualAI from '../components/ArticleManualAI';
 import { nextIndex } from '../utils/arrowNav';
 import {
   articleCategoryForDisplay,
@@ -103,7 +104,9 @@ export default function Favorites() {
     });
   };
 
-  const showArticleLangToggle = articles.some((a) => a.feed_ai_translate_enabled);
+  const showArticleLangToggle =
+    articles.some((a) => a.feed_ai_translate_enabled) ||
+    articles.some((a) => !!(a.title_translated?.trim() || a.content_translated?.trim()));
 
   const hasMore = articles.length < total;
   const loadMore = useCallback(() => {
@@ -221,6 +224,17 @@ export default function Favorites() {
                 {articleTitleForDisplay(selected, articleDisplayLang)}
               </a>
               <div className="article-detail-actions">
+                <ArticleManualAI
+                  article={selected}
+                  onArticlePatched={(next) => {
+                    setArticles((prev) =>
+                      prev.map((x) => (x.id === next.id ? { ...x, ...next } : x))
+                    );
+                    setSelected((prev) =>
+                      prev?.id === next.id ? { ...prev, ...next } : prev
+                    );
+                  }}
+                />
                 <button
                   type="button"
                   className={`article-detail-favorite ${selected.favorite ? 'active' : ''}`}
@@ -244,9 +258,7 @@ export default function Favorites() {
               {selected.feed_title && <span className="feed">{selected.feed_title}</span>}
               <span className="date">{formatDate(selected.published_at || selected.created_at)}</span>
             </div>
-            {articleDisplayLang === 'translated' &&
-            selected.feed_ai_translate_enabled &&
-            selected.content_translated?.trim() ? (
+            {articleDisplayLang === 'translated' && selected.content_translated?.trim() ? (
               <div className="article-detail-content article-detail-plain">{selected.content_translated}</div>
             ) : (
               <div

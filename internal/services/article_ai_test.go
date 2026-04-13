@@ -169,3 +169,106 @@ func TestArticleAIProcessor_run_ClassifyThenTranslate(t *testing.T) {
 	assert.Equal(t, "T", out.TitleTranslated)
 	assert.Equal(t, "B", out.ContentTranslated)
 }
+
+func TestArticleAIProcessor_ManualClassify(t *testing.T) {
+	db := setupArticleAIDB(t)
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"choices": []map[string]any{
+				{"message": map[string]string{"content": "{\"category\":\"军事\"}"}},
+			},
+		})
+	}))
+	defer ts.Close()
+
+	user := models.User{Username: "mc", PasswordHash: "x"}
+	require.NoError(t, db.Create(&user).Error)
+	m := models.AIModel{UserID: user.ID, Name: "m", BaseURL: ts.URL + "/v1"}
+	require.NoError(t, db.Create(&m).Error)
+	feed := models.Feed{
+		UserID: user.ID, URL: "http://example.com/mc", Title: "F", UpdateIntervalMinutes: 60,
+		AIModelID: &m.ID,
+	}
+	require.NoError(t, db.Create(&feed).Error)
+	art := models.Article{FeedID: feed.ID, GUID: models.ArticleGUIDHash("mg"), GUIDRaw: "mg", Title: "标题", Content: "正文"}
+	require.NoError(t, db.Create(&art).Error)
+
+	p := NewArticleAIProcessor(db, NewAIModelService(db))
+	require.NoError(t, p.ManualClassify(user.ID, art.ID, nil))
+
+	var out models.Article
+	require.NoError(t, db.First(&out, art.ID).Error)
+	assert.Equal(t, "军事", out.AICategory)
+	assert.Equal(t, models.AIProcessDone, out.AIProcessStatus)
+}
+
+func TestArticleAIProcessor_ManualClassify_AlreadyHasCategory(t *testing.T) {
+	db := setupArticleAIDB(t)
+	user := models.User{Username: "mc2", PasswordHash: "x"}
+	require.NoError(t, db.Create(&user).Error)
+	m := models.AIModel{UserID: user.ID, Name: "m", BaseURL: "http://localhost/v1"}
+	require.NoError(t, db.Create(&m).Error)
+	feed := models.Feed{
+		UserID: user.ID, URL: "http://example.com/mc2", Title: "F", UpdateIntervalMinutes: 60,
+		AIModelID: &m.ID,
+	}
+	require.NoError(t, db.Create(&feed).Error)
+	art := models.Article{
+		FeedID: feed.ID, GUID: models.ArticleGUIDHash("mg2"), GUIDRaw: "mg2", Title: "标题",
+		AICategory: "科技",
+	}
+	require.NoError(t, db.Create(&art).Error)
+
+	p := NewArticleAIProcessor(db, NewAIModelService(db))
+	assert.ErrorIs(t, p.ManualClassify(user.ID, art.ID, nil), ErrManualAIAlreadyClassified)
+}
+
+func TestArticleAIProcessor_ManualTranslate(t *testing.T) {
+	db := setupArticleAIDB(t)
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"choices": []map[string]any{
+				{"message": map[string]string{"content": `{"title_translated":"T","content_translated":"B"}`}},
+			},
+		})
+	}))
+	defer ts.Close()
+
+	user := models.User{Username: "mt", PasswordHash: "x"}
+	require.NoError(t, db.Create(&user).Error)
+	m := models.AIModel{UserID: user.ID, Name: "m", BaseURL: ts.URL + "/v1"}
+	require.NoError(t, db.Create(&m).Error)
+	feed := models.Feed{
+		UserID: user.ID, URL: "http://example.com/mt", Title: "F", UpdateIntervalMinutes: 60,
+		AIModelID: &m.ID, AITargetLanguage: "en",
+	}
+	require.NoError(t, db.Create(&feed).Error)
+	art := models.Article{FeedID: feed.ID, GUID: models.ArticleGUIDHash("mtg"), GUIDRaw: "mtg", Title: "标题", Content: "正文"}
+	require.NoError(t, db.Create(&art).Error)
+
+	p := NewArticleAIProcessor(db, NewAIModelService(db))
+	require.NoError(t, p.ManualTranslate(user.ID, art.ID, nil, ""))
+
+	var out models.Article
+	require.NoError(t, db.First(&out, art.ID).Error)
+	assert.Equal(t, "T", out.TitleTranslated)
+	assert.Equal(t, "B", out.ContentTranslated)
+}
+
+func TestArticleAIProcessor_ManualTranslate_InvalidOverrideLang(t *testing.T) {
+	db := setupArticleAIDB(t)
+	user := models.User{Username: "inv", PasswordHash: "x"}
+	require.NoError(t, db.Create(&user).Error)
+	m := models.AIModel{UserID: user.ID, Name: "m", BaseURL: "http://x/v1"}
+	require.NoError(t, db.Create(&m).Error)
+	feed := models.Feed{
+		UserID: user.ID, URL: "http://example.com/inv", Title: "F", UpdateIntervalMinutes: 60,
+		AIModelID: &m.ID, AITargetLanguage: "en",
+	}
+	require.NoError(t, db.Create(&feed).Error)
+	art := models.Article{FeedID: feed.ID, GUID: models.ArticleGUIDHash("inv"), GUIDRaw: "inv", Title: "t", Content: "c"}
+	require.NoError(t, db.Create(&art).Error)
+
+	p := NewArticleAIProcessor(db, NewAIModelService(db))
+	assert.ErrorIs(t, p.ManualTranslate(user.ID, art.ID, nil, "not-a-lang"), ErrManualAIInvalidTargetLang)
+}

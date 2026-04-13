@@ -1,22 +1,56 @@
 package handlers
 
 import (
+	"encoding/json"
+	"errors"
+	"io"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/ushopal/rss-reader/internal/middleware"
 	"github.com/ushopal/rss-reader/internal/services"
 )
 
+type manualAIBody struct {
+	AIModelID        *uint  `json:"ai_model_id"`
+	AITargetLanguage string `json:"ai_target_language"`
+}
+
+func bindManualAIBody(c *gin.Context, out *manualAIBody) error {
+	b, err := io.ReadAll(c.Request.Body)
+	if err != nil {
+		return err
+	}
+	if len(strings.TrimSpace(string(b))) == 0 {
+		return nil
+	}
+	return json.Unmarshal(b, out)
+}
+
+func (h *ArticleHandler) manualAIRespondError(c *gin.Context, userID uint, articleID uint, err error) {
+	ar, errGet := h.articleSvc.GetWithRead(userID, articleID)
+	payload := gin.H{"error": err.Error()}
+	if errGet == nil && strings.TrimSpace(ar.AILastError) != "" {
+		payload["ai_last_error"] = strings.TrimSpace(ar.AILastError)
+	}
+	status := http.StatusBadRequest
+	if errors.Is(err, services.ErrArticleNotFound) {
+		status = http.StatusNotFound
+	}
+	c.JSON(status, payload)
+}
+
 // ArticleHandler 文章处理器
 type ArticleHandler struct {
 	articleSvc *services.ArticleService
+	articleAI  *services.ArticleAIProcessor
 }
 
 // NewArticleHandler 创建文章处理器
-func NewArticleHandler(articleSvc *services.ArticleService) *ArticleHandler {
-	return &ArticleHandler{articleSvc: articleSvc}
+func NewArticleHandler(articleSvc *services.ArticleService, articleAI *services.ArticleAIProcessor) *ArticleHandler {
+	return &ArticleHandler{articleSvc: articleSvc, articleAI: articleAI}
 }
 
 // List 文章列表
@@ -96,4 +130,70 @@ func (h *ArticleHandler) ToggleFavorite(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"favorite": favorite})
+}
+
+// ManualAIClassify POST /api/articles/:id/ai/classify
+func (h *ArticleHandler) ManualAIClassify(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的 ID"})
+		return
+	}
+	if h.articleAI == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "AI 服务不可用"})
+		return
+	}
+	var body manualAIBody
+	if err := bindManualAIBody(c, &body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
+		return
+	}
+	if err := h.articleAI.ManualClassify(userID, uint(id), body.AIModelID); err != nil {
+		h.manualAIRespondError(c, userID, uint(id), err)
+		return
+	}
+	ar, err := h.articleSvc.GetWithRead(userID, uint(id))
+	if err != nil {
+		if errors.Is(err, services.ErrArticleNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "文章不存在"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取文章失败"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"article": ar})
+}
+
+// ManualAITranslate POST /api/articles/:id/ai/translate
+func (h *ArticleHandler) ManualAITranslate(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的 ID"})
+		return
+	}
+	if h.articleAI == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "AI 服务不可用"})
+		return
+	}
+	var body manualAIBody
+	if err := bindManualAIBody(c, &body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
+		return
+	}
+	if err := h.articleAI.ManualTranslate(userID, uint(id), body.AIModelID, body.AITargetLanguage); err != nil {
+		h.manualAIRespondError(c, userID, uint(id), err)
+		return
+	}
+	ar, err := h.articleSvc.GetWithRead(userID, uint(id))
+	if err != nil {
+		if errors.Is(err, services.ErrArticleNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "文章不存在"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取文章失败"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"article": ar})
 }

@@ -16,6 +16,16 @@ type Config struct {
 	SuperAdmin SuperAdminConfig `yaml:"super_admin"`
 	Feishu     FeishuConfig     `yaml:"feishu"`
 	Log        LogConfig        `yaml:"log"`
+	AIBackfill AIBackfillConfig `yaml:"ai_backfill"`
+}
+
+// AIBackfillConfig 定时补漏：对开启 AI 但未成功分类/翻译的文章分批重试，避免集中打爆模型接口
+type AIBackfillConfig struct {
+	Enabled         bool `yaml:"enabled"`
+	IntervalMinutes int  `yaml:"interval_minutes"` // 执行周期，默认 5
+	ClassifyBatch   int  `yaml:"classify_batch"`   // 每次最多补分类条数，默认 3
+	TranslateBatch  int  `yaml:"translate_batch"`  // 每次最多补翻译条数，默认 3
+	DelayMS         int  `yaml:"delay_ms_between_calls"` // 每条之间的间隔毫秒，默认 600
 }
 
 // LogConfig 日志配置

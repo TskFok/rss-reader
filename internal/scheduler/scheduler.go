@@ -2,10 +2,12 @@ package scheduler
 
 import (
 	"encoding/json"
+	"fmt"
 	"sync"
 	"time"
 
 	"github.com/robfig/cron/v3"
+	"github.com/ushopal/rss-reader/internal/config"
 	"github.com/ushopal/rss-reader/internal/logger"
 	"github.com/ushopal/rss-reader/internal/models"
 	"github.com/ushopal/rss-reader/internal/services"
@@ -21,12 +23,14 @@ type Scheduler struct {
 	historySvc   *services.SummaryHistoryService
 	templateSvc  *services.SummaryTemplateService
 	feishuBot    services.FeishuBotClient
+	articleAI    *services.ArticleAIProcessor
+	backfillCfg  config.AIBackfillConfig
 	cron         *cron.Cron
 	workers      int
 }
 
 // New 创建调度器
-func New(db *gorm.DB, rssSvc *services.RSSService, articleSvc *services.ArticleService, aiModelSvc *services.AIModelService, historySvc *services.SummaryHistoryService, templateSvc *services.SummaryTemplateService, feishuBot services.FeishuBotClient, workers int) *Scheduler {
+func New(db *gorm.DB, rssSvc *services.RSSService, articleSvc *services.ArticleService, aiModelSvc *services.AIModelService, historySvc *services.SummaryHistoryService, templateSvc *services.SummaryTemplateService, feishuBot services.FeishuBotClient, workers int, articleAI *services.ArticleAIProcessor, backfillCfg config.AIBackfillConfig) *Scheduler {
 	if workers <= 0 {
 		workers = 3
 	}
@@ -38,6 +42,8 @@ func New(db *gorm.DB, rssSvc *services.RSSService, articleSvc *services.ArticleS
 		historySvc:  historySvc,
 		templateSvc: templateSvc,
 		feishuBot:   feishuBot,
+		articleAI:   articleAI,
+		backfillCfg: backfillCfg,
 		cron:        cron.New(),
 		workers:     workers,
 	}
@@ -58,8 +64,47 @@ func (s *Scheduler) Start() {
 	if err != nil {
 		logger.Fatalf("scheduler: %v", err)
 	}
+	if s.backfillCfg.Enabled && s.articleAI != nil {
+		interval := s.backfillCfg.IntervalMinutes
+		if interval <= 0 {
+			interval = 5
+		}
+		spec := fmt.Sprintf("@every %dm", interval)
+		_, err = s.cron.AddFunc(spec, s.runAIBackfill)
+		if err != nil {
+			logger.Fatalf("scheduler: ai backfill cron: %v", err)
+		}
+		logger.Info("scheduler: ai backfill every %dm (classify_batch=%d translate_batch=%d delay_ms=%d)",
+			interval,
+			normalizeBackfillInt(s.backfillCfg.ClassifyBatch, 3),
+			normalizeBackfillInt(s.backfillCfg.TranslateBatch, 3),
+			normalizeBackfillInt(s.backfillCfg.DelayMS, 600),
+		)
+	}
 	s.cron.Start()
 	logger.Info("scheduler: started, fetch every 1m, cleanup daily at 4:00, summary schedules every 1m")
+}
+
+func normalizeBackfillInt(v, def int) int {
+	if v <= 0 {
+		return def
+	}
+	return v
+}
+
+// runAIBackfill 分批补跑未成功的 AI 分类 / 翻译，单轮总量受配置限制，条间有延迟。
+func (s *Scheduler) runAIBackfill() {
+	if s.articleAI == nil || !s.backfillCfg.Enabled {
+		return
+	}
+	nCls := normalizeBackfillInt(s.backfillCfg.ClassifyBatch, 3)
+	nTr := normalizeBackfillInt(s.backfillCfg.TranslateBatch, 3)
+	delay := time.Duration(normalizeBackfillInt(s.backfillCfg.DelayMS, 600)) * time.Millisecond
+	s.articleAI.BackfillClassifyBatch(nCls, delay)
+	if delay > 0 {
+		time.Sleep(delay)
+	}
+	s.articleAI.BackfillTranslateBatch(nTr, delay)
 }
 
 // Stop 停止调度
