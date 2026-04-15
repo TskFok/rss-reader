@@ -1,0 +1,279 @@
+openapi: 3.0.3
+info:
+  title: RSS Reader API
+  description: |
+    与 Web 前端共用的后端 API。Base URL 请替换为实际部署地址（如 `https://your-host.com/api`）。
+    认证：除标注为公开的接口外，均需在请求头携带 `Authorization: Bearer <JWT>`。
+  version: 1.0.0
+
+servers:
+  - url: https://example.com/api
+    description: 替换为实际网关前缀（末尾为 /api）
+
+tags:
+  - name: auth
+    description: 登录与飞书 OAuth
+  - name: feeds
+    description: 订阅
+  - name: articles
+    description: 文章列表（订阅内容）
+  - name: summary-histories
+    description: AI 总结历史
+
+paths:
+  /auth/login:
+    post:
+      tags: [auth]
+      summary: 用户名密码登录
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password]
+              properties:
+                username:
+                  type: string
+                password:
+                  type: string
+                  minLength: 6
+      responses:
+        '200':
+          description: 成功，返回 JWT 与用户信息
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResult'
+        '401':
+          $ref: '#/components/responses/Error'
+        '403':
+          description: 账号被锁定
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+
+  /auth/feishu/login-url:
+    get:
+      tags: [auth]
+      summary: 获取飞书扫码/网页授权入口（公开）
+      description: |
+        返回本站中转地址 `url` 与飞书 passport 完整授权页 `goto`。
+        Web 端通常用 iframe 打开 `goto`；原生 App 可用 WebView/Custom Tabs 打开 `goto`。
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  url:
+                    type: string
+                    example: /api/auth/feishu/login?state=login
+                  goto:
+                    type: string
+                    description: 飞书 OAuth 授权页完整 URL
+        '400':
+          $ref: '#/components/responses/Error'
+
+  /auth/feishu/callback:
+    get:
+      tags: [auth]
+      summary: 飞书 OAuth 回调（公开）
+      description: |
+        飞书授权成功后重定向到此地址，携带 `code`、`state`。
+        **当前实现返回 HTML**，通过 `window.postMessage` 将 `token` 与 `user` 传给父窗口（Web）。
+        原生 Android 若无法使用 postMessage，需配合 WebView 拦截最终 URL、或由服务端另行提供 JSON 换票接口（当前仓库未提供）。
+      parameters:
+        - in: query
+          name: code
+          required: true
+          schema: { type: string }
+        - in: query
+          name: state
+          schema: { type: string }
+      responses:
+        '200':
+          description: HTML 页面（内含登录结果脚本）
+
+  /feeds:
+    get:
+      tags: [feeds]
+      summary: 订阅列表
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Feed'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /articles:
+    get:
+      tags: [articles]
+      summary: 文章列表（点击某订阅后传 feed_id 过滤）
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: feed_id
+          schema: { type: integer }
+          description: 仅查看该订阅下的文章
+        - in: query
+          name: read
+          schema: { type: boolean }
+          description: true=仅已读，false=仅未读
+        - in: query
+          name: page
+          schema: { type: integer, default: 1 }
+        - in: query
+          name: page_size
+          schema: { type: integer, default: 20, maximum: 100 }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Article'
+                  total:
+                    type: integer
+                    format: int64
+
+  /summary-histories:
+    get:
+      tags: [summary-histories]
+      summary: 总结历史列表
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer }
+        - in: query
+          name: page_size
+          schema: { type: integer }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SummaryHistoryItem'
+                  total:
+                    type: integer
+                    format: int64
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  responses:
+    Unauthorized:
+      description: 未认证或 Token 无效
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorBody'
+    Error:
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorBody'
+
+  schemas:
+    ErrorBody:
+      type: object
+      properties:
+        error:
+          type: string
+
+    LoginResult:
+      type: object
+      properties:
+        token:
+          type: string
+        user:
+          $ref: '#/components/schemas/User'
+
+    User:
+      type: object
+      properties:
+        id: { type: integer }
+        username: { type: string }
+        status: { type: string, description: active | locked }
+        is_super_admin: { type: boolean }
+        feishu_id: { type: string, nullable: true }
+        feishu_name: { type: string, nullable: true }
+        created_at: { type: string, format: date-time }
+
+    Feed:
+      type: object
+      description: 字段与 web 一致，此处列出常用项
+      properties:
+        id: { type: integer }
+        user_id: { type: integer }
+        category_id: { type: integer, nullable: true }
+        url: { type: string }
+        title: { type: string }
+        update_interval_minutes: { type: integer }
+        expire_days: { type: integer }
+        ai_model_id: { type: integer, nullable: true }
+        ai_classify_enabled: { type: boolean }
+        ai_translate_enabled: { type: boolean }
+        ai_target_language: { type: string }
+        last_fetched_at: { type: string, format: date-time, nullable: true }
+        created_at: { type: string, format: date-time }
+
+    Article:
+      type: object
+      properties:
+        id: { type: integer }
+        feed_id: { type: integer }
+        guid: { type: string }
+        title: { type: string }
+        link: { type: string }
+        content: { type: string }
+        ai_category: { type: string }
+        title_translated: { type: string }
+        content_translated: { type: string }
+        published_at: { type: string, format: date-time, nullable: true }
+        created_at: { type: string, format: date-time }
+        read: { type: boolean }
+        favorite: { type: boolean }
+        feed_title: { type: string }
+        feed_ai_translate_enabled: { type: boolean }
+        feed_ai_classify_enabled: { type: boolean }
+
+    SummaryHistoryItem:
+      type: object
+      properties:
+        id: { type: integer }
+        ai_model_id: { type: integer }
+        ai_model_name: { type: string }
+        summary_template_id: { type: integer, nullable: true }
+        summary_template_name: { type: string }
+        start_time: { type: string }
+        end_time: { type: string }
+        page: { type: integer }
+        page_size: { type: integer }
+        order: { type: string }
+        article_count: { type: integer }
+        total: { type: integer, format: int64 }
+        content: { type: string }
+        error: { type: string }
+        created_at: { type: string, format: date-time }

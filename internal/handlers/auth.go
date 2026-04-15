@@ -44,7 +44,9 @@ func (h *AuthHandler) Register(c *gin.Context) {
 // POST /api/auth/login
 func (h *AuthHandler) Login(c *gin.Context) {
 	var req services.LoginRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	// 使用通用绑定，兼容 application/json、application/x-www-form-urlencoded、
+	// multipart/form-data，避免仅按 JSON 解析导致的参数错误。
+	if err := c.ShouldBind(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误: " + err.Error()})
 		return
 	}

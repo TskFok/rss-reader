@@ -36,8 +36,8 @@ func NewAuthService(db *gorm.DB, jwtSecret string, expireHours int, superAdminUs
 
 // RegisterRequest 注册请求
 type RegisterRequest struct {
-	Username string `json:"username" binding:"required"`
-	Password string `json:"password" binding:"required,min=6"`
+	Username string `json:"username" form:"username" binding:"required"`
+	Password string `json:"password" form:"password" binding:"required,min=6"`
 }
 
 // Register 注册新用户，默认 locked
@@ -73,8 +73,8 @@ func (s *AuthService) Register(req RegisterRequest) (*models.User, error) {
 
 // LoginRequest 登录请求
 type LoginRequest struct {
-	Username string `json:"username" binding:"required"`
-	Password string `json:"password" binding:"required"`
+	Username string `json:"username" form:"username" binding:"required"`
+	Password string `json:"password" form:"password" binding:"required"`
 }
 
 // LoginResult 登录结果

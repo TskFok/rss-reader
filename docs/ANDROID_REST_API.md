@@ -1,0 +1,199 @@
+# Android 客户端 — REST API 说明
+
+本文档与仓库内 `docs/openapi.yaml` 一致，描述与 **rss-reader** 后端对接时所需的接口。
+
+**Base URL**：部署后通常为 `https://<主机>/api`（注意末尾 **无** 斜杠时路径为 `/api/auth/login`）。
+
+**认证**：除「公开」接口外，请求头需携带：
+
+```http
+Authorization: Bearer <JWT>
+Content-Type: application/json
+```
+
+JWT 在登录成功响应的 `token` 字段中取得；失效时接口返回 `401`，客户端应清除本地 token 并跳转登录。
+
+---
+
+## 1. 登录（用户名 / 密码）
+
+| 项目 | 说明 |
+|------|------|
+| 方法 / 路径 | `POST /api/auth/login` |
+| 认证 | 不需要 |
+| 请求体 | `{ "username": "string", "password": "string" }` |
+
+**成功 `200`**：
+
+```json
+{
+  "token": "<JWT>",
+  "user": {
+    "id": 1,
+    "username": "alice",
+    "status": "active",
+    "is_super_admin": false,
+    "feishu_id": null,
+    "feishu_name": "",
+    "created_at": "2026-01-01T12:00:00Z"
+  }
+}
+```
+
+**常见错误**：`401` 用户名或密码错误；`403` 账号被锁定。
+
+---
+
+## 2. 飞书登录
+
+后端采用 **OAuth 授权码** 模式；飞书回调到服务端后，**当前实现返回 HTML 页面**，通过 `postMessage` 把 `token` 交给浏览器父窗口（与 Web 前端一致）。
+
+### 2.1 获取授权入口（公开）
+
+| 项目 | 说明 |
+|------|------|
+| 方法 / 路径 | `GET /api/auth/feishu/login-url` |
+| 认证 | 不需要 |
+
+**成功 `200`**：
+
+```json
+{
+  "url": "/api/auth/feishu/login?state=login",
+  "goto": "https://www.feishu.cn/suite/passport/oauth/authorize?..."
+}
+```
+
+- **`goto`**：在 **WebView / Chrome Custom Tabs** 中打开，引导用户登录飞书。
+- 授权成功后，浏览器会跳转到服务端在飞书开放平台配置的 **重定向 URL**，即 `GET /api/auth/feishu/callback?code=...&state=...`。
+
+### 2.2 回调（公开）
+
+| 项目 | 说明 |
+|------|------|
+| 方法 / 路径 | `GET /api/auth/feishu/callback` |
+| Query | `code`（必填）、`state` |
+
+响应为 **HTML**，非 JSON。原生 Android 常见做法：
+
+1. 使用 **WebView**，在 `shouldOverrideUrlLoading` / `onPageFinished` 中若检测到重定向 URL 含 `code=`，再自行请求服务端（若后续增加 **JSON 换票接口** 则更稳妥）；或  
+2. 由产品侧为 App 配置 **App Link** 与后端共同增加 `POST` 换票接口（当前仓库默认仅 HTML 回调）。
+
+**说明**：若需「纯原生、无 WebView」飞书登录，需要服务端提供 `code` 换 `token` 的 JSON 接口；可基于现有 `Callback` 逻辑扩展。
+
+---
+
+## 3. 注销登录
+
+本服务使用 **无状态 JWT**，**没有** `POST /logout` 接口。
+
+**客户端行为**：删除本地保存的 `token`（及用户信息）即可；可选跳转到登录页。
+
+若将来增加服务端黑名单或刷新令牌，再对接新接口。
+
+---
+
+## 4. 订阅列表
+
+| 项目 | 说明 |
+|------|------|
+| 方法 / 路径 | `GET /api/feeds` |
+| 认证 | 需要 Bearer |
+
+**成功 `200`**：JSON 数组，每个元素为一条订阅（字段与 Web 端 `Feed` 一致），例如：
+
+- `id`, `user_id`, `url`, `title`, `update_interval_minutes`, `expire_days`
+- `ai_model_id`, `ai_classify_enabled`, `ai_translate_enabled`, `ai_target_language`
+- `category`（嵌套）、`last_fetched_at`, `created_at` 等
+
+---
+
+## 5. 订阅内容（文章列表）
+
+对应「点击某条订阅后展示该订阅下的文章」。
+
+| 项目 | 说明 |
+|------|------|
+| 方法 / 路径 | `GET /api/articles` |
+| 认证 | 需要 Bearer |
+| Query（常用） | 见下表 |
+
+| 参数 | 说明 |
+|------|------|
+| `feed_id` | 可选，**传入则只返回该订阅下的文章**（用于点击侧边栏某一订阅） |
+| `read` | 可选，`true` 仅已读，`false` 仅未读 |
+| `page` | 页码，默认 `1` |
+| `page_size` | 每页条数，默认 `20`，最大 `100` |
+
+**成功 `200`**：
+
+```json
+{
+  "items": [ /* Article 对象列表 */ ],
+  "total": 100
+}
+```
+
+单篇文章常见字段：`id`, `feed_id`, `title`, `link`, `content`, `published_at`, `read`, `favorite`, `feed_title`，以及 AI 相关 `ai_category`, `title_translated`, `content_translated` 等（与 Web 一致）。
+
+**其它**（按需）：`PUT /api/articles/:id/read` 标记已读，`PUT /api/articles/:id/favorite` 收藏。
+
+---
+
+## 6. 总结历史
+
+| 项目 | 说明 |
+|------|------|
+| 方法 / 路径 | `GET /api/summary-histories` |
+| 认证 | 需要 Bearer |
+| Query | `page`, `page_size`（分页规则与文章列表类似，`page_size` 默认 20、最大 100） |
+
+**成功 `200`**：
+
+```json
+{
+  "items": [
+    {
+      "id": 1,
+      "ai_model_id": 1,
+      "ai_model_name": "默认模型",
+      "summary_template_id": null,
+      "summary_template_name": "",
+      "start_time": "2026-01-01 00:00",
+      "end_time": "2026-01-02 00:00",
+      "page": 1,
+      "page_size": 20,
+      "order": "desc",
+      "article_count": 15,
+      "total": 80,
+      "content": "……总结正文……",
+      "error": "",
+      "created_at": "2026-01-02T10:00:00Z"
+    }
+  ],
+  "total": 5
+}
+```
+
+---
+
+## 7. 机器可读规范与示例代码
+
+| 资源 | 路径 |
+|------|------|
+| OpenAPI 3.0 | `docs/openapi.yaml` |
+| Retrofit 接口与 DTO 示例（Kotlin） | `docs/android/` |
+
+可使用 [Swagger Editor](https://editor.swagger.io/) 打开 `openapi.yaml` 生成其它语言客户端。
+
+---
+
+## 8. 错误格式
+
+多数错误响应体为：
+
+```json
+{ "error": "中文或英文说明" }
+```
+
+HTTP 状态码：`400` 参数错误，`401` 未登录或 token 无效，`403` 无权限，`404` 资源不存在，`409` 冲突等。

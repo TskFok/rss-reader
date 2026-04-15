@@ -3,8 +3,11 @@ package handlers
 import (
 	"bytes"
 	"encoding/json"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -64,6 +67,48 @@ func TestAuthHandler_Login(t *testing.T) {
 	body, _ := json.Marshal(services.LoginRequest{Username: "alice", Password: "password123"})
 	req := httptest.NewRequest(http.MethodPost, "/api/auth/login", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	var resp map[string]interface{}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+	assert.NotEmpty(t, resp["token"])
+}
+
+func TestAuthHandler_Login_FormURLEncoded(t *testing.T) {
+	r, authSvc, db := setupAuthHandlers(t)
+	_, _ = authSvc.Register(services.RegisterRequest{Username: "alice", Password: "password123"})
+	db.Model(&models.User{}).Where("username = ?", "alice").Update("status", models.UserStatusActive)
+
+	form := url.Values{}
+	form.Set("username", "alice")
+	form.Set("password", "password123")
+
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/login", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	var resp map[string]interface{}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+	assert.NotEmpty(t, resp["token"])
+}
+
+func TestAuthHandler_Login_MultipartFormData(t *testing.T) {
+	r, authSvc, db := setupAuthHandlers(t)
+	_, _ = authSvc.Register(services.RegisterRequest{Username: "alice", Password: "password123"})
+	db.Model(&models.User{}).Where("username = ?", "alice").Update("status", models.UserStatusActive)
+
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	require.NoError(t, writer.WriteField("username", "alice"))
+	require.NoError(t, writer.WriteField("password", "password123"))
+	require.NoError(t, writer.Close())
+
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/login", &body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
