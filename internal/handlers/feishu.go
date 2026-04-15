@@ -11,6 +11,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/ushopal/rss-reader/internal/config"
+	"github.com/ushopal/rss-reader/internal/models"
 	"github.com/ushopal/rss-reader/internal/services"
 )
 
@@ -125,33 +126,76 @@ func (h *FeishuHandler) Callback(c *gin.Context) {
 	}
 
 	// 登录模式：回调在 iframe 中加载，通过 postMessage 把 token/user 或错误传给父页面，避免整页跳转
-	user, created, locked, err := h.feishuAuth.LoginOrCreateByFeishu(info)
-	if err != nil {
+	token, user, msg, ok := h.buildFeishuLoginResult(info)
+	if !ok {
 		c.Header("Content-Type", "text/html; charset=utf-8")
-		msgBytes, _ := json.Marshal("登录失败: " + err.Error())
+		msgBytes, _ := json.Marshal(msg)
 		c.String(http.StatusOK, loginCallbackHTML("feishu_login_error", "", "", string(msgBytes)))
 		return
+	}
+	frontUser := toFrontUser(user)
+	userJSON, _ := json.Marshal(frontUser)
+	c.Header("Content-Type", "text/html; charset=utf-8")
+	c.String(http.StatusOK, loginCallbackHTML("feishu_login_success", token, string(userJSON), ""))
+}
+
+type feishuExchangeRequest struct {
+	Code  string `json:"code" form:"code" binding:"required"`
+	State string `json:"state" form:"state"`
+}
+
+// Exchange 通过 code 换取站内 token（JSON 接口）
+// POST /api/auth/feishu/exchange
+func (h *FeishuHandler) Exchange(c *gin.Context) {
+	var req feishuExchangeRequest
+	if err := c.ShouldBind(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误: " + err.Error()})
+		return
+	}
+	if strings.HasPrefix(req.State, "bind:") {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "bind state 不支持 exchange，请使用回调接口完成绑定"})
+		return
+	}
+
+	info, err := h.api.GetUserInfo(req.Code)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "获取飞书用户信息失败: " + err.Error()})
+		return
+	}
+
+	token, user, msg, ok := h.buildFeishuLoginResult(info)
+	if !ok {
+		if strings.Contains(msg, "锁定") {
+			c.JSON(http.StatusForbidden, gin.H{"error": msg})
+			return
+		}
+		c.JSON(http.StatusBadRequest, gin.H{"error": msg})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"token": token, "user": user})
+}
+
+func (h *FeishuHandler) buildFeishuLoginResult(info services.FeishuUserInfo) (string, *models.User, string, bool) {
+	user, created, locked, err := h.feishuAuth.LoginOrCreateByFeishu(info)
+	if err != nil {
+		return "", nil, "登录失败: " + err.Error(), false
 	}
 	if locked {
 		msg := "账号已锁定，请联系管理员解锁后再登录。"
 		if created {
 			msg = "已为你创建账号，但当前处于锁定状态，请联系管理员解锁后再登录。"
 		}
-		c.Header("Content-Type", "text/html; charset=utf-8")
-		msgBytes, _ := json.Marshal(msg)
-		c.String(http.StatusOK, loginCallbackHTML("feishu_login_error", "", "", string(msgBytes)))
-		return
+		return "", nil, msg, false
 	}
-
 	token, err := h.authSvc.GenerateTokenForUser(user)
 	if err != nil {
-		c.Header("Content-Type", "text/html; charset=utf-8")
-		msgBytes, _ := json.Marshal("生成 token 失败")
-		c.String(http.StatusOK, loginCallbackHTML("feishu_login_error", "", "", string(msgBytes)))
-		return
+		return "", nil, "生成 token 失败", false
 	}
+	return token, user, "", true
+}
 
-	frontUser := struct {
+func toFrontUser(user *models.User) any {
+	return struct {
 		ID           uint      `json:"id"`
 		Username     string    `json:"username"`
 		Status       string    `json:"status"`
@@ -164,9 +208,6 @@ func (h *FeishuHandler) Callback(c *gin.Context) {
 		IsSuperAdmin: user.IsSuperAdmin,
 		CreatedAt:    user.CreatedAt,
 	}
-	userJSON, _ := json.Marshal(frontUser)
-	c.Header("Content-Type", "text/html; charset=utf-8")
-	c.String(http.StatusOK, loginCallbackHTML("feishu_login_success", token, string(userJSON), ""))
 }
 
 // loginCallbackHTML 返回登录结果页，通过 postMessage 通知父页面（iframe 场景），不跳转
@@ -212,5 +253,3 @@ func (h *FeishuHandler) BindURL(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, out)
 }
-
-

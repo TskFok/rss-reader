@@ -97,6 +97,41 @@ paths:
         '200':
           description: HTML 页面（内含登录结果脚本）
 
+  /auth/feishu/exchange:
+    post:
+      tags: [auth]
+      summary: 使用飞书 code 换取站内 token（JSON）
+      description: |
+        适用于原生 App 或前后端分离场景。前端在拿到飞书回调中的 code 后，
+        调用本接口换取站内 JWT 与用户信息。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code]
+              properties:
+                code:
+                  type: string
+                state:
+                  type: string
+      responses:
+        '200':
+          description: 成功，返回 JWT 与用户信息
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResult'
+        '400':
+          $ref: '#/components/responses/Error'
+        '403':
+          description: 账号被锁定
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+
   /feeds:
     get:
       tags: [feeds]

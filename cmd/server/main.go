@@ -86,12 +86,13 @@ func main() {
 		api.GET("/auth/feishu/login-url", feishuHandler.LoginURL)
 		api.GET("/auth/feishu/login", feishuHandler.LoginRedirect)
 		api.GET("/auth/feishu/callback", feishuHandler.Callback)
+		api.POST("/auth/feishu/exchange", feishuHandler.Exchange)
 
 		auth := api.Group("")
 		auth.Use(middleware.Auth(authSvc))
 		{
-				auth.GET("/feeds/opml", opmlHandler.Export)
-				auth.POST("/feeds/opml", opmlHandler.Import)
+			auth.GET("/feeds/opml", opmlHandler.Export)
+			auth.POST("/feeds/opml", opmlHandler.Import)
 
 			auth.GET("/categories", handlers.NewCategoryHandler(categorySvc).List)
 			auth.POST("/categories", handlers.NewCategoryHandler(categorySvc).Create)
@@ -196,4 +197,3 @@ func registerStatic(r *gin.Engine) {
 		c.FileFromFS(path, http.FS(fs))
 	})
 }
-

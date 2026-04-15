@@ -81,6 +81,33 @@ JWT 在登录成功响应的 `token` 字段中取得；失效时接口返回 `40
 
 **说明**：若需「纯原生、无 WebView」飞书登录，需要服务端提供 `code` 换 `token` 的 JSON 接口；可基于现有 `Callback` 逻辑扩展。
 
+### 2.3 Code 换票（公开，推荐 App 使用）
+
+| 项目 | 说明 |
+|------|------|
+| 方法 / 路径 | `POST /api/auth/feishu/exchange` |
+| 认证 | 不需要 |
+| 请求体 | `{ "code": "string", "state": "string(可选)" }` |
+
+**成功 `200`**：
+
+```json
+{
+  "token": "<JWT>",
+  "user": {
+    "id": 1,
+    "username": "alice",
+    "status": "active",
+    "is_super_admin": false,
+    "created_at": "2026-01-01T12:00:00Z"
+  }
+}
+```
+
+**错误**：
+- `400` 参数错误 / code 无效 / 传入了绑定态 `state=bind:*`
+- `403` 账号锁定（包含新建后默认锁定）
+
 ---
 
 ## 3. 注销登录

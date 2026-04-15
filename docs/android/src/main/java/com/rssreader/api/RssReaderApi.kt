@@ -19,6 +19,9 @@ interface RssReaderApi {
     @GET("auth/feishu/login-url")
     suspend fun feishuLoginUrl(): FeishuLoginUrlResponse
 
+    @POST("auth/feishu/exchange")
+    suspend fun feishuExchange(@Body body: FeishuExchangeRequest): LoginResponse
+
     @GET("feeds")
     suspend fun listFeeds(): List<FeedJson>
 
@@ -65,6 +68,11 @@ data class UserJson(
 data class FeishuLoginUrlResponse(
     val url: String,
     val goto: String,
+)
+
+data class FeishuExchangeRequest(
+    val code: String,
+    val state: String? = null,
 )
 
 /** 与后端 JSON 字段一致时可简化；此处为常用字段子集 */
