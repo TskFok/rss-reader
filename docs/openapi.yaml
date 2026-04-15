@@ -163,6 +163,10 @@ paths:
           schema: { type: boolean }
           description: true=仅已读，false=仅未读
         - in: query
+          name: favorite
+          schema: { type: boolean }
+          description: true=仅收藏
+        - in: query
           name: page
           schema: { type: integer, default: 1 }
         - in: query
@@ -182,6 +186,31 @@ paths:
                   total:
                     type: integer
                     format: int64
+
+  /articles/{id}/read:
+    put:
+      tags: [articles]
+      summary: 标记文章为已读
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+          description: 文章 ID
+      responses:
+        '200':
+          description: 标记成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/Error'
 
   /summary-histories:
     get:
@@ -245,6 +274,12 @@ components:
         user:
           $ref: '#/components/schemas/User'
 
+    MessageResponse:
+      type: object
+      properties:
+        message:
+          type: string
+
     User:
       type: object
       properties:
@@ -283,16 +318,22 @@ components:
         title: { type: string }
         link: { type: string }
         content: { type: string }
+        ai_process_status: { type: string }
+        ai_last_error: { type: string }
         ai_category: { type: string }
+        ai_category_translated: { type: string }
         title_translated: { type: string }
         content_translated: { type: string }
         published_at: { type: string, format: date-time, nullable: true }
         created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
         read: { type: boolean }
         favorite: { type: boolean }
         feed_title: { type: string }
         feed_ai_translate_enabled: { type: boolean }
         feed_ai_classify_enabled: { type: boolean }
+        feed_ai_model_id: { type: integer, nullable: true }
+        feed_ai_target_language: { type: string }
 
     SummaryHistoryItem:
       type: object

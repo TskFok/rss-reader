@@ -36,6 +36,31 @@ func TestArticleService_MarkRead_NotFound(t *testing.T) {
 	assert.ErrorIs(t, err, ErrArticleNotFound)
 }
 
+func TestArticleService_MarkRead(t *testing.T) {
+	db := setupArticleDB(t)
+	svc := NewArticleService(db)
+
+	user := models.User{Username: "reader", PasswordHash: "h"}
+	require.NoError(t, db.Create(&user).Error)
+	feed := models.Feed{UserID: user.ID, URL: "http://example.com", Title: "F", UpdateIntervalMinutes: 60, ExpireDays: 0}
+	require.NoError(t, db.Create(&feed).Error)
+	article := models.Article{FeedID: feed.ID, GUID: models.ArticleGUIDHash("g-read"), GUIDRaw: "g-read", Title: "a"}
+	require.NoError(t, db.Create(&article).Error)
+
+	require.NoError(t, svc.MarkRead(user.ID, article.ID))
+
+	var ua models.UserArticle
+	require.NoError(t, db.Where("user_id = ? AND article_id = ?", user.ID, article.ID).First(&ua).Error)
+	assert.True(t, ua.ReadStatus)
+
+	// 再次标记已读应保持幂等，不应报错。
+	require.NoError(t, svc.MarkRead(user.ID, article.ID))
+
+	var count int64
+	require.NoError(t, db.Model(&models.UserArticle{}).Where("user_id = ? AND article_id = ?", user.ID, article.ID).Count(&count).Error)
+	assert.Equal(t, int64(1), count)
+}
+
 func TestArticleService_CleanupExpiredArticles(t *testing.T) {
 	db := setupArticleDB(t)
 	svc := NewArticleService(db)
