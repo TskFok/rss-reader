@@ -3,6 +3,7 @@ import { articlesApi } from '../api/client';
 import type { Article } from '../api/client';
 import ArticleList from '../components/ArticleList';
 import ArticleManualAI from '../components/ArticleManualAI';
+import ArticleDetailContent from '../components/ArticleDetailContent';
 import { nextIndex } from '../utils/arrowNav';
 import {
   articleCategoryForDisplay,
@@ -258,14 +259,7 @@ export default function Favorites() {
               {selected.feed_title && <span className="feed">{selected.feed_title}</span>}
               <span className="date">{formatDate(selected.published_at || selected.created_at)}</span>
             </div>
-            {articleDisplayLang === 'translated' && selected.content_translated?.trim() ? (
-              <div className="article-detail-content article-detail-plain">{selected.content_translated}</div>
-            ) : (
-              <div
-                className="article-detail-content"
-                dangerouslySetInnerHTML={{ __html: selected.content || '<p>(暂无内容)</p>' }}
-              />
-            )}
+            <ArticleDetailContent article={selected} displayLang={articleDisplayLang} />
           </div>
         )}
       </section>

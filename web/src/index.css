@@ -1135,6 +1135,34 @@ a:hover {
   height: auto;
 }
 
+.article-detail-content video,
+.article-detail-content .article-detail-inline-video,
+.article-detail-content audio,
+.article-detail-content iframe {
+  display: block;
+  max-width: 100%;
+  margin: 16px 0;
+}
+
+.article-detail-content video,
+.article-detail-content .article-detail-inline-video {
+  width: 100%;
+  max-height: min(70vh, 560px);
+  background: #000;
+  border-radius: 12px;
+}
+
+.article-detail-content audio {
+  width: 100%;
+}
+
+.article-detail-content iframe {
+  width: 100%;
+  min-height: 360px;
+  border: 0;
+  border-radius: 12px;
+}
+
 .pagination {
   display: flex;
   align-items: center;
