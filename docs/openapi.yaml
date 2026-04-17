@@ -401,6 +401,77 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorBody'
 
+  /articles/{id}/ai/translate/stream:
+    post:
+      tags: [articles]
+      summary: 手动翻译文章（流式）
+      description: |
+        对单篇文章执行流式 AI 翻译（SSE）。
+        请求参数与 `/articles/{id}/ai/translate` 相同：
+        - 不传 `ai_model_id` 时，使用该文章所属订阅上配置的默认 AI 模型
+        - 不传 `ai_target_language` 或传空串时，使用订阅上配置的默认翻译目标语言
+        - 若文章已有译文，接口会返回错误事件
+
+        成功时响应 `text/event-stream`，事件统一通过 `data:` 发送 JSON：
+        - `{"delta":"..."}`：译文正文增量（前端应持续拼接并渲染）
+        - `{"article":{...}}`：翻译完成，返回最终文章对象
+        - `{"error":"...","ai_last_error":"..."}`：流内错误
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+          description: 文章 ID
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ManualArticleTranslateRequest'
+      responses:
+        '200':
+          description: |
+            流式输出（SSE）。首部为 `Content-Type: text/event-stream`。
+            前端需按行解析 `data:` 事件。
+          content:
+            text/event-stream:
+              schema:
+                type: string
+              examples:
+                delta:
+                  summary: 增量事件
+                  value: |
+                    data: {"delta":"<p>第一段译文"}
+                done:
+                  summary: 完成事件
+                  value: |
+                    data: {"article":{"id":123,"title_translated":"...","content_translated":"..."}}
+                error:
+                  summary: 错误事件
+                  value: |
+                    data: {"error":"AI 处理失败","ai_last_error":"模型超时"}
+        '400':
+          description: 参数错误（仅在进入 SSE 之前返回 JSON）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AIErrorBody'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: 文章不存在（仅在进入 SSE 之前返回 JSON）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AIErrorBody'
+        '503':
+          description: AI 服务不可用（仅在进入 SSE 之前返回 JSON）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+
   /summary-histories:
     get:
       tags: [summary-histories]
