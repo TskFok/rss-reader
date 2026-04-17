@@ -121,6 +121,7 @@ func main() {
 			auth.PUT("/articles/:id/favorite", articleHandler.ToggleFavorite)
 			auth.POST("/articles/:id/ai/classify", articleHandler.ManualAIClassify)
 			auth.POST("/articles/:id/ai/translate", articleHandler.ManualAITranslate)
+			auth.POST("/articles/:id/ai/translate/stream", articleHandler.ManualAITranslateStream)
 			auth.POST("/articles/summarize", handlers.NewSummaryHandler(articleSvc, aiModelSvc, summaryTemplateSvc, errorLogSvc).Summarize)
 
 			auth.GET("/summary-templates", summaryTemplateHandler.List)

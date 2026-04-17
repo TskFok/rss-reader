@@ -5,6 +5,7 @@ import type { ArticleDisplayLang } from '../utils/articleDisplayLang';
 const DIRECT_VIDEO_EXT_RE = /\.(mp4|webm|ogg|ogv|mov|m4v)(?:[?#].*)?$/i;
 const EMBED_ALLOW =
   'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen';
+const HTML_LIKE_RE = /<\s*[a-z!/][^>]*>/i;
 
 function normalizeIframeSrc(src: string) {
   const trimmed = src.trim();
@@ -57,6 +58,10 @@ function enhanceMedia(container: HTMLDivElement) {
   });
 }
 
+function looksLikeHTML(content?: string) {
+  return !!content && HTML_LIKE_RE.test(content);
+}
+
 export default function ArticleDetailContent({
   article,
   displayLang,
@@ -65,15 +70,26 @@ export default function ArticleDetailContent({
   displayLang: ArticleDisplayLang;
 }) {
   const contentRef = useRef<HTMLDivElement>(null);
+  const translatedContent = article.content_translated?.trim() || '';
+  const translatedIsHTML = looksLikeHTML(translatedContent);
 
   useEffect(() => {
-    if (displayLang === 'translated' && article.content_translated?.trim()) return;
     if (!contentRef.current) return;
+    if (displayLang === 'translated' && translatedContent && !translatedIsHTML) return;
     enhanceMedia(contentRef.current);
-  }, [article.content, article.content_translated, displayLang]);
+  }, [article.content, translatedContent, translatedIsHTML, displayLang]);
 
-  if (displayLang === 'translated' && article.content_translated?.trim()) {
-    return <div className="article-detail-content article-detail-plain">{article.content_translated}</div>;
+  if (displayLang === 'translated' && translatedContent) {
+    if (!translatedIsHTML) {
+      return <div className="article-detail-content article-detail-plain">{translatedContent}</div>;
+    }
+    return (
+      <div
+        ref={contentRef}
+        className="article-detail-content"
+        dangerouslySetInnerHTML={{ __html: translatedContent }}
+      />
+    );
   }
 
   return (

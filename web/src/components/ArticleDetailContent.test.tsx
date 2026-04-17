@@ -89,3 +89,27 @@ test('译文模式仍然展示纯文本内容', () => {
   expect(screen.getByText('这是一段译文')).toBeInTheDocument();
   expect(document.querySelector('video')).not.toBeInTheDocument();
 });
+
+test('译文模式遇到 HTML 译文时保留媒体节点', async () => {
+  render(
+    <ArticleDetailContent
+      article={makeArticle({
+        content: '<p>Original</p>',
+        content_translated:
+          '<p>这是一段译文</p><img src="https://cdn.example.com/image.jpg" alt="图"><iframe src="https://player.example.com/embed/123"></iframe>',
+      })}
+      displayLang="translated"
+    />
+  );
+
+  expect(screen.getByText('这是一段译文')).toBeInTheDocument();
+
+  await waitFor(() => {
+    const image = document.querySelector('img');
+    const iframe = document.querySelector('iframe');
+    expect(image).toBeInTheDocument();
+    expect(image).toHaveAttribute('src', 'https://cdn.example.com/image.jpg');
+    expect(iframe).toBeInTheDocument();
+    expect(iframe).toHaveAttribute('loading', 'lazy');
+  });
+});

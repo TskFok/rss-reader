@@ -22,9 +22,11 @@ function langLabel(code: string): string {
 export default function ArticleManualAI({
   article,
   onArticlePatched,
+  onTranslateStart,
 }: {
   article: Article;
   onArticlePatched: (a: Article) => void;
+  onTranslateStart?: () => void;
 }) {
   const toast = useToast();
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -142,18 +144,52 @@ export default function ArticleManualAI({
       ? {}
       : { ai_model_id: trModelId, ai_target_language: trLang };
     const tid = toast.showToast({ message: 'AI 翻译中…', variant: 'loading' });
+    onTranslateStart?.();
+    let streamed = '';
+    onArticlePatched({
+      ...article,
+      ai_process_status: 'pending',
+      ai_last_error: '',
+      title_translated: article.title_translated ?? '',
+      content_translated: '',
+    });
     try {
-      const { data } = await articlesApi.manualAITranslate(article.id, payload);
+      await articlesApi.manualAITranslateStream(article.id, payload, {
+        onChunk: (delta) => {
+          streamed += delta;
+          onArticlePatched({
+            ...article,
+            ai_process_status: 'pending',
+            ai_last_error: '',
+            title_translated: article.title_translated ?? '',
+            content_translated: streamed,
+          });
+        },
+        onDone: (next) => {
+          onArticlePatched(next);
+        },
+        onError: (message, aiLastError) => {
+          throw Object.assign(new Error(message), { aiLastError });
+        },
+      });
       toast.dismiss(tid);
       toast.showToast({ message: '译文已保存', variant: 'success' });
-      onArticlePatched(data.article);
       setDrawerOpen(false);
     } catch (e) {
       toast.dismiss(tid);
-      const { message, aiLastError } = parseApiError(e);
+      const ee = e as { message?: string; aiLastError?: string };
+      const message = ee.message || '翻译失败';
+      const aiLastError = typeof ee.aiLastError === 'string' ? ee.aiLastError : undefined;
       setUiErr(message);
       setLastAiErr(aiLastError ?? null);
       toast.showToast({ message: '翻译失败', variant: 'error', duration: 5000 });
+      onArticlePatched({
+        ...article,
+        ai_process_status: 'failed',
+        ai_last_error: aiLastError ?? message,
+        title_translated: article.title_translated ?? '',
+        content_translated: streamed,
+      });
     }
   };
 

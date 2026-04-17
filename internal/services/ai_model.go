@@ -149,10 +149,10 @@ func (s *AIModelService) Reorder(userID uint, idList []uint) error {
 
 // chatCompletionsRequest OpenAI 兼容的聊天请求
 type chatCompletionsRequest struct {
-	Model       string        `json:"model"`
-	Messages    []chatMessage `json:"messages"`
-	MaxTokens   int           `json:"max_tokens,omitempty"`
-	Stream      bool          `json:"stream,omitempty"`
+	Model     string        `json:"model"`
+	Messages  []chatMessage `json:"messages"`
+	MaxTokens int           `json:"max_tokens,omitempty"`
+	Stream    bool          `json:"stream,omitempty"`
 }
 
 type chatMessage struct {
@@ -283,11 +283,16 @@ func (s *AIModelService) SummarizeStream(userID uint, modelID uint, articles []A
 	if len(articles) == 0 {
 		return errors.New("没有可总结的文章")
 	}
+	msgs := BuildSummaryChatMessages(opts, articles)
+	return s.ChatCompletionStream(userID, modelID, 2000, msgs, onChunk)
+}
+
+// ChatCompletionStream 流式调用 OpenAI 兼容 chat/completions。
+func (s *AIModelService) ChatCompletionStream(userID uint, modelID uint, maxTokens int, messages []chatMessage, onChunk func(string) error) error {
 	m, err := s.GetByID(userID, modelID)
 	if err != nil {
 		return err
 	}
-	msgs := BuildSummaryChatMessages(opts, articles)
 	baseURL := strings.TrimSuffix(m.BaseURL, "/")
 	chatURL := baseURL
 	if !strings.HasSuffix(chatURL, "/chat/completions") {
@@ -295,9 +300,9 @@ func (s *AIModelService) SummarizeStream(userID uint, modelID uint, articles []A
 	}
 	body := chatCompletionsRequest{
 		Model:     m.Name,
-		MaxTokens: 2000,
+		MaxTokens: maxTokens,
 		Stream:    true,
-		Messages:  msgs,
+		Messages:  messages,
 	}
 	bodyBytes, err := json.Marshal(body)
 	if err != nil {

@@ -305,6 +305,79 @@ export const articlesApi = {
     id: number,
     body?: { ai_model_id?: number; ai_target_language?: string }
   ) => client.post<{ article: Article }>(`/articles/${id}/ai/translate`, body ?? {}),
+  /** 手动翻译（流式）：onChunk 逐段接收译文，最终 onDone 返回完整文章 */
+  manualAITranslateStream: async (
+    id: number,
+    body: { ai_model_id?: number; ai_target_language?: string },
+    callbacks: {
+      onChunk: (delta: string) => void;
+      onDone: (article: Article) => void;
+      onError: (message: string, aiLastError?: string) => void;
+    }
+  ): Promise<void> => {
+    const token = localStorage.getItem('token');
+    const base = client.defaults.baseURL ?? '/api';
+    const res = await fetch(`${base}/articles/${id}/ai/translate/stream`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token && { Authorization: `Bearer ${token}` }),
+      },
+      body: JSON.stringify(body ?? {}),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      callbacks.onError(
+        (data as { error?: string }).error || res.statusText,
+        (data as { ai_last_error?: string }).ai_last_error
+      );
+      return;
+    }
+    const reader = res.body?.getReader();
+    if (!reader) {
+      callbacks.onError('无法读取响应流');
+      return;
+    }
+    const dec = new TextDecoder();
+    let buf = '';
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        const lines = buf.split('\n');
+        buf = lines.pop() ?? '';
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed.startsWith('data:')) continue;
+          const data = trimmed.slice(5).trim();
+          if (!data || data === '[DONE]') continue;
+          try {
+            let obj: unknown = JSON.parse(data);
+            // Gin 传字符串时会二次 JSON 编码，需二次解析
+            if (typeof obj === 'string') obj = JSON.parse(obj);
+            const o = obj as Record<string, unknown>;
+            if (typeof o.delta === 'string') {
+              callbacks.onChunk(o.delta);
+            } else if (typeof o.error === 'string') {
+              callbacks.onError(
+                o.error,
+                typeof o.ai_last_error === 'string' ? o.ai_last_error : undefined
+              );
+              return;
+            } else if (o.article && typeof o.article === 'object') {
+              callbacks.onDone(o.article as Article);
+              return;
+            }
+          } catch {
+            // 忽略解析错误
+          }
+        }
+      }
+    } finally {
+      reader.releaseLock();
+    }
+  },
   /** 流式总结：通过 onChunk 逐段接收内容，onMeta 接收 article_count（onMetaAll 可选接收更多 meta） */
   summarizeStream: async (
     params: {

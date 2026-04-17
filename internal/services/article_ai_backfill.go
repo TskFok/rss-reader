@@ -95,14 +95,18 @@ func (p *ArticleAIProcessor) BackfillTranslateBatch(limit int, delayBetween time
 			continue
 		}
 		title := art.Title
-		body := plainFromHTMLForAI(art.Content)
-		body = truncateRunes(body, 12000)
+		bodyPlain := plainFromHTMLForAI(art.Content)
+		bodyPlain = truncateRunes(bodyPlain, 12000)
+		bodyHTML := truncateRunes(strings.TrimSpace(art.Content), 20000)
+		if bodyHTML == "" {
+			bodyHTML = bodyPlain
+		}
 		mid := *f.AIModelID
 		if f.AIClassifyEnabled && f.AITranslateEnabled {
 			cat := strings.TrimSpace(art.AICategory)
-			p.translateWithOptionalCategory(f.UserID, mid, &f, art.ID, title, body, cat)
+			p.translateWithOptionalCategory(f.UserID, mid, &f, art.ID, title, bodyPlain, bodyHTML, cat)
 		} else {
-			p.runTranslateOnly(f.UserID, mid, &f, art.ID, title, body)
+			p.runTranslateOnly(f.UserID, mid, &f, art.ID, title, bodyPlain, bodyHTML)
 		}
 		var after models.Article
 		_ = p.db.First(&after, art.ID).Error

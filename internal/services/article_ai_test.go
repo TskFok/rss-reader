@@ -2,14 +2,15 @@ package services
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
+	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/ushopal/rss-reader/internal/models"
-	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
 )
 
@@ -83,10 +84,14 @@ func TestArticleAIProcessor_run_ClassifyOnly(t *testing.T) {
 
 func TestArticleAIProcessor_run_TranslateOnly(t *testing.T) {
 	db := setupArticleAIDB(t)
+	var requestBody string
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		raw, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
+		requestBody = string(raw)
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"choices": []map[string]any{
-				{"message": map[string]string{"content": `{"title_translated":"T","content_translated":"B"}`}},
+				{"message": map[string]string{"content": `{"title_translated":"T","content_translated":"<p>译文<img src=\"https://cdn.example.com/a.jpg\"></p>"}`}},
 			},
 		})
 	}))
@@ -106,7 +111,13 @@ func TestArticleAIProcessor_run_TranslateOnly(t *testing.T) {
 		AITargetLanguage:      "en",
 	}
 	require.NoError(t, db.Create(&feed).Error)
-	art := models.Article{FeedID: feed.ID, GUID: models.ArticleGUIDHash("g2"), GUIDRaw: "g2", Title: "标题", Content: "正文"}
+	art := models.Article{
+		FeedID:  feed.ID,
+		GUID:    models.ArticleGUIDHash("g2"),
+		GUIDRaw: "g2",
+		Title:   "标题",
+		Content: `<p>正文<img src="https://cdn.example.com/a.jpg"></p>`,
+	}
 	require.NoError(t, db.Create(&art).Error)
 
 	p := NewArticleAIProcessor(db, NewAIModelService(db))
@@ -116,7 +127,15 @@ func TestArticleAIProcessor_run_TranslateOnly(t *testing.T) {
 	require.NoError(t, db.First(&out, art.ID).Error)
 	assert.Equal(t, models.AIProcessDone, out.AIProcessStatus)
 	assert.Equal(t, "T", out.TitleTranslated)
-	assert.Equal(t, "B", out.ContentTranslated)
+	assert.Equal(t, `<p>译文<img src="https://cdn.example.com/a.jpg"></p>`, out.ContentTranslated)
+	assert.Contains(t, requestBody, `Body HTML:\n<p>正文<img src=\"https://cdn.example.com/a.jpg\"></p>`)
+	assert.Contains(t, requestBody, `Body plain text (for reference):\n正文`)
+}
+
+func TestBuildTranslateSystemPrompt_PreservesHTML(t *testing.T) {
+	s := buildTranslateSystemPrompt("en", false)
+	assert.Contains(t, s, "preserve the original HTML structure")
+	assert.Contains(t, s, "Do not drop elements")
 }
 
 func TestArticleAIProcessor_run_ClassifyThenTranslate(t *testing.T) {

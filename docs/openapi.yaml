@@ -13,6 +13,8 @@ servers:
 tags:
   - name: auth
     description: 登录与飞书 OAuth
+  - name: categories
+    description: 订阅分类
   - name: feeds
     description: 订阅
   - name: articles
@@ -148,6 +150,142 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
+  /categories:
+    get:
+      tags: [categories]
+      summary: 订阅分类列表
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: 成功返回当前用户的分类列表，按排序号升序
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/FeedCategory'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      tags: [categories]
+      summary: 创建订阅分类
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CategoryUpsertRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FeedCategory'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          description: 分类名称重复
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+
+  /categories/reorder:
+    put:
+      tags: [categories]
+      summary: 调整订阅分类排序
+      description: 按 `id_list` 顺序重排当前用户的分类，数组越靠前排序越靠前。
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CategoryReorderRequest'
+      responses:
+        '200':
+          description: 排序更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /categories/{id}:
+    put:
+      tags: [categories]
+      summary: 更新订阅分类
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+          description: 分类 ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CategoryUpsertRequest'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FeedCategory'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: 分类不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '409':
+          description: 分类名称重复
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+    delete:
+      tags: [categories]
+      summary: 删除订阅分类
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+          description: 分类 ID
+      responses:
+        '200':
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: 分类不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+
   /articles:
     get:
       tags: [articles]
@@ -212,6 +350,57 @@ paths:
         '404':
           $ref: '#/components/responses/Error'
 
+  /articles/{id}/ai/translate:
+    post:
+      tags: [articles]
+      summary: 手动翻译文章
+      description: |
+        对单篇文章执行同步 AI 翻译。
+        `ai_model_id` 与 `ai_target_language` 都是可选字段：
+        - 不传 `ai_model_id` 时，使用该文章所属订阅上配置的默认 AI 模型
+        - 不传 `ai_target_language` 或传空串时，使用订阅上配置的默认翻译目标语言
+        - 若文章已有译文，接口会返回错误
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+          description: 文章 ID
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ManualArticleTranslateRequest'
+      responses:
+        '200':
+          description: 翻译成功，返回最新文章内容
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArticleEnvelope'
+        '400':
+          description: 参数错误、缺少模型/目标语言、文章已有译文、AI 正在处理中，或模型调用失败
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AIErrorBody'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: 文章不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AIErrorBody'
+        '503':
+          description: AI 服务不可用
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+
   /summary-histories:
     get:
       tags: [summary-histories]
@@ -266,6 +455,15 @@ components:
         error:
           type: string
 
+    AIErrorBody:
+      type: object
+      properties:
+        error:
+          type: string
+        ai_last_error:
+          type: string
+          description: 当服务端已记录最近一次模型失败原因时返回
+
     LoginResult:
       type: object
       properties:
@@ -280,6 +478,12 @@ components:
         message:
           type: string
 
+    ArticleEnvelope:
+      type: object
+      properties:
+        article:
+          $ref: '#/components/schemas/Article'
+
     User:
       type: object
       properties:
@@ -290,6 +494,36 @@ components:
         feishu_id: { type: string, nullable: true }
         feishu_name: { type: string, nullable: true }
         created_at: { type: string, format: date-time }
+
+    FeedCategory:
+      type: object
+      properties:
+        id: { type: integer }
+        user_id: { type: integer }
+        name: { type: string, maxLength: 64 }
+        sort_order: { type: integer }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    CategoryUpsertRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 64
+          description: 分类名称，服务端会自动去除首尾空白
+
+    CategoryReorderRequest:
+      type: object
+      required: [id_list]
+      properties:
+        id_list:
+          type: array
+          description: 当前用户分类 ID 的完整有序列表
+          items:
+            type: integer
 
     Feed:
       type: object
@@ -323,7 +557,9 @@ components:
         ai_category: { type: string }
         ai_category_translated: { type: string }
         title_translated: { type: string }
-        content_translated: { type: string }
+        content_translated:
+          type: string
+          description: 译文正文；新翻译结果会尽量保留原始 HTML 结构与媒体/嵌入节点，旧数据也可能仍是纯文本
         published_at: { type: string, format: date-time, nullable: true }
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
@@ -334,6 +570,19 @@ components:
         feed_ai_classify_enabled: { type: boolean }
         feed_ai_model_id: { type: integer, nullable: true }
         feed_ai_target_language: { type: string }
+
+    ManualArticleTranslateRequest:
+      type: object
+      properties:
+        ai_model_id:
+          type: integer
+          nullable: true
+          description: 可选，临时覆盖订阅默认 AI 模型
+        ai_target_language:
+          type: string
+          description: |
+            可选，临时覆盖订阅默认翻译目标语言。
+            允许值与服务端一致：`zh-CN`、`en`、`fr`、`de`、`ar`
 
     SummaryHistoryItem:
       type: object

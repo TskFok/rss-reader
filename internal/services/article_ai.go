@@ -14,15 +14,20 @@ import (
 
 // 手动 AI 分类/翻译
 var (
-	ErrManualAINoModel             = errors.New("请先在订阅中选择 AI 模型")
-	ErrManualAINoTargetLang        = errors.New("请先在订阅中设置翻译目标语言")
-	ErrManualAIAlreadyClassified   = errors.New("该文章已有 AI 分类")
-	ErrManualAIAlreadyTranslated   = errors.New("该文章已有译文")
-	ErrManualAIPending             = errors.New("AI 正在处理中，请稍后再试")
-	ErrManualAIInvalidTargetLang   = errors.New("不支持的目标语言，请选择：中文、英语、法语、德语、阿拉伯语")
+	ErrManualAINoModel           = errors.New("请先在订阅中选择 AI 模型")
+	ErrManualAINoTargetLang      = errors.New("请先在订阅中设置翻译目标语言")
+	ErrManualAIAlreadyClassified = errors.New("该文章已有 AI 分类")
+	ErrManualAIAlreadyTranslated = errors.New("该文章已有译文")
+	ErrManualAIPending           = errors.New("AI 正在处理中，请稍后再试")
+	ErrManualAIInvalidTargetLang = errors.New("不支持的目标语言，请选择：中文、英语、法语、德语、阿拉伯语")
 )
 
 var articleAIHTMLTagRe = regexp.MustCompile(`<[^>]*>`)
+
+const (
+	translateStreamTitleMarker   = "[[[TITLE]]]"
+	translateStreamContentMarker = "[[[CONTENT_HTML]]]"
+)
 
 // ArticleAIProcessor 在新文章入库后异步调用 AI 做分类/翻译
 type ArticleAIProcessor struct {
@@ -130,14 +135,31 @@ func buildTranslateSystemPrompt(targetLang string, withCategoryHint bool) string
 	if withCategoryHint {
 		b.WriteString("Fields: \"category_translated\" (same meaning as the topic label, in ")
 		b.WriteString(targetLang)
-		b.WriteString("), \"title_translated\", \"content_translated\" (plain text, not HTML; translate title and body to ")
+		b.WriteString("), \"title_translated\", \"content_translated\" (an HTML fragment translated to ")
 		b.WriteString(targetLang)
 		b.WriteString(").\n")
 	} else {
-		b.WriteString("Fields: \"title_translated\", \"content_translated\" only — plain text translation to ")
+		b.WriteString("Fields: \"title_translated\", \"content_translated\" only — translate to ")
 		b.WriteString(targetLang)
-		b.WriteString(".\n")
+		b.WriteString(", and return \"content_translated\" as an HTML fragment.\n")
 	}
+	b.WriteString("For \"content_translated\", preserve the original HTML structure, element order, links, image/audio/video/iframe/embed nodes, attributes, and non-text elements. Only translate human-readable text content inside the HTML. Do not drop elements. Do not convert HTML to Markdown or plain text.\n")
+	return b.String()
+}
+
+func buildTranslateStreamSystemPrompt(targetLang string) string {
+	var b strings.Builder
+	b.WriteString("You are a helper for an RSS reader.\n")
+	b.WriteString("Translate the provided title and HTML body into ")
+	b.WriteString(targetLang)
+	b.WriteString(".\n")
+	b.WriteString("For body translation, preserve the original HTML structure, element order, links, image/audio/video/iframe/embed nodes, attributes, and non-text elements. Only translate human-readable text content inside the HTML.\n")
+	b.WriteString("Do not add explanations or markdown code fences.\n")
+	b.WriteString("Return output in the exact format below:\n")
+	b.WriteString(translateStreamTitleMarker + "\n")
+	b.WriteString("<translated title>\n")
+	b.WriteString(translateStreamContentMarker + "\n")
+	b.WriteString("<translated html fragment>\n")
 	return b.String()
 }
 
@@ -166,30 +188,34 @@ func (p *ArticleAIProcessor) run(userID uint, feed models.Feed, articleID uint) 
 	modelID := *f.AIModelID
 
 	title := art.Title
-	body := plainFromHTMLForAI(art.Content)
-	body = truncateRunes(body, 12000)
+	bodyPlain := plainFromHTMLForAI(art.Content)
+	bodyPlain = truncateRunes(bodyPlain, 12000)
+	bodyHTML := truncateRunes(strings.TrimSpace(art.Content), 20000)
+	if bodyHTML == "" {
+		bodyHTML = bodyPlain
+	}
 
 	// 同时开启分类+翻译：分两次模型调用。分类先落库，再异步完成翻译（仍在 Enqueue 的 goroutine 内，不阻塞 RSS 入库 Create）。
 	if f.AIClassifyEnabled && f.AITranslateEnabled {
-		p.runClassifyThenTranslate(userID, modelID, &f, articleID, title, body)
+		p.runClassifyThenTranslate(userID, modelID, &f, articleID, title, bodyPlain, bodyHTML)
 		return
 	}
 
 	if f.AIClassifyEnabled {
-		p.runClassifyOnly(userID, modelID, articleID, title, body)
+		p.runClassifyOnly(userID, modelID, articleID, title, bodyPlain)
 		return
 	}
 
-	p.runTranslateOnly(userID, modelID, &f, articleID, title, body)
+	p.runTranslateOnly(userID, modelID, &f, articleID, title, bodyPlain, bodyHTML)
 }
 
-func (p *ArticleAIProcessor) translateWithOptionalCategory(userID uint, modelID uint, f *models.Feed, articleID uint, title, body, categoryLine string) {
+func (p *ArticleAIProcessor) translateWithOptionalCategory(userID uint, modelID uint, f *models.Feed, articleID uint, title, bodyPlain, bodyHTML, categoryLine string) {
 	target := f.AITargetLanguage
 	topic := strings.TrimSpace(categoryLine)
 	withHint := topic != ""
 	msgs := []chatMessage{
 		{Role: "system", Content: buildTranslateSystemPrompt(target, withHint)},
-		{Role: "user", Content: buildTranslateUserContent(topic, title, body)},
+		{Role: "user", Content: buildTranslateUserContent(topic, title, bodyHTML, bodyPlain)},
 	}
 	raw, err := p.ai.ChatCompletionText(userID, modelID, 8192, msgs)
 	if err != nil {
@@ -217,12 +243,52 @@ func (p *ArticleAIProcessor) translateWithOptionalCategory(userID uint, modelID 
 	_ = p.db.Model(&models.Article{}).Where("id = ?", articleID).Updates(updates).Error
 }
 
-func buildTranslateUserContent(topicLine, title, body string) string {
-	userTr := "Title:\n" + title + "\n\nBody:\n" + body
+func buildTranslateUserContent(topicLine, title, bodyHTML, bodyPlain string) string {
+	userTr := "Title:\n" + title + "\n\nBody HTML:\n" + bodyHTML
+	if strings.TrimSpace(bodyPlain) != "" && bodyPlain != bodyHTML {
+		userTr += "\n\nBody plain text (for reference):\n" + bodyPlain
+	}
 	if strings.TrimSpace(topicLine) != "" {
 		userTr = "Topic label:\n" + strings.TrimSpace(topicLine) + "\n\n" + userTr
 	}
 	return userTr
+}
+
+func buildTranslateStreamUserContent(topicLine, title, bodyHTML, bodyPlain string) string {
+	return buildTranslateUserContent(topicLine, title, bodyHTML, bodyPlain)
+}
+
+func stripMarkdownFence(s string) string {
+	s = strings.TrimSpace(s)
+	if !strings.HasPrefix(s, "```") {
+		return s
+	}
+	if i := strings.Index(s, "\n"); i >= 0 {
+		s = s[i+1:]
+	}
+	if j := strings.LastIndex(s, "```"); j >= 0 {
+		s = s[:j]
+	}
+	return strings.TrimSpace(s)
+}
+
+func parseTranslateStreamOutput(raw string) (titleTranslated string, contentTranslated string) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return "", ""
+	}
+	contentIdx := strings.Index(raw, translateStreamContentMarker)
+	if contentIdx < 0 {
+		return "", stripMarkdownFence(raw)
+	}
+	titleIdx := strings.Index(raw, translateStreamTitleMarker)
+	if titleIdx >= 0 && titleIdx < contentIdx {
+		titleTranslated = strings.TrimSpace(raw[titleIdx+len(translateStreamTitleMarker) : contentIdx])
+		titleTranslated = stripMarkdownFence(titleTranslated)
+	}
+	contentTranslated = strings.TrimSpace(raw[contentIdx+len(translateStreamContentMarker):])
+	contentTranslated = stripMarkdownFence(contentTranslated)
+	return strings.TrimSpace(titleTranslated), strings.TrimSpace(contentTranslated)
 }
 
 func (p *ArticleAIProcessor) runClassifyOnly(userID uint, modelID uint, articleID uint, title, body string) {
@@ -252,14 +318,14 @@ func (p *ArticleAIProcessor) runClassifyOnly(userID uint, modelID uint, articleI
 	_ = p.db.Model(&models.Article{}).Where("id = ?", articleID).Updates(updates).Error
 }
 
-func (p *ArticleAIProcessor) runTranslateOnly(userID uint, modelID uint, f *models.Feed, articleID uint, title, body string) {
-	p.translateWithOptionalCategory(userID, modelID, f, articleID, title, body, "")
+func (p *ArticleAIProcessor) runTranslateOnly(userID uint, modelID uint, f *models.Feed, articleID uint, title, bodyPlain, bodyHTML string) {
+	p.translateWithOptionalCategory(userID, modelID, f, articleID, title, bodyPlain, bodyHTML, "")
 }
 
-func (p *ArticleAIProcessor) runClassifyThenTranslate(userID uint, modelID uint, f *models.Feed, articleID uint, title, body string) {
+func (p *ArticleAIProcessor) runClassifyThenTranslate(userID uint, modelID uint, f *models.Feed, articleID uint, title, bodyPlain, bodyHTML string) {
 	msgsClassify := []chatMessage{
 		{Role: "system", Content: buildClassifySystemPrompt()},
-		{Role: "user", Content: "Title:\n" + title + "\n\nBody:\n" + body},
+		{Role: "user", Content: "Title:\n" + title + "\n\nBody:\n" + bodyPlain},
 	}
 	raw, err := p.ai.ChatCompletionText(userID, modelID, 4096, msgsClassify)
 	if err != nil {
@@ -291,7 +357,7 @@ func (p *ArticleAIProcessor) runClassifyThenTranslate(userID uint, modelID uint,
 		return
 	}
 
-	p.translateWithOptionalCategory(userID, modelID, f, articleID, title, body, cat)
+	p.translateWithOptionalCategory(userID, modelID, f, articleID, title, bodyPlain, bodyHTML, cat)
 }
 
 // ManualClassify 同步手动分类（文章尚无分类）。overrideModelID 非空时使用该模型（须属于当前用户），否则使用订阅默认模型。
@@ -371,10 +437,123 @@ func (p *ArticleAIProcessor) ManualTranslate(userID uint, articleID uint, overri
 	mid := modelID
 	ff.AIModelID = &mid
 	title := art.Title
-	body := plainFromHTMLForAI(art.Content)
-	body = truncateRunes(body, 12000)
-	p.translateWithOptionalCategory(userID, modelID, &ff, articleID, title, body, strings.TrimSpace(art.AICategory))
+	bodyPlain := plainFromHTMLForAI(art.Content)
+	bodyPlain = truncateRunes(bodyPlain, 12000)
+	bodyHTML := truncateRunes(strings.TrimSpace(art.Content), 20000)
+	if bodyHTML == "" {
+		bodyHTML = bodyPlain
+	}
+	p.translateWithOptionalCategory(userID, modelID, &ff, articleID, title, bodyPlain, bodyHTML, strings.TrimSpace(art.AICategory))
 	return p.errIfArticleAIFailed(articleID)
+}
+
+// ManualTranslateStream 流式手动翻译（仅当文章尚无译文）。
+func (p *ArticleAIProcessor) ManualTranslateStream(userID uint, articleID uint, overrideModelID *uint, overrideTargetLang string, onChunk func(string) error) error {
+	if p == nil || p.db == nil || p.ai == nil {
+		return errors.New("AI 服务不可用")
+	}
+	var art models.Article
+	if err := p.db.Preload("Feed").First(&art, articleID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrArticleNotFound
+		}
+		return err
+	}
+	f := art.Feed
+	if f.UserID != userID {
+		return ErrArticleNotFound
+	}
+	if art.AIProcessStatus == models.AIProcessPending {
+		return ErrManualAIPending
+	}
+	if strings.TrimSpace(art.TitleTranslated) != "" || strings.TrimSpace(art.ContentTranslated) != "" {
+		return ErrManualAIAlreadyTranslated
+	}
+	modelID, err := p.resolveManualModelID(userID, &f, overrideModelID)
+	if err != nil {
+		return err
+	}
+	ol := strings.TrimSpace(overrideTargetLang)
+	var targetLang string
+	if ol != "" {
+		if !isAllowedManualTargetLang(ol) {
+			return ErrManualAIInvalidTargetLang
+		}
+		targetLang = ol
+	} else {
+		targetLang = strings.TrimSpace(f.AITargetLanguage)
+	}
+	if targetLang == "" {
+		return ErrManualAINoTargetLang
+	}
+	title := art.Title
+	bodyPlain := plainFromHTMLForAI(art.Content)
+	bodyPlain = truncateRunes(bodyPlain, 12000)
+	bodyHTML := truncateRunes(strings.TrimSpace(art.Content), 20000)
+	if bodyHTML == "" {
+		bodyHTML = bodyPlain
+	}
+	if err := p.db.Model(&models.Article{}).Where("id = ?", articleID).Updates(map[string]interface{}{
+		"ai_process_status": models.AIProcessPending,
+		"ai_last_error":     "",
+	}).Error; err != nil {
+		return err
+	}
+
+	topic := strings.TrimSpace(art.AICategory)
+	msgs := []chatMessage{
+		{Role: "system", Content: buildTranslateStreamSystemPrompt(targetLang)},
+		{Role: "user", Content: buildTranslateStreamUserContent(topic, title, bodyHTML, bodyPlain)},
+	}
+
+	var raw strings.Builder
+	contentStart := -1
+	sentLen := 0
+	err = p.ai.ChatCompletionStream(userID, modelID, 8192, msgs, func(delta string) error {
+		raw.WriteString(delta)
+		buf := raw.String()
+		if contentStart < 0 {
+			idx := strings.Index(buf, translateStreamContentMarker)
+			if idx < 0 {
+				return nil
+			}
+			contentStart = idx + len(translateStreamContentMarker)
+		}
+		if onChunk == nil {
+			return nil
+		}
+		content := buf[contentStart:]
+		if sentLen >= len(content) {
+			return nil
+		}
+		out := content[sentLen:]
+		sentLen = len(content)
+		if out == "" {
+			return nil
+		}
+		return onChunk(out)
+	})
+	if err != nil {
+		p.applyAIFailed(articleID, err.Error())
+		return err
+	}
+
+	titleTranslated, contentTranslated := parseTranslateStreamOutput(raw.String())
+	contentTranslated = truncateRunes(strings.TrimSpace(contentTranslated), 200000)
+	if contentTranslated == "" {
+		p.applyAIFailed(articleID, "解析模型流式输出失败")
+		return errors.New("解析模型流式输出失败")
+	}
+	updates := map[string]interface{}{
+		"ai_process_status":  models.AIProcessDone,
+		"ai_last_error":      "",
+		"title_translated":   truncateRunes(strings.TrimSpace(titleTranslated), 1000),
+		"content_translated": contentTranslated,
+	}
+	if err := p.db.Model(&models.Article{}).Where("id = ?", articleID).Updates(updates).Error; err != nil {
+		return err
+	}
+	return nil
 }
 
 func isAllowedManualTargetLang(code string) bool {

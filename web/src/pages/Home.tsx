@@ -424,6 +424,10 @@ export default function Home() {
               <div className="article-detail-actions">
                 <ArticleManualAI
                   article={selected}
+                  onTranslateStart={() => {
+                    setStoredArticleLang('translated');
+                    setArticleDisplayLang('translated');
+                  }}
                   onArticlePatched={(next) => {
                     setArticles((prev) =>
                       prev.map((x) => (x.id === next.id ? { ...x, ...next } : x))

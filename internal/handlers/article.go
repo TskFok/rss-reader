@@ -197,3 +197,57 @@ func (h *ArticleHandler) ManualAITranslate(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{"article": ar})
 }
+
+// ManualAITranslateStream POST /api/articles/:id/ai/translate/stream
+func (h *ArticleHandler) ManualAITranslateStream(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的 ID"})
+		return
+	}
+	if h.articleAI == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "AI 服务不可用"})
+		return
+	}
+	var body manualAIBody
+	if err := bindManualAIBody(c, &body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
+		return
+	}
+
+	c.Header("Content-Type", "text/event-stream")
+	c.Header("Cache-Control", "no-cache")
+	c.Header("Connection", "keep-alive")
+	c.Header("X-Accel-Buffering", "no")
+	c.Writer.Flush()
+
+	err = h.articleAI.ManualTranslateStream(userID, uint(id), body.AIModelID, body.AITargetLanguage, func(delta string) error {
+		c.SSEvent("", map[string]string{"delta": delta})
+		c.Writer.Flush()
+		return nil
+	})
+	if err != nil {
+		payload := gin.H{"error": err.Error()}
+		if ar, errGet := h.articleSvc.GetWithRead(userID, uint(id)); errGet == nil && strings.TrimSpace(ar.AILastError) != "" {
+			payload["ai_last_error"] = strings.TrimSpace(ar.AILastError)
+		}
+		c.SSEvent("", payload)
+		c.Writer.Flush()
+		return
+	}
+
+	ar, err := h.articleSvc.GetWithRead(userID, uint(id))
+	if err != nil {
+		if errors.Is(err, services.ErrArticleNotFound) {
+			c.SSEvent("", map[string]string{"error": "文章不存在"})
+			c.Writer.Flush()
+			return
+		}
+		c.SSEvent("", map[string]string{"error": "获取文章失败"})
+		c.Writer.Flush()
+		return
+	}
+	c.SSEvent("", gin.H{"article": ar})
+	c.Writer.Flush()
+}
