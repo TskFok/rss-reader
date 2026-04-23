@@ -87,6 +87,7 @@ func TestSummaryHistoryHandler_Retry_OverwritesHistory(t *testing.T) {
 		Error:        "boom",
 	})
 	require.NoError(t, err)
+	createdAtBeforeRetry := old.CreatedAt
 
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/api/summary-histories/"+strconv.FormatUint(uint64(old.ID), 10)+"/retry", nil))
@@ -103,5 +104,6 @@ func TestSummaryHistoryHandler_Retry_OverwritesHistory(t *testing.T) {
 	assert.Equal(t, "", h.Error)
 	assert.Equal(t, 1, h.ArticleCount)
 	assert.Equal(t, int64(1), h.Total)
+	assert.True(t, h.CreatedAt.Equal(createdAtBeforeRetry), "retry should not change created_at to preserve history order")
 }
 

@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -15,6 +16,10 @@ import (
 )
 
 func setupSummaryRunnerDB(t *testing.T) *gorm.DB {
+	// 避免测试默认等待真实重试间隔；需要验证间隔的用例会自行覆盖该值。
+	summaryAutoRetryDelays = nil
+	summaryAutoRetrySleep = func(time.Duration) {}
+
 	db, err := gorm.Open(sqlite.Open("file:"+t.Name()+"?mode=memory&cache=shared"), &gorm.Config{})
 	require.NoError(t, err)
 	require.NoError(t, db.AutoMigrate(
@@ -353,5 +358,118 @@ func TestRunDailySummaryForYesterday_ModelNotFoundShowsUnknown(t *testing.T) {
 	call := mockBot.sendCalls[0]
 	assert.Contains(t, call.content, "(未知)")
 	assert.Contains(t, call.content, "ID: 999")
+}
+
+func TestRunDailySummaryForYesterday_AutoRetryUntilSuccess(t *testing.T) {
+	db := setupSummaryRunnerDB(t)
+	articleSvc := NewArticleService(db)
+	historySvc := NewSummaryHistoryService(db)
+	aiModelSvc := NewAIModelService(db)
+
+	var callCount int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n := atomic.AddInt32(&callCount, 1)
+		if n <= 2 {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"choices":[{"message":{"content":"第三次成功"}}]}`))
+	}))
+	defer server.Close()
+
+	u := models.User{Username: "retry-user", PasswordHash: "h", Status: models.UserStatusActive}
+	require.NoError(t, db.Create(&u).Error)
+	m := models.AIModel{UserID: u.ID, Name: "retry-model", BaseURL: server.URL}
+	require.NoError(t, db.Create(&m).Error)
+	feed := models.Feed{UserID: u.ID, URL: "http://example.com", Title: "F", UpdateIntervalMinutes: 60, ExpireDays: 0}
+	require.NoError(t, db.Create(&feed).Error)
+
+	loc, _ := time.LoadLocation("Asia/Shanghai")
+	now := time.Date(2026, 3, 11, 10, 0, 0, 0, loc)
+	y := now.AddDate(0, 0, -1)
+	t1 := time.Date(y.Year(), y.Month(), y.Day(), 9, 0, 0, 0, loc)
+	a1 := models.Article{FeedID: feed.ID, GUID: models.ArticleGUIDHash("g1"), GUIDRaw: "g1", Title: "a1", Content: "c1", PublishedAt: &t1}
+	require.NoError(t, db.Create(&a1).Error)
+
+	oldSleep := summaryAutoRetrySleep
+	oldDelays := summaryAutoRetryDelays
+	defer func() { summaryAutoRetrySleep = oldSleep }()
+	defer func() { summaryAutoRetryDelays = oldDelays }()
+	summaryAutoRetryDelays = []time.Duration{time.Minute, 3 * time.Minute, 10 * time.Minute, 60 * time.Minute}
+	var slept []time.Duration
+	summaryAutoRetrySleep = func(d time.Duration) {
+		slept = append(slept, d)
+	}
+
+	mockBot := &mockFeishuBotClient{}
+	err := RunDailySummaryForYesterday(u.ID, aiModelSvc, articleSvc, historySvc, m.ID, []uint{feed.ID}, 1, "desc", now, loc, mockBot, db, nil, nil, "")
+	require.NoError(t, err)
+
+	assert.Equal(t, int32(3), atomic.LoadInt32(&callCount))
+	assert.Equal(t, []time.Duration{time.Minute, 3 * time.Minute}, slept)
+	assert.Len(t, mockBot.sendCalls, 0)
+
+	var history models.AISummaryHistory
+	require.NoError(t, db.Where("user_id = ?", u.ID).First(&history).Error)
+	assert.Equal(t, "第三次成功", history.Content)
+	assert.Equal(t, "", history.Error)
+}
+
+func TestRunDailySummaryForYesterday_AutoRetryStopsAfterFourFailures(t *testing.T) {
+	db := setupSummaryRunnerDB(t)
+	articleSvc := NewArticleService(db)
+	historySvc := NewSummaryHistoryService(db)
+	aiModelSvc := NewAIModelService(db)
+
+	var callCount int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&callCount, 1)
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	u := models.User{
+		Username:         "retry-fail-user",
+		PasswordHash:     "h",
+		Status:           models.UserStatusActive,
+		FeishuBotWebhook: "https://open.feishu.cn/webhook/test",
+	}
+	require.NoError(t, db.Create(&u).Error)
+	m := models.AIModel{UserID: u.ID, Name: "retry-fail-model", BaseURL: server.URL}
+	require.NoError(t, db.Create(&m).Error)
+	feed := models.Feed{UserID: u.ID, URL: "http://example.com", Title: "F", UpdateIntervalMinutes: 60, ExpireDays: 0}
+	require.NoError(t, db.Create(&feed).Error)
+
+	loc, _ := time.LoadLocation("Asia/Shanghai")
+	now := time.Date(2026, 3, 11, 10, 0, 0, 0, loc)
+	y := now.AddDate(0, 0, -1)
+	t1 := time.Date(y.Year(), y.Month(), y.Day(), 9, 0, 0, 0, loc)
+	a1 := models.Article{FeedID: feed.ID, GUID: models.ArticleGUIDHash("g1"), GUIDRaw: "g1", Title: "a1", Content: "c1", PublishedAt: &t1}
+	require.NoError(t, db.Create(&a1).Error)
+
+	oldSleep := summaryAutoRetrySleep
+	oldDelays := summaryAutoRetryDelays
+	defer func() { summaryAutoRetrySleep = oldSleep }()
+	defer func() { summaryAutoRetryDelays = oldDelays }()
+	summaryAutoRetryDelays = []time.Duration{time.Minute, 3 * time.Minute, 10 * time.Minute, 60 * time.Minute}
+	var slept []time.Duration
+	summaryAutoRetrySleep = func(d time.Duration) {
+		slept = append(slept, d)
+	}
+
+	mockBot := &mockFeishuBotClient{}
+	err := RunDailySummaryForYesterday(u.ID, aiModelSvc, articleSvc, historySvc, m.ID, []uint{feed.ID}, 1, "desc", now, loc, mockBot, db, nil, nil, "")
+	require.NoError(t, err)
+
+	assert.Equal(t, int32(5), atomic.LoadInt32(&callCount))
+	assert.Equal(t, []time.Duration{time.Minute, 3 * time.Minute, 10 * time.Minute, 60 * time.Minute}, slept)
+	require.Len(t, mockBot.sendCalls, 1)
+
+	var history models.AISummaryHistory
+	require.NoError(t, db.Where("user_id = ?", u.ID).First(&history).Error)
+	assert.Equal(t, "", history.Content)
+	assert.NotEmpty(t, history.Error)
 }
 

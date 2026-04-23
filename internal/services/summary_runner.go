@@ -15,6 +15,15 @@ import (
 
 const feishuAlertErrMaxLen = 500
 
+var summaryAutoRetryDelays = []time.Duration{
+	time.Minute,
+	3 * time.Minute,
+	10 * time.Minute,
+	60 * time.Minute,
+}
+
+var summaryAutoRetrySleep = time.Sleep
+
 // RunDailySummaryForYesterday 执行一次“昨天”的分页总结，直到某页文章数为 0。
 // 每页生成一条总结历史记录。
 // feishuBot 为 nil 时不发送飞书告警；db 在 feishuBot 非 nil 时用于查询用户 Webhook 和模型信息。
@@ -71,7 +80,9 @@ func RunDailySummaryForYesterday(
 		if len(items) == 0 {
 			break
 		}
-		content, sumErr := aiModelSvc.Summarize(userID, aiModelID, items, prompt)
+		content, sumErr := summarizeWithAutoRetry(func() (string, error) {
+			return aiModelSvc.Summarize(userID, aiModelID, items, prompt)
+		})
 		errStr := ""
 		if sumErr != nil {
 			errStr = sumErr.Error()
@@ -121,6 +132,23 @@ func RunDailySummaryForYesterday(
 		}
 	}
 	return nil
+}
+
+func summarizeWithAutoRetry(runOnce func() (string, error)) (string, error) {
+	content, err := runOnce()
+	if err == nil {
+		return content, nil
+	}
+	for _, delay := range summaryAutoRetryDelays {
+		if delay > 0 {
+			summaryAutoRetrySleep(delay)
+		}
+		content, err = runOnce()
+		if err == nil {
+			return content, nil
+		}
+	}
+	return content, err
 }
 
 // trySendFeishuAlert 在定时总结失败时尝试发送飞书告警，仅当用户配置了 Webhook 时发送。

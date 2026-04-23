@@ -164,13 +164,11 @@ func (h *SummaryHistoryHandler) Retry(c *gin.Context) {
 		errStr = sumErr.Error()
 	}
 
-	now := time.Now()
 	updated, updateErr := h.svc.UpdateResult(userID, his.ID, services.UpdateSummaryHistoryResultRequest{
 		ArticleCount: len(articles),
 		Total:        total,
 		Content:      content,
 		Error:        errStr,
-		CreatedAt:    &now,
 	})
 	if updateErr != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "保存失败"})
