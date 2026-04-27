@@ -1,48 +1,2259 @@
-/* NiceAdmin 风格主题变量 (Shadcn/Tailwind 风格) */
+/* NiceAdmin 风格主题变量 (Shadcn/Tailwind 风格) + Glassmorphism */
 :root {
-  --nice-admin-sidebar-bg: #ffffff;
+  --app-mesh-a: #e8f4fc;
+  --app-mesh-b: #e9e3ff;
+  --app-mesh-c: #fce7f3;
+  --glass-surface: rgba(255, 255, 255, 0.52);
+  --glass-surface-strong: rgba(255, 255, 255, 0.7);
+  --glass-border: rgba(255, 255, 255, 0.55);
+  --glass-border-outer: rgba(15, 23, 42, 0.1);
+  --glass-shadow: 0 8px 32px rgba(15, 23, 42, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.65);
+  --glass-blur: blur(20px) saturate(1.45);
+  --nice-admin-sidebar-bg: var(--glass-surface-strong);
   --nice-admin-sidebar-text: #0f172a;
   --nice-admin-sidebar-active: #3b82f6;
   --nice-admin-sidebar-hover: rgba(15, 23, 42, 0.06);
-  --nice-admin-header-bg: #ffffff;
-  --nice-admin-header-border: #e2e8f0;
-  --nice-admin-content-bg: #f8fafc;
-  --nice-admin-card-bg: #ffffff;
-  --nice-admin-card-border: #e2e8f0;
+  --nice-admin-header-bg: var(--glass-surface-strong);
+  --nice-admin-header-border: rgba(148, 163, 184, 0.22);
+  --nice-admin-content-bg: transparent;
+  --nice-admin-card-bg: var(--glass-surface);
+  --nice-admin-card-border: rgba(148, 163, 184, 0.28);
   --nice-admin-text: #0f172a;
   --nice-admin-text-muted: #64748b;
   --nice-admin-primary: #3b82f6;
   --nice-admin-primary-hover: #2563eb;
-  --nice-admin-input-bg: #ffffff;
-  --nice-admin-input-border: #e2e8f0;
+  --nice-admin-input-bg: rgba(255, 255, 255, 0.82);
+  --nice-admin-input-border: rgba(148, 163, 184, 0.35);
   --nice-admin-danger: #ef4444;
   --nice-admin-success: #22c55e;
-  --nice-admin-subtle-bg: #f8fafc;
-  --nice-admin-hover-bg: #f1f5f9;
-  --nice-admin-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
-  --nice-admin-shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -2px rgba(0, 0, 0, 0.06);
+  --nice-admin-subtle-bg: rgba(255, 255, 255, 0.45);
+  --nice-admin-hover-bg: rgba(255, 255, 255, 0.55);
+  --nice-admin-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  --nice-admin-shadow-md: 0 12px 40px rgba(15, 23, 42, 0.12);
 }
 
 [data-theme="dark"] {
-  --nice-admin-sidebar-bg: #0b1220;
+  --app-mesh-a: #0a0f1a;
+  --app-mesh-b: #1e1b4b;
+  --app-mesh-c: #312e81;
+  --glass-surface: rgba(15, 23, 42, 0.5);
+  --glass-surface-strong: rgba(15, 23, 42, 0.68);
+  --glass-border: rgba(255, 255, 255, 0.14);
+  --glass-border-outer: rgba(0, 0, 0, 0.35);
+  --glass-shadow: 0 12px 48px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  --glass-blur: blur(22px) saturate(1.25);
+  --nice-admin-sidebar-bg: var(--glass-surface-strong);
   --nice-admin-sidebar-text: #dbe7ff;
   --nice-admin-sidebar-active: #60a5fa;
   --nice-admin-sidebar-hover: rgba(255, 255, 255, 0.08);
-  --nice-admin-header-bg: #0f172a;
+  --nice-admin-header-bg: var(--glass-surface-strong);
   --nice-admin-header-border: rgba(148, 163, 184, 0.18);
-  --nice-admin-content-bg: #0b1220;
-  --nice-admin-card-bg: #0f172a;
-  --nice-admin-card-border: rgba(148, 163, 184, 0.18);
+  --nice-admin-content-bg: transparent;
+  --nice-admin-card-bg: var(--glass-surface);
+  --nice-admin-card-border: rgba(148, 163, 184, 0.2);
   --nice-admin-text: #e5e7eb;
   --nice-admin-text-muted: rgba(229, 231, 235, 0.7);
   --nice-admin-primary: #60a5fa;
   --nice-admin-primary-hover: #3b82f6;
-  --nice-admin-input-bg: rgba(255, 255, 255, 0.04);
+  --nice-admin-input-bg: rgba(255, 255, 255, 0.07);
   --nice-admin-input-border: rgba(148, 163, 184, 0.22);
-  --nice-admin-subtle-bg: rgba(255, 255, 255, 0.04);
-  --nice-admin-hover-bg: rgba(255, 255, 255, 0.08);
+  --nice-admin-subtle-bg: rgba(255, 255, 255, 0.06);
+  --nice-admin-hover-bg: rgba(255, 255, 255, 0.1);
   --nice-admin-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
-  --nice-admin-shadow-md: 0 10px 20px rgba(0, 0, 0, 0.35);
+  --nice-admin-shadow-md: 0 16px 48px rgba(0, 0, 0, 0.5);
+}
+
+/* ========== 界面风格：电子纸 / 纸张（E-Ink Paper） ========== */
+html[data-ui-style="eink"] {
+  --app-mesh-a: #f0ebe3;
+  --app-mesh-b: #e8e2d8;
+  --app-mesh-c: #e2dbd0;
+  --glass-surface: rgba(255, 253, 248, 0.96);
+  --glass-surface-strong: #faf8f3;
+  --glass-border: rgba(28, 25, 23, 0.14);
+  --glass-border-outer: rgba(28, 25, 23, 0.12);
+  --glass-shadow: 0 1px 0 rgba(28, 25, 23, 0.06), 0 10px 28px rgba(28, 25, 23, 0.07);
+  --glass-blur: blur(0);
+  --nice-admin-sidebar-bg: #f5f1e8;
+  --nice-admin-sidebar-text: #1c1917;
+  --nice-admin-sidebar-active: #1e3a8a;
+  --nice-admin-sidebar-hover: rgba(28, 25, 23, 0.07);
+  --nice-admin-header-bg: #f5f1e8;
+  --nice-admin-header-border: rgba(28, 25, 23, 0.16);
+  --nice-admin-content-bg: transparent;
+  --nice-admin-card-bg: #fffdf8;
+  --nice-admin-card-border: rgba(28, 25, 23, 0.18);
+  --nice-admin-text: #1c1917;
+  --nice-admin-text-muted: #57534e;
+  --nice-admin-primary: #1e40af;
+  --nice-admin-primary-hover: #1e3a8a;
+  --nice-admin-input-bg: #fffdf8;
+  --nice-admin-input-border: rgba(28, 25, 23, 0.22);
+  --nice-admin-danger: #b91c1c;
+  --nice-admin-success: #15803d;
+  --nice-admin-subtle-bg: #ebe4d8;
+  --nice-admin-hover-bg: #e2d9ca;
+  --nice-admin-shadow: 0 1px 2px rgba(28, 25, 23, 0.06);
+  --nice-admin-shadow-md: 0 10px 30px rgba(28, 25, 23, 0.1);
+}
+
+html[data-ui-style="eink"][data-theme="dark"] {
+  --app-mesh-a: #141210;
+  --app-mesh-b: #1a1714;
+  --app-mesh-c: #201c17;
+  --glass-surface: rgba(34, 30, 26, 0.94);
+  --glass-surface-strong: #1c1915;
+  --glass-border: rgba(231, 229, 220, 0.12);
+  --glass-border-outer: rgba(0, 0, 0, 0.4);
+  --glass-shadow: 0 1px 0 rgba(0, 0, 0, 0.35), 0 12px 36px rgba(0, 0, 0, 0.45);
+  --glass-blur: blur(0);
+  --nice-admin-sidebar-bg: #1a1714;
+  --nice-admin-sidebar-text: #f5f2ea;
+  --nice-admin-sidebar-active: #93c5fd;
+  --nice-admin-sidebar-hover: rgba(245, 242, 234, 0.08);
+  --nice-admin-header-bg: #1a1714;
+  --nice-admin-header-border: rgba(245, 242, 234, 0.1);
+  --nice-admin-card-bg: #222019;
+  --nice-admin-card-border: rgba(245, 242, 234, 0.12);
+  --nice-admin-text: #f5f2ea;
+  --nice-admin-text-muted: #a8a29e;
+  --nice-admin-primary: #93c5fd;
+  --nice-admin-primary-hover: #bfdbfe;
+  --nice-admin-input-bg: #26231e;
+  --nice-admin-input-border: rgba(245, 242, 234, 0.14);
+  --nice-admin-danger: #fca5a5;
+  --nice-admin-success: #86efac;
+  --nice-admin-subtle-bg: rgba(245, 242, 234, 0.06);
+  --nice-admin-hover-bg: rgba(245, 242, 234, 0.1);
+}
+
+html[data-ui-style="eink"] body {
+  font-family: 'Source Serif 4', 'Noto Serif SC', 'Songti SC', 'STSong', Georgia, 'Times New Roman', serif;
+  background-color: var(--app-mesh-a);
+  background-image:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.22) 0%, transparent 42%),
+    radial-gradient(900px 480px at 12% 0%, rgba(255, 255, 255, 0.35), transparent 55%),
+    repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 27px,
+      rgba(28, 25, 23, 0.04) 27px,
+      rgba(28, 25, 23, 0.04) 28px
+    );
+}
+
+html[data-ui-style="eink"][data-theme="dark"] body {
+  background-image:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03) 0%, transparent 40%),
+    radial-gradient(800px 420px at 88% 8%, rgba(255, 255, 255, 0.04), transparent 50%);
+}
+
+html[data-ui-style="eink"] .nice-admin-sidebar {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: 1px 0 0 var(--nice-admin-header-border);
+}
+
+html[data-ui-style="eink"][data-theme="dark"] .nice-admin-sidebar {
+  box-shadow: 1px 0 0 var(--nice-admin-header-border);
+}
+
+html[data-ui-style="eink"] .nice-admin-header {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+html[data-ui-style="eink"] .nice-admin-sidebar-link.active {
+  background: rgba(30, 58, 138, 0.12);
+  color: var(--nice-admin-primary);
+}
+
+html[data-ui-style="eink"][data-theme="dark"] .nice-admin-sidebar-link.active {
+  background: rgba(147, 197, 253, 0.12);
+}
+
+/* ========== 界面风格：Kinetic Typography（动态排版：大字号层次 + 入场动效） ========== */
+html[data-ui-style="kinetic"] {
+  --app-mesh-a: #f4f2ff;
+  --app-mesh-b: #e8f7ff;
+  --app-mesh-c: #fff0f7;
+  --glass-surface: rgba(255, 255, 255, 0.58);
+  --glass-surface-strong: rgba(255, 255, 255, 0.82);
+  --glass-border: rgba(15, 23, 42, 0.12);
+  --glass-border-outer: rgba(15, 23, 42, 0.08);
+  --glass-shadow: 0 12px 40px rgba(79, 70, 229, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  --glass-blur: blur(18px) saturate(1.35);
+  --nice-admin-sidebar-bg: var(--glass-surface-strong);
+  --nice-admin-sidebar-text: #0c0a1a;
+  --nice-admin-sidebar-active: #5b21b6;
+  --nice-admin-sidebar-hover: rgba(91, 33, 182, 0.08);
+  --nice-admin-header-bg: var(--glass-surface-strong);
+  --nice-admin-header-border: rgba(91, 33, 182, 0.16);
+  --nice-admin-card-bg: var(--glass-surface);
+  --nice-admin-card-border: rgba(91, 33, 182, 0.2);
+  --nice-admin-text: #0c0a1a;
+  --nice-admin-text-muted: #4c1d95;
+  --nice-admin-primary: #6d28d9;
+  --nice-admin-primary-hover: #5b21b6;
+  --nice-admin-input-bg: rgba(255, 255, 255, 0.88);
+  --nice-admin-input-border: rgba(91, 33, 182, 0.22);
+  --nice-admin-danger: #be123c;
+  --nice-admin-success: #047857;
+  --nice-admin-subtle-bg: rgba(91, 33, 182, 0.06);
+  --nice-admin-hover-bg: rgba(91, 33, 182, 0.1);
+}
+
+html[data-ui-style="kinetic"][data-theme="dark"] {
+  --app-mesh-a: #07060f;
+  --app-mesh-b: #0f1729;
+  --app-mesh-c: #1a0b2e;
+  --glass-surface: rgba(17, 24, 39, 0.55);
+  --glass-surface-strong: rgba(15, 23, 42, 0.88);
+  --glass-border: rgba(167, 139, 250, 0.18);
+  --glass-border-outer: rgba(0, 0, 0, 0.45);
+  --glass-shadow: 0 16px 56px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(167, 139, 250, 0.08);
+  --glass-blur: blur(20px) saturate(1.2);
+  --nice-admin-sidebar-text: #f5f3ff;
+  --nice-admin-sidebar-active: #c4b5fd;
+  --nice-admin-sidebar-hover: rgba(167, 139, 250, 0.12);
+  --nice-admin-header-border: rgba(167, 139, 250, 0.2);
+  --nice-admin-card-border: rgba(167, 139, 250, 0.18);
+  --nice-admin-text: #f5f3ff;
+  --nice-admin-text-muted: rgba(221, 214, 254, 0.82);
+  --nice-admin-primary: #a78bfa;
+  --nice-admin-primary-hover: #c4b5fd;
+  --nice-admin-input-bg: rgba(15, 23, 42, 0.65);
+  --nice-admin-input-border: rgba(167, 139, 250, 0.28);
+  --nice-admin-danger: #fb7185;
+  --nice-admin-success: #34d399;
+  --nice-admin-subtle-bg: rgba(167, 139, 250, 0.08);
+  --nice-admin-hover-bg: rgba(167, 139, 250, 0.14);
+}
+
+html[data-ui-style="kinetic"] body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+  background-image:
+    radial-gradient(1000px 520px at 6% -6%, rgba(109, 40, 217, 0.22), transparent 55%),
+    radial-gradient(880px 480px at 96% 8%, rgba(14, 165, 233, 0.18), transparent 52%),
+    radial-gradient(720px 420px at 48% 102%, rgba(236, 72, 153, 0.14), transparent 50%),
+    linear-gradient(165deg, var(--app-mesh-a) 0%, var(--app-mesh-b) 48%, var(--app-mesh-c) 100%);
+}
+
+html[data-ui-style="kinetic"][data-theme="dark"] body {
+  background-image:
+    radial-gradient(900px 480px at 10% 0%, rgba(109, 40, 217, 0.35), transparent 55%),
+    radial-gradient(800px 420px at 92% 12%, rgba(14, 165, 233, 0.2), transparent 50%),
+    linear-gradient(175deg, var(--app-mesh-a) 0%, var(--app-mesh-b) 45%, var(--app-mesh-c) 100%);
+}
+
+html[data-ui-style="kinetic"] .nice-admin-sidebar-title,
+html[data-ui-style="kinetic"] .nice-admin-header-breadcrumb,
+html[data-ui-style="kinetic"] .feeds-header-main h1,
+html[data-ui-style="kinetic"] .auth-page h1 {
+  font-family: 'Syne', 'Inter', system-ui, sans-serif;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+
+html[data-ui-style="kinetic"] .sidebar-header {
+  font-family: 'Syne', 'Inter', system-ui, sans-serif;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+html[data-ui-style="kinetic"] .article-title-btn,
+html[data-ui-style="kinetic"] .article-detail-title {
+  font-family: 'Syne', 'Inter', system-ui, sans-serif;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html[data-ui-style="kinetic"] .auth-page h1 {
+    animation: kinetic-title-in 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  html[data-ui-style="kinetic"] .nice-admin-sidebar-brand {
+    animation: kinetic-fade-rise 0.45s ease-out 0.05s both;
+  }
+}
+
+@keyframes kinetic-title-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes kinetic-fade-rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ========== 界面风格：Motion-Driven（动效驱动：层次过渡、悬停与入场） ========== */
+html[data-ui-style="motion-driven"] {
+  --app-mesh-a: #ecfeff;
+  --app-mesh-b: #e0f2fe;
+  --app-mesh-c: #fff7ed;
+  --app-motion-t: 0.24s;
+  --app-motion-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --glass-surface: rgba(255, 255, 255, 0.5);
+  --glass-surface-strong: rgba(255, 255, 255, 0.78);
+  --glass-border: rgba(8, 145, 178, 0.2);
+  --glass-border-outer: rgba(15, 23, 42, 0.08);
+  --glass-shadow: 0 14px 44px rgba(6, 182, 212, 0.12), 0 4px 16px rgba(15, 23, 42, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.75);
+  --glass-blur: blur(18px) saturate(1.4);
+  --nice-admin-sidebar-bg: var(--glass-surface-strong);
+  --nice-admin-sidebar-text: #0c1e24;
+  --nice-admin-sidebar-active: #0e7490;
+  --nice-admin-sidebar-hover: rgba(6, 182, 212, 0.12);
+  --nice-admin-header-bg: var(--glass-surface-strong);
+  --nice-admin-header-border: rgba(6, 182, 212, 0.22);
+  --nice-admin-card-bg: var(--glass-surface);
+  --nice-admin-card-border: rgba(8, 145, 178, 0.22);
+  --nice-admin-text: #0f172a;
+  --nice-admin-text-muted: #0e7490;
+  --nice-admin-primary: #0891b2;
+  --nice-admin-primary-hover: #0e7490;
+  --nice-admin-input-bg: rgba(255, 255, 255, 0.88);
+  --nice-admin-input-border: rgba(6, 182, 212, 0.28);
+  --nice-admin-danger: #e11d48;
+  --nice-admin-success: #059669;
+  --nice-admin-subtle-bg: rgba(6, 182, 212, 0.08);
+  --nice-admin-hover-bg: rgba(6, 182, 212, 0.14);
+}
+
+html[data-ui-style="motion-driven"][data-theme="dark"] {
+  --app-mesh-a: #020617;
+  --app-mesh-b: #0c1e24;
+  --app-mesh-c: #0f1729;
+  --glass-surface: rgba(15, 23, 42, 0.5);
+  --glass-surface-strong: rgba(12, 30, 38, 0.88);
+  --glass-border: rgba(45, 212, 191, 0.2);
+  --glass-border-outer: rgba(0, 0, 0, 0.45);
+  --glass-shadow: 0 18px 56px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(45, 212, 191, 0.08);
+  --glass-blur: blur(20px) saturate(1.18);
+  --nice-admin-sidebar-text: #e0f2fe;
+  --nice-admin-sidebar-active: #5eead4;
+  --nice-admin-sidebar-hover: rgba(45, 212, 191, 0.12);
+  --nice-admin-header-border: rgba(45, 212, 191, 0.18);
+  --nice-admin-card-border: rgba(45, 212, 191, 0.16);
+  --nice-admin-text: #e0f2fe;
+  --nice-admin-text-muted: rgba(165, 243, 252, 0.78);
+  --nice-admin-primary: #22d3ee;
+  --nice-admin-primary-hover: #5eead4;
+  --nice-admin-input-bg: rgba(15, 23, 42, 0.65);
+  --nice-admin-input-border: rgba(45, 212, 191, 0.28);
+  --nice-admin-danger: #fb7185;
+  --nice-admin-success: #34d399;
+  --nice-admin-subtle-bg: rgba(45, 212, 191, 0.08);
+  --nice-admin-hover-bg: rgba(45, 212, 191, 0.14);
+}
+
+html[data-ui-style="motion-driven"] body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+  background-size: 120% 120%;
+  background-image:
+    radial-gradient(1000px 520px at 4% 2%, rgba(6, 182, 212, 0.32), transparent 55%),
+    radial-gradient(860px 440px at 98% 6%, rgba(251, 191, 36, 0.2), transparent 50%),
+    linear-gradient(152deg, var(--app-mesh-a) 0%, var(--app-mesh-b) 45%, var(--app-mesh-c) 100%);
+}
+
+html[data-ui-style="motion-driven"][data-theme="dark"] body {
+  background-image:
+    radial-gradient(920px 500px at 6% 0%, rgba(6, 182, 212, 0.25), transparent 55%),
+    radial-gradient(880px 460px at 95% 10%, rgba(245, 158, 11, 0.12), transparent 50%),
+    linear-gradient(158deg, var(--app-mesh-a) 0%, var(--app-mesh-b) 40%, var(--app-mesh-c) 100%);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html[data-ui-style="motion-driven"] body {
+    animation: motion-bg-drift 24s var(--app-motion-ease) infinite alternate;
+  }
+
+  html[data-ui-style="motion-driven"] .feeds-header-main h1,
+  html[data-ui-style="motion-driven"] .auth-page h1,
+  html[data-ui-style="motion-driven"] .nice-admin-sidebar-title {
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    animation: motion-title-in 0.45s var(--app-motion-ease) both;
+  }
+
+  html[data-ui-style="motion-driven"] .feeds-card,
+  html[data-ui-style="motion-driven"] .auth-page {
+    transition: transform var(--app-motion-t) var(--app-motion-ease), box-shadow var(--app-motion-t) var(--app-motion-ease);
+    will-change: transform;
+  }
+
+  html[data-ui-style="motion-driven"] .feeds-card:hover,
+  html[data-ui-style="motion-driven"] .feeds-header-card:hover {
+    transform: translateY(-3px);
+  }
+
+  html[data-ui-style="motion-driven"] a.nice-admin-sidebar-link {
+    transition: background-color var(--app-motion-t) var(--app-motion-ease), color var(--app-motion-t) var(--app-motion-ease), transform var(--app-motion-t) var(--app-motion-ease);
+  }
+
+  html[data-ui-style="motion-driven"] a.nice-admin-sidebar-link:hover:not(.active) {
+    transform: translateX(2px);
+  }
+}
+
+@keyframes motion-bg-drift {
+  0% {
+    background-position: 0% 40%;
+  }
+  100% {
+    background-position: 100% 60%;
+  }
+}
+
+@keyframes motion-title-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ========== 界面风格：Retro-Futurism（复古未来：深空网格、霓虹辅色、显示字体标题） ========== */
+html[data-ui-style="retro-futurism"] {
+  --app-retro-glow: rgba(236, 72, 153, 0.35);
+  --app-mesh-a: #f3e8ff;
+  --app-mesh-b: #e9d5ff;
+  --app-mesh-c: #fce7f3;
+  --glass-surface: rgba(255, 255, 255, 0.45);
+  --glass-surface-strong: rgba(255, 255, 255, 0.72);
+  --glass-border: rgba(192, 38, 211, 0.22);
+  --glass-border-outer: rgba(15, 23, 42, 0.08);
+  --glass-shadow:
+    0 12px 40px rgba(192, 38, 211, 0.12),
+    0 0 0 1px rgba(34, 211, 238, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.65);
+  --glass-blur: blur(18px) saturate(1.35);
+  --nice-admin-sidebar-bg: var(--glass-surface-strong);
+  --nice-admin-sidebar-text: #1e1b4b;
+  --nice-admin-sidebar-active: #a21caf;
+  --nice-admin-sidebar-hover: rgba(192, 38, 211, 0.1);
+  --nice-admin-header-bg: var(--glass-surface-strong);
+  --nice-admin-header-border: rgba(192, 38, 211, 0.2);
+  --nice-admin-card-bg: var(--glass-surface);
+  --nice-admin-card-border: rgba(8, 145, 178, 0.18);
+  --nice-admin-text: #1e1b4b;
+  --nice-admin-text-muted: #6b21a8;
+  --nice-admin-primary: #a21caf;
+  --nice-admin-primary-hover: #86198f;
+  --nice-admin-input-bg: rgba(255, 255, 255, 0.88);
+  --nice-admin-input-border: rgba(192, 38, 211, 0.25);
+  --nice-admin-danger: #be123c;
+  --nice-admin-success: #0d9488;
+  --nice-admin-subtle-bg: rgba(192, 38, 211, 0.06);
+  --nice-admin-hover-bg: rgba(34, 211, 238, 0.1);
+}
+
+html[data-ui-style="retro-futurism"][data-theme="dark"] {
+  --app-retro-glow: rgba(244, 114, 182, 0.25);
+  --app-mesh-a: #0c0518;
+  --app-mesh-b: #120826;
+  --app-mesh-c: #1a0a2e;
+  --glass-surface: rgba(17, 24, 39, 0.52);
+  --glass-surface-strong: rgba(15, 8, 32, 0.88);
+  --glass-border: rgba(244, 114, 182, 0.22);
+  --glass-border-outer: rgba(0, 0, 0, 0.5);
+  --glass-shadow:
+    0 18px 56px rgba(0, 0, 0, 0.55),
+    0 0 40px rgba(244, 114, 182, 0.08),
+    inset 0 1px 0 rgba(34, 211, 238, 0.06);
+  --glass-blur: blur(20px) saturate(1.2);
+  --nice-admin-sidebar-text: #fae8ff;
+  --nice-admin-sidebar-active: #f0abfc;
+  --nice-admin-sidebar-hover: rgba(244, 114, 182, 0.12);
+  --nice-admin-header-border: rgba(244, 114, 182, 0.18);
+  --nice-admin-card-border: rgba(34, 211, 238, 0.16);
+  --nice-admin-text: #f5f3ff;
+  --nice-admin-text-muted: rgba(216, 180, 254, 0.85);
+  --nice-admin-primary: #e879f9;
+  --nice-admin-primary-hover: #f0abfc;
+  --nice-admin-input-bg: rgba(15, 23, 42, 0.65);
+  --nice-admin-input-border: rgba(244, 114, 182, 0.28);
+  --nice-admin-danger: #fb7185;
+  --nice-admin-success: #2dd4bf;
+  --nice-admin-subtle-bg: rgba(244, 114, 182, 0.08);
+  --nice-admin-hover-bg: rgba(34, 211, 238, 0.12);
+}
+
+html[data-ui-style="retro-futurism"] body {
+  font-family: 'Exo 2', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background-color: var(--app-mesh-a);
+  background-image:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, transparent 38%),
+    repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 47px,
+      rgba(34, 211, 238, 0.06) 47px,
+      rgba(34, 211, 238, 0.06) 48px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      transparent,
+      transparent 47px,
+      rgba(192, 38, 211, 0.05) 47px,
+      rgba(192, 38, 211, 0.05) 48px
+    ),
+    radial-gradient(900px 520px at 8% 0%, rgba(192, 38, 211, 0.2), transparent 55%),
+    radial-gradient(820px 480px at 94% 12%, rgba(34, 211, 238, 0.18), transparent 52%),
+    linear-gradient(168deg, var(--app-mesh-a) 0%, var(--app-mesh-b) 42%, var(--app-mesh-c) 100%);
+  background-size: auto, auto, auto, auto, auto, 100% 100%;
+}
+
+html[data-ui-style="retro-futurism"][data-theme="dark"] body {
+  background-image:
+    linear-gradient(180deg, rgba(244, 114, 182, 0.04) 0%, transparent 35%),
+    repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 47px,
+      rgba(34, 211, 238, 0.04) 47px,
+      rgba(34, 211, 238, 0.04) 48px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      transparent,
+      transparent 47px,
+      rgba(192, 38, 211, 0.035) 47px,
+      rgba(192, 38, 211, 0.035) 48px
+    ),
+    radial-gradient(880px 500px at 12% 6%, rgba(192, 38, 211, 0.35), transparent 58%),
+    radial-gradient(760px 440px at 88% 18%, rgba(34, 211, 238, 0.15), transparent 50%),
+    linear-gradient(175deg, var(--app-mesh-a) 0%, var(--app-mesh-b) 45%, var(--app-mesh-c) 100%);
+}
+
+html[data-ui-style="retro-futurism"] .nice-admin-sidebar-title,
+html[data-ui-style="retro-futurism"] .nice-admin-header-breadcrumb,
+html[data-ui-style="retro-futurism"] .feeds-header-main h1,
+html[data-ui-style="retro-futurism"] .auth-page h1 {
+  font-family: 'Orbitron', 'Exo 2', system-ui, sans-serif;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+html[data-ui-style="retro-futurism"] .nice-admin-sidebar-title {
+  font-size: 1rem;
+}
+
+html[data-ui-style="retro-futurism"] .nice-admin-header-breadcrumb {
+  font-size: 1rem;
+}
+
+html[data-ui-style="retro-futurism"] .feeds-header-main h1,
+html[data-ui-style="retro-futurism"] .auth-page h1 {
+  font-size: 1.35rem;
+  letter-spacing: 0.06em;
+}
+
+html[data-ui-style="retro-futurism"] .sidebar-header {
+  font-family: 'Orbitron', 'Exo 2', system-ui, sans-serif;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  font-size: 0.82rem;
+}
+
+html[data-ui-style="retro-futurism"] .article-title-btn,
+html[data-ui-style="retro-futurism"] .article-detail-title {
+  font-family: 'Exo 2', 'Inter', system-ui, sans-serif;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+html[data-ui-style="retro-futurism"] .nice-admin-sidebar-link.active {
+  background: rgba(192, 38, 211, 0.14);
+  color: var(--nice-admin-primary);
+  box-shadow: 0 0 20px var(--app-retro-glow);
+}
+
+html[data-ui-style="retro-futurism"][data-theme="dark"] .nice-admin-sidebar-link.active {
+  background: rgba(244, 114, 182, 0.12);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html[data-ui-style="retro-futurism"] .auth-page h1 {
+    animation: retro-title-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  html[data-ui-style="retro-futurism"] .nice-admin-sidebar-brand {
+    animation: retro-fade-rise 0.42s ease-out 0.04s both;
+  }
+}
+
+@keyframes retro-title-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+    filter: blur(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+}
+
+@keyframes retro-fade-rise {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ========== 界面风格：HUD / Sci-Fi FUI（平视显示：深空座舱、青柠描边、角标式层次） ========== */
+html[data-ui-style="hud-scifi-fui"] {
+  --app-hud-glow: rgba(34, 211, 238, 0.22);
+  --app-hud-line: rgba(14, 165, 233, 0.35);
+  --app-mesh-a: #e8f1f8;
+  --app-mesh-b: #dbeafe;
+  --app-mesh-c: #cffafe;
+  --glass-surface: rgba(255, 255, 255, 0.42);
+  --glass-surface-strong: rgba(248, 250, 252, 0.82);
+  --glass-border: rgba(14, 116, 144, 0.28);
+  --glass-border-outer: rgba(12, 74, 110, 0.12);
+  --glass-shadow:
+    0 0 0 1px rgba(34, 211, 238, 0.12),
+    0 12px 40px rgba(8, 47, 73, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.75);
+  --glass-blur: blur(16px) saturate(1.2);
+  --nice-admin-sidebar-bg: var(--glass-surface-strong);
+  --nice-admin-sidebar-text: #0c4a6e;
+  --nice-admin-sidebar-active: #0891b2;
+  --nice-admin-sidebar-hover: rgba(14, 165, 233, 0.1);
+  --nice-admin-header-bg: var(--glass-surface-strong);
+  --nice-admin-header-border: rgba(14, 116, 144, 0.22);
+  --nice-admin-card-bg: var(--glass-surface);
+  --nice-admin-card-border: rgba(14, 116, 144, 0.26);
+  --nice-admin-text: #0c4a6e;
+  --nice-admin-text-muted: #0369a1;
+  --nice-admin-primary: #0891b2;
+  --nice-admin-primary-hover: #0e7490;
+  --nice-admin-input-bg: rgba(255, 255, 255, 0.9);
+  --nice-admin-input-border: rgba(14, 116, 144, 0.3);
+  --nice-admin-danger: #dc2626;
+  --nice-admin-success: #059669;
+  --nice-admin-subtle-bg: rgba(14, 165, 233, 0.08);
+  --nice-admin-hover-bg: rgba(34, 211, 238, 0.12);
+}
+
+html[data-ui-style="hud-scifi-fui"][data-theme="dark"] {
+  --app-hud-glow: rgba(34, 211, 238, 0.28);
+  --app-hud-line: rgba(34, 211, 238, 0.12);
+  --app-mesh-a: #020617;
+  --app-mesh-b: #0a1628;
+  --app-mesh-c: #0f172a;
+  --glass-surface: rgba(15, 23, 42, 0.55);
+  --glass-surface-strong: rgba(15, 23, 42, 0.82);
+  --glass-border: rgba(34, 211, 238, 0.22);
+  --glass-border-outer: rgba(0, 0, 0, 0.55);
+  --glass-shadow:
+    0 0 0 1px rgba(34, 211, 238, 0.14),
+    0 20px 50px rgba(0, 0, 0, 0.55),
+    inset 0 1px 0 rgba(34, 211, 238, 0.06);
+  --glass-blur: blur(18px) saturate(1.15);
+  --nice-admin-sidebar-text: #e0f2fe;
+  --nice-admin-sidebar-active: #22d3ee;
+  --nice-admin-sidebar-hover: rgba(34, 211, 238, 0.12);
+  --nice-admin-header-border: rgba(34, 211, 238, 0.18);
+  --nice-admin-card-border: rgba(34, 211, 238, 0.2);
+  --nice-admin-text: #ecfeff;
+  --nice-admin-text-muted: rgba(165, 243, 252, 0.78);
+  --nice-admin-primary: #22d3ee;
+  --nice-admin-primary-hover: #67e8f9;
+  --nice-admin-input-bg: rgba(15, 23, 42, 0.72);
+  --nice-admin-input-border: rgba(34, 211, 238, 0.28);
+  --nice-admin-danger: #f87171;
+  --nice-admin-success: #34d399;
+  --nice-admin-subtle-bg: rgba(34, 211, 238, 0.08);
+  --nice-admin-hover-bg: rgba(34, 211, 238, 0.14);
+}
+
+html[data-ui-style="hud-scifi-fui"] body {
+  font-family: 'Exo 2', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background-color: var(--app-mesh-a);
+  background-image:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.08) 0%, transparent 36%),
+    repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 31px,
+      var(--app-hud-line) 31px,
+      var(--app-hud-line) 32px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      transparent,
+      transparent 31px,
+      var(--app-hud-line) 31px,
+      var(--app-hud-line) 32px
+    ),
+    radial-gradient(880px 520px at 10% 0%, rgba(14, 165, 233, 0.18), transparent 55%),
+    radial-gradient(720px 480px at 92% 8%, rgba(34, 211, 238, 0.14), transparent 52%),
+    linear-gradient(168deg, var(--app-mesh-a) 0%, var(--app-mesh-b) 45%, var(--app-mesh-c) 100%);
+  background-size: auto, auto, auto, auto, auto, 100% 100%;
+}
+
+html[data-ui-style="hud-scifi-fui"][data-theme="dark"] body {
+  background-image:
+    linear-gradient(180deg, rgba(34, 211, 238, 0.04) 0%, transparent 32%),
+    repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 31px,
+      var(--app-hud-line) 31px,
+      var(--app-hud-line) 32px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      transparent,
+      transparent 31px,
+      var(--app-hud-line) 31px,
+      var(--app-hud-line) 32px
+    ),
+    radial-gradient(900px 540px at 8% 4%, rgba(34, 211, 238, 0.12), transparent 58%),
+    radial-gradient(680px 420px at 90% 16%, rgba(6, 182, 212, 0.1), transparent 50%),
+    linear-gradient(175deg, var(--app-mesh-a) 0%, var(--app-mesh-b) 48%, var(--app-mesh-c) 100%);
+}
+
+html[data-ui-style="hud-scifi-fui"] .nice-admin-sidebar-title,
+html[data-ui-style="hud-scifi-fui"] .nice-admin-header-breadcrumb,
+html[data-ui-style="hud-scifi-fui"] .feeds-header-main h1,
+html[data-ui-style="hud-scifi-fui"] .auth-page h1 {
+  font-family: 'Orbitron', 'Exo 2', system-ui, sans-serif;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+html[data-ui-style="hud-scifi-fui"] .nice-admin-sidebar-title {
+  font-size: 0.92rem;
+}
+
+html[data-ui-style="hud-scifi-fui"] .nice-admin-header-breadcrumb {
+  font-size: 0.92rem;
+}
+
+html[data-ui-style="hud-scifi-fui"] .feeds-header-main h1,
+html[data-ui-style="hud-scifi-fui"] .auth-page h1 {
+  font-size: 1.28rem;
+  letter-spacing: 0.14em;
+}
+
+html[data-ui-style="hud-scifi-fui"] .sidebar-header {
+  font-family: 'Orbitron', 'Exo 2', system-ui, sans-serif;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-size: 0.78rem;
+}
+
+html[data-ui-style="hud-scifi-fui"] .article-title-btn,
+html[data-ui-style="hud-scifi-fui"] .article-detail-title {
+  font-family: 'Exo 2', 'Inter', system-ui, sans-serif;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+html[data-ui-style="hud-scifi-fui"] .nice-admin-sidebar-link.active {
+  background: rgba(8, 145, 178, 0.16);
+  color: var(--nice-admin-primary);
+  box-shadow: 0 0 24px var(--app-hud-glow);
+}
+
+html[data-ui-style="hud-scifi-fui"][data-theme="dark"] .nice-admin-sidebar-link.active {
+  background: rgba(34, 211, 238, 0.12);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html[data-ui-style="hud-scifi-fui"] .auth-page h1 {
+    animation: hud-title-in 0.48s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  html[data-ui-style="hud-scifi-fui"] .nice-admin-sidebar-brand {
+    animation: hud-fade-rise 0.4s ease-out 0.05s both;
+  }
+}
+
+@keyframes hud-title-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.985);
+    filter: blur(3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+@keyframes hud-fade-rise {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ========== 界面风格：Vibrant & Block-based（高饱和色块 + 块面级卡片与偏移影） ========== */
+html[data-ui-style="vibrant-block"] {
+  --app-block-shadow: 8px 8px 0 rgba(15, 23, 42, 0.14);
+  --app-mesh-a: #fff7ed;
+  --app-mesh-b: #fce7f3;
+  --app-mesh-c: #e0f2fe;
+  --glass-surface: rgba(255, 255, 255, 0.95);
+  --glass-surface-strong: #ffffff;
+  --glass-border: rgba(15, 23, 42, 0.18);
+  --glass-border-outer: rgba(15, 23, 42, 0.1);
+  --glass-shadow: var(--app-block-shadow);
+  --glass-blur: blur(10px) saturate(1.35);
+  --nice-admin-sidebar-bg: var(--glass-surface-strong);
+  --nice-admin-sidebar-text: #0f172a;
+  --nice-admin-sidebar-active: #ea580c;
+  --nice-admin-sidebar-hover: rgba(234, 88, 12, 0.12);
+  --nice-admin-header-bg: var(--glass-surface-strong);
+  --nice-admin-header-border: rgba(15, 23, 42, 0.2);
+  --nice-admin-card-bg: #ffffff;
+  --nice-admin-card-border: rgba(15, 23, 42, 0.2);
+  --nice-admin-text: #0f172a;
+  --nice-admin-text-muted: #475569;
+  --nice-admin-primary: #ea580c;
+  --nice-admin-primary-hover: #c2410c;
+  --nice-admin-input-bg: #ffffff;
+  --nice-admin-input-border: rgba(15, 23, 42, 0.22);
+  --nice-admin-danger: #dc2626;
+  --nice-admin-success: #16a34a;
+  --nice-admin-subtle-bg: #fff7ed;
+  --nice-admin-hover-bg: rgba(234, 88, 12, 0.08);
+}
+
+html[data-ui-style="vibrant-block"][data-theme="dark"] {
+  --app-block-shadow: 8px 8px 0 rgba(0, 0, 0, 0.45);
+  --app-mesh-a: #0c0a1a;
+  --app-mesh-b: #1a1033;
+  --app-mesh-c: #0f1729;
+  --glass-surface: rgba(15, 23, 42, 0.92);
+  --glass-surface-strong: #1e1b2e;
+  --glass-border: rgba(52, 211, 153, 0.28);
+  --glass-border-outer: rgba(0, 0, 0, 0.5);
+  --glass-shadow: var(--app-block-shadow);
+  --glass-blur: blur(12px) saturate(1.2);
+  --nice-admin-sidebar-text: #f8fafc;
+  --nice-admin-sidebar-active: #fbbf24;
+  --nice-admin-sidebar-hover: rgba(251, 191, 36, 0.12);
+  --nice-admin-header-border: rgba(52, 211, 153, 0.22);
+  --nice-admin-card-bg: #1a1625;
+  --nice-admin-card-border: rgba(52, 211, 153, 0.22);
+  --nice-admin-text: #f8fafc;
+  --nice-admin-text-muted: rgba(226, 232, 240, 0.75);
+  --nice-admin-primary: #fbbf24;
+  --nice-admin-primary-hover: #fde047;
+  --nice-admin-input-bg: rgba(15, 23, 42, 0.85);
+  --nice-admin-input-border: rgba(52, 211, 153, 0.3);
+  --nice-admin-danger: #f87171;
+  --nice-admin-success: #34d399;
+  --nice-admin-subtle-bg: rgba(52, 211, 153, 0.08);
+  --nice-admin-hover-bg: rgba(251, 191, 36, 0.1);
+}
+
+html[data-ui-style="vibrant-block"] body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+  background-color: var(--app-mesh-a);
+  background-image:
+    linear-gradient(125deg, #fb923c 0%, #fb923c 18%, transparent 18%, transparent 100%),
+    linear-gradient(115deg, transparent 0%, transparent 58%, #38bdf8 58%, #38bdf8 72%, transparent 72%),
+    linear-gradient(168deg, transparent 0%, transparent 42%, #f472b6 42%, #f472b6 55%, transparent 55%),
+    linear-gradient(152deg, var(--app-mesh-a) 0%, var(--app-mesh-b) 40%, var(--app-mesh-c) 100%);
+  background-attachment: fixed;
+}
+
+html[data-ui-style="vibrant-block"][data-theme="dark"] body {
+  background-image:
+    linear-gradient(125deg, #6d28d9 0%, #6d28d9 16%, transparent 16%, transparent 100%),
+    linear-gradient(118deg, transparent 0%, transparent 55%, #059669 55%, #059669 70%, transparent 70%),
+    linear-gradient(165deg, transparent 0%, transparent 45%, #db2777 45%, #db2777 58%, transparent 58%),
+    linear-gradient(160deg, var(--app-mesh-a) 0%, var(--app-mesh-b) 45%, var(--app-mesh-c) 100%);
+  background-attachment: fixed;
+}
+
+html[data-ui-style="vibrant-block"] .nice-admin-sidebar-title,
+html[data-ui-style="vibrant-block"] .nice-admin-header-breadcrumb,
+html[data-ui-style="vibrant-block"] .feeds-header-main h1,
+html[data-ui-style="vibrant-block"] .auth-page h1 {
+  font-family: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+}
+
+html[data-ui-style="vibrant-block"] .sidebar-header {
+  font-family: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+}
+
+html[data-ui-style="vibrant-block"] .article-title-btn,
+html[data-ui-style="vibrant-block"] .article-detail-title {
+  font-family: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+html[data-ui-style="vibrant-block"] .nice-admin-sidebar,
+html[data-ui-style="vibrant-block"] .nice-admin-header,
+html[data-ui-style="vibrant-block"] .feeds-card,
+html[data-ui-style="vibrant-block"] .feeds-header-card,
+html[data-ui-style="vibrant-block"] .auth-page {
+  border-width: 2px;
+  border-style: solid;
+  border-color: var(--nice-admin-card-border);
+  border-radius: 14px;
+  box-shadow: var(--app-block-shadow);
+}
+
+html[data-ui-style="vibrant-block"] .nice-admin-sidebar,
+html[data-ui-style="vibrant-block"] .nice-admin-header {
+  border-radius: 0;
+  border-width: 0 1px 0 0;
+}
+
+html[data-ui-style="vibrant-block"] .nice-admin-header {
+  border-width: 0 0 1px 0;
+  border-radius: 0;
+}
+
+html[data-ui-style="vibrant-block"] .nice-admin-sidebar {
+  box-shadow: var(--app-block-shadow);
+  border-right: 2px solid var(--nice-admin-header-border);
+}
+
+html[data-ui-style="vibrant-block"] .nice-admin-sidebar-link.active {
+  background: var(--nice-admin-primary);
+  color: #0f172a;
+  font-weight: 600;
+}
+
+html[data-ui-style="vibrant-block"][data-theme="dark"] .nice-admin-sidebar-link.active {
+  color: #0c0a1a;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html[data-ui-style="vibrant-block"] .feeds-card,
+  html[data-ui-style="vibrant-block"] .feeds-header-card,
+  html[data-ui-style="vibrant-block"] .auth-page {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  html[data-ui-style="vibrant-block"] .feeds-card:hover,
+  html[data-ui-style="vibrant-block"] .feeds-header-card:hover {
+    transform: translate(-3px, -3px);
+    box-shadow: 12px 12px 0 rgba(15, 23, 42, 0.12);
+  }
+
+  html[data-ui-style="vibrant-block"][data-theme="dark"] .feeds-card:hover,
+  html[data-ui-style="vibrant-block"][data-theme="dark"] .feeds-header-card:hover {
+    box-shadow: 12px 12px 0 rgba(0, 0, 0, 0.4);
+  }
+
+  html[data-ui-style="vibrant-block"] .auth-page h1 {
+    animation: vibrant-block-title-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  html[data-ui-style="vibrant-block"] .nice-admin-sidebar-brand {
+    animation: vibrant-block-fade-rise 0.4s ease-out 0.04s both;
+  }
+}
+
+@keyframes vibrant-block-title-in {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes vibrant-block-fade-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ========== 界面风格：Aurora UI（极光渐变 + 玻璃光晕，动效仅 transform/opacity） ========== */
+html[data-ui-style="aurora"] {
+  --app-mesh-a: #e0f2fe;
+  --app-mesh-b: #ede9fe;
+  --app-mesh-c: #fce7f3;
+  --glass-surface: rgba(255, 255, 255, 0.42);
+  --glass-surface-strong: rgba(255, 255, 255, 0.62);
+  --glass-border: rgba(255, 255, 255, 0.55);
+  --glass-border-outer: rgba(14, 116, 144, 0.14);
+  --glass-shadow:
+    0 8px 36px rgba(8, 145, 178, 0.14),
+    0 0 0 1px rgba(255, 255, 255, 0.35) inset;
+  --glass-blur: blur(22px) saturate(1.55);
+  --nice-admin-sidebar-bg: var(--glass-surface-strong);
+  --nice-admin-sidebar-text: #0f172a;
+  --nice-admin-sidebar-active: #0e7490;
+  --nice-admin-sidebar-hover: rgba(14, 116, 144, 0.12);
+  --nice-admin-header-bg: var(--glass-surface-strong);
+  --nice-admin-header-border: rgba(14, 116, 144, 0.18);
+  --nice-admin-card-bg: var(--glass-surface);
+  --nice-admin-card-border: rgba(14, 116, 144, 0.22);
+  --nice-admin-text: #0f172a;
+  --nice-admin-text-muted: #475569;
+  --nice-admin-primary: #0e7490;
+  --nice-admin-primary-hover: #0f766e;
+  --nice-admin-input-bg: rgba(255, 255, 255, 0.72);
+  --nice-admin-input-border: rgba(14, 116, 144, 0.28);
+  --nice-admin-danger: #dc2626;
+  --nice-admin-success: #059669;
+  --nice-admin-subtle-bg: rgba(224, 242, 254, 0.65);
+  --nice-admin-hover-bg: rgba(14, 116, 144, 0.08);
+}
+
+html[data-ui-style="aurora"][data-theme="dark"] {
+  --app-mesh-a: #0a1628;
+  --app-mesh-b: #1a0f2e;
+  --app-mesh-c: #0c1e2e;
+  --glass-surface: rgba(15, 23, 42, 0.52);
+  --glass-surface-strong: rgba(15, 23, 42, 0.74);
+  --glass-border: rgba(103, 232, 249, 0.18);
+  --glass-border-outer: rgba(0, 0, 0, 0.45);
+  --glass-shadow:
+    0 12px 48px rgba(0, 0, 0, 0.42),
+    0 0 0 1px rgba(103, 232, 249, 0.12) inset;
+  --glass-blur: blur(24px) saturate(1.35);
+  --nice-admin-sidebar-text: #e2e8f0;
+  --nice-admin-sidebar-active: #22d3ee;
+  --nice-admin-sidebar-hover: rgba(34, 211, 238, 0.12);
+  --nice-admin-header-border: rgba(103, 232, 249, 0.16);
+  --nice-admin-card-bg: var(--glass-surface);
+  --nice-admin-card-border: rgba(103, 232, 249, 0.2);
+  --nice-admin-text: #f1f5f9;
+  --nice-admin-text-muted: rgba(148, 163, 184, 0.92);
+  --nice-admin-primary: #22d3ee;
+  --nice-admin-primary-hover: #67e8f9;
+  --nice-admin-input-bg: rgba(15, 23, 42, 0.65);
+  --nice-admin-input-border: rgba(103, 232, 249, 0.22);
+  --nice-admin-danger: #f87171;
+  --nice-admin-success: #34d399;
+  --nice-admin-subtle-bg: rgba(34, 211, 238, 0.08);
+  --nice-admin-hover-bg: rgba(34, 211, 238, 0.1);
+}
+
+html[data-ui-style="aurora"] body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+  position: relative;
+  isolation: isolate;
+  background-color: var(--app-mesh-a);
+  min-height: 100%;
+}
+
+html[data-ui-style="aurora"] body::before {
+  content: '';
+  position: fixed;
+  z-index: -1;
+  inset: -12%;
+  background:
+    radial-gradient(ellipse 90% 70% at 15% 25%, rgba(56, 189, 248, 0.5), transparent 58%),
+    radial-gradient(ellipse 75% 55% at 88% 18%, rgba(192, 132, 252, 0.42), transparent 52%),
+    radial-gradient(ellipse 65% 50% at 72% 92%, rgba(244, 114, 182, 0.38), transparent 50%),
+    radial-gradient(ellipse 50% 40% at 40% 70%, rgba(45, 212, 191, 0.28), transparent 45%),
+    linear-gradient(168deg, var(--app-mesh-a) 0%, var(--app-mesh-b) 48%, var(--app-mesh-c) 100%);
+  opacity: 1;
+  transform: translate3d(0, 0, 0);
+}
+
+html[data-ui-style="aurora"][data-theme="dark"] body::before {
+  background:
+    radial-gradient(ellipse 95% 75% at 12% 22%, rgba(6, 182, 212, 0.35), transparent 55%),
+    radial-gradient(ellipse 80% 60% at 92% 28%, rgba(167, 139, 250, 0.32), transparent 52%),
+    radial-gradient(ellipse 70% 55% at 55% 95%, rgba(236, 72, 153, 0.22), transparent 48%),
+    linear-gradient(168deg, var(--app-mesh-a) 0%, var(--app-mesh-b) 45%, var(--app-mesh-c) 100%);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html[data-ui-style="aurora"] body::before {
+    animation: aurora-drift 24s ease-in-out infinite alternate;
+  }
+}
+
+@keyframes aurora-drift {
+  0% {
+    opacity: 1;
+    transform: translate3d(-1.5%, -1%, 0) scale(1);
+  }
+  100% {
+    opacity: 0.94;
+    transform: translate3d(1.5%, 1.5%, 0) scale(1.04);
+  }
+}
+
+html[data-ui-style="aurora"] .nice-admin-sidebar-title,
+html[data-ui-style="aurora-evolved"] .nice-admin-sidebar-title,
+html[data-ui-style="aurora"] .nice-admin-header-breadcrumb,
+html[data-ui-style="aurora-evolved"] .nice-admin-header-breadcrumb,
+html[data-ui-style="aurora"] .feeds-header-main h1,
+html[data-ui-style="aurora-evolved"] .feeds-header-main h1,
+html[data-ui-style="aurora"] .auth-page h1,
+html[data-ui-style="aurora-evolved"] .auth-page h1 {
+  font-family: 'Syne', 'Inter', system-ui, sans-serif;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+
+html[data-ui-style="aurora"] .sidebar-header,
+html[data-ui-style="aurora-evolved"] .sidebar-header {
+  font-family: 'Syne', 'Inter', system-ui, sans-serif;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+}
+
+html[data-ui-style="aurora"] .article-title-btn,
+html[data-ui-style="aurora-evolved"] .article-title-btn,
+html[data-ui-style="aurora"] .article-detail-title,
+html[data-ui-style="aurora-evolved"] .article-detail-title {
+  font-family: 'Syne', 'Inter', system-ui, sans-serif;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+html[data-ui-style="aurora"] .nice-admin-sidebar-link.active {
+  background: rgba(14, 116, 144, 0.14);
+  color: var(--nice-admin-primary);
+  font-weight: 600;
+}
+
+html[data-ui-style="aurora"][data-theme="dark"] .nice-admin-sidebar-link.active {
+  background: rgba(34, 211, 238, 0.14);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html[data-ui-style="aurora"] .feeds-card,
+  html[data-ui-style="aurora"] .feeds-header-card,
+  html[data-ui-style="aurora"] .auth-page {
+    transition: transform 0.22s ease, box-shadow 0.22s ease;
+  }
+
+  html[data-ui-style="aurora-evolved"] .feeds-card,
+  html[data-ui-style="aurora-evolved"] .feeds-header-card,
+  html[data-ui-style="aurora-evolved"] .auth-page {
+    transition: transform 0.24s ease, box-shadow 0.24s ease;
+  }
+
+  html[data-ui-style="aurora"] .feeds-card:hover,
+  html[data-ui-style="aurora"] .feeds-header-card:hover {
+    transform: translateY(-2px);
+    box-shadow:
+      0 14px 40px rgba(8, 145, 178, 0.16),
+      0 0 0 1px rgba(255, 255, 255, 0.25) inset;
+  }
+
+  html[data-ui-style="aurora-evolved"] .feeds-card:hover,
+  html[data-ui-style="aurora-evolved"] .feeds-header-card:hover {
+    transform: translateY(-2px);
+    box-shadow:
+      0 16px 44px rgba(99, 102, 241, 0.14),
+      0 0 0 1px rgba(255, 255, 255, 0.22) inset;
+  }
+
+  html[data-ui-style="aurora"][data-theme="dark"] .feeds-card:hover,
+  html[data-ui-style="aurora"][data-theme="dark"] .feeds-header-card:hover {
+    box-shadow:
+      0 16px 48px rgba(0, 0, 0, 0.45),
+      0 0 0 1px rgba(103, 232, 249, 0.15) inset;
+  }
+
+  html[data-ui-style="aurora-evolved"][data-theme="dark"] .feeds-card:hover,
+  html[data-ui-style="aurora-evolved"][data-theme="dark"] .feeds-header-card:hover {
+    box-shadow:
+      0 18px 52px rgba(0, 0, 0, 0.48),
+      0 0 0 1px rgba(167, 139, 250, 0.14) inset;
+  }
+
+  html[data-ui-style="aurora"] .auth-page h1,
+  html[data-ui-style="aurora-evolved"] .auth-page h1 {
+    animation: aurora-title-in 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  html[data-ui-style="aurora"] .nice-admin-sidebar-brand,
+  html[data-ui-style="aurora-evolved"] .nice-admin-sidebar-brand {
+    animation: aurora-fade-rise 0.38s ease-out 0.05s both;
+  }
+}
+
+@keyframes aurora-title-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes aurora-fade-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ========== 界面风格：Gradient Mesh / Aurora Evolved（锥形色环 + 多节点径向网格，动效仅 transform/opacity） ========== */
+html[data-ui-style="aurora-evolved"] {
+  --app-mesh-a: #eef2ff;
+  --app-mesh-b: #faf5ff;
+  --app-mesh-c: #ecfeff;
+  --glass-surface: rgba(255, 255, 255, 0.4);
+  --glass-surface-strong: rgba(255, 255, 255, 0.64);
+  --glass-border: rgba(255, 255, 255, 0.52);
+  --glass-border-outer: rgba(79, 70, 229, 0.12);
+  --glass-shadow:
+    0 10px 40px rgba(99, 102, 241, 0.12),
+    0 0 0 1px rgba(255, 255, 255, 0.32) inset;
+  --glass-blur: blur(24px) saturate(1.6);
+  --nice-admin-sidebar-bg: var(--glass-surface-strong);
+  --nice-admin-sidebar-text: #0f172a;
+  --nice-admin-sidebar-active: #6366f1;
+  --nice-admin-sidebar-hover: rgba(99, 102, 241, 0.12);
+  --nice-admin-header-bg: var(--glass-surface-strong);
+  --nice-admin-header-border: rgba(99, 102, 241, 0.16);
+  --nice-admin-card-bg: var(--glass-surface);
+  --nice-admin-card-border: rgba(99, 102, 241, 0.2);
+  --nice-admin-text: #0f172a;
+  --nice-admin-text-muted: #475569;
+  --nice-admin-primary: #6366f1;
+  --nice-admin-primary-hover: #4f46e5;
+  --nice-admin-input-bg: rgba(255, 255, 255, 0.75);
+  --nice-admin-input-border: rgba(99, 102, 241, 0.26);
+  --nice-admin-danger: #dc2626;
+  --nice-admin-success: #059669;
+  --nice-admin-subtle-bg: rgba(238, 242, 255, 0.72);
+  --nice-admin-hover-bg: rgba(99, 102, 241, 0.08);
+}
+
+html[data-ui-style="aurora-evolved"][data-theme="dark"] {
+  --app-mesh-a: #0c0618;
+  --app-mesh-b: #120a22;
+  --app-mesh-c: #0a1628;
+  --glass-surface: rgba(15, 23, 42, 0.5);
+  --glass-surface-strong: rgba(15, 23, 42, 0.76);
+  --glass-border: rgba(167, 139, 250, 0.2);
+  --glass-border-outer: rgba(0, 0, 0, 0.48);
+  --glass-shadow:
+    0 14px 52px rgba(0, 0, 0, 0.48),
+    0 0 0 1px rgba(167, 139, 250, 0.1) inset;
+  --glass-blur: blur(26px) saturate(1.38);
+  --nice-admin-sidebar-text: #f1f5f9;
+  --nice-admin-sidebar-active: #a78bfa;
+  --nice-admin-sidebar-hover: rgba(167, 139, 250, 0.14);
+  --nice-admin-header-border: rgba(167, 139, 250, 0.18);
+  --nice-admin-card-bg: var(--glass-surface);
+  --nice-admin-card-border: rgba(167, 139, 250, 0.22);
+  --nice-admin-text: #f8fafc;
+  --nice-admin-text-muted: rgba(203, 213, 225, 0.9);
+  --nice-admin-primary: #a78bfa;
+  --nice-admin-primary-hover: #c4b5fd;
+  --nice-admin-input-bg: rgba(15, 23, 42, 0.68);
+  --nice-admin-input-border: rgba(167, 139, 250, 0.24);
+  --nice-admin-danger: #f87171;
+  --nice-admin-success: #34d399;
+  --nice-admin-subtle-bg: rgba(124, 58, 237, 0.1);
+  --nice-admin-hover-bg: rgba(167, 139, 250, 0.12);
+}
+
+html[data-ui-style="aurora-evolved"] body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+  position: relative;
+  isolation: isolate;
+  background-color: var(--app-mesh-a);
+  min-height: 100%;
+}
+
+html[data-ui-style="aurora-evolved"] body::before {
+  content: '';
+  position: fixed;
+  z-index: -1;
+  inset: -18%;
+  background:
+    conic-gradient(
+      from 212deg at 48% 42%,
+      rgba(99, 102, 241, 0.26) 0deg,
+      rgba(6, 182, 212, 0.2) 95deg,
+      rgba(236, 72, 153, 0.18) 190deg,
+      rgba(52, 211, 153, 0.16) 260deg,
+      rgba(167, 139, 250, 0.22) 330deg,
+      rgba(99, 102, 241, 0.26) 360deg
+    ),
+    radial-gradient(ellipse 72% 58% at 10% 20%, rgba(129, 140, 248, 0.48), transparent 56%),
+    radial-gradient(ellipse 68% 52% at 92% 18%, rgba(217, 70, 239, 0.4), transparent 54%),
+    radial-gradient(ellipse 64% 50% at 78% 88%, rgba(34, 211, 238, 0.36), transparent 52%),
+    radial-gradient(ellipse 58% 46% at 22% 78%, rgba(52, 211, 153, 0.3), transparent 50%),
+    radial-gradient(ellipse 52% 44% at 52% 46%, rgba(167, 139, 250, 0.22), transparent 46%),
+    linear-gradient(152deg, var(--app-mesh-a) 0%, var(--app-mesh-b) 44%, var(--app-mesh-c) 100%);
+  opacity: 1;
+  transform: translate3d(0, 0, 0);
+}
+
+html[data-ui-style="aurora-evolved"][data-theme="dark"] body::before {
+  background:
+    conic-gradient(
+      from 200deg at 50% 38%,
+      rgba(124, 58, 237, 0.24) 0deg,
+      rgba(6, 182, 212, 0.18) 100deg,
+      rgba(217, 70, 239, 0.16) 200deg,
+      rgba(52, 211, 153, 0.12) 280deg,
+      rgba(124, 58, 237, 0.24) 360deg
+    ),
+    radial-gradient(ellipse 78% 62% at 8% 24%, rgba(99, 102, 241, 0.38), transparent 54%),
+    radial-gradient(ellipse 70% 56% at 95% 26%, rgba(192, 132, 252, 0.32), transparent 52%),
+    radial-gradient(ellipse 66% 52% at 50% 92%, rgba(34, 197, 235, 0.26), transparent 50%),
+    linear-gradient(155deg, var(--app-mesh-a) 0%, var(--app-mesh-b) 42%, var(--app-mesh-c) 100%);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html[data-ui-style="aurora-evolved"] body::before {
+    animation: aurora-mesh-drift 32s ease-in-out infinite alternate;
+  }
+}
+
+@keyframes aurora-mesh-drift {
+  0% {
+    opacity: 1;
+    transform: translate3d(-2%, -1.2%, 0) scale(1) rotate(0deg);
+  }
+  100% {
+    opacity: 0.91;
+    transform: translate3d(2%, 1.6%, 0) scale(1.06) rotate(2.5deg);
+  }
+}
+
+html[data-ui-style="aurora-evolved"] .nice-admin-sidebar-link.active {
+  background: rgba(99, 102, 241, 0.14);
+  color: var(--nice-admin-primary);
+  font-weight: 600;
+}
+
+html[data-ui-style="aurora-evolved"][data-theme="dark"] .nice-admin-sidebar-link.active {
+  background: rgba(167, 139, 250, 0.16);
+}
+
+/* ========== 界面风格：Memphis Design（80s 孟菲斯：高对比色块、粗黑描边、错位硬阴影、几何背景） ========== */
+html[data-ui-style="memphis"] {
+  --app-memphis-shadow: 8px 8px 0 #0f172a;
+  --app-mesh-a: #fffef5;
+  --app-mesh-b: #fef9c3;
+  --app-mesh-c: #fce7f3;
+  --glass-surface: #ffffff;
+  --glass-surface-strong: #ffffff;
+  --glass-border: #0f172a;
+  --glass-border-outer: #0f172a;
+  --glass-shadow: var(--app-memphis-shadow);
+  --glass-blur: none;
+  --nice-admin-sidebar-bg: var(--glass-surface-strong);
+  --nice-admin-sidebar-text: #0f172a;
+  --nice-admin-sidebar-active: #f472b6;
+  --nice-admin-sidebar-hover: rgba(15, 23, 42, 0.06);
+  --nice-admin-header-bg: var(--glass-surface-strong);
+  --nice-admin-header-border: #0f172a;
+  --nice-admin-card-bg: #ffffff;
+  --nice-admin-card-border: #0f172a;
+  --nice-admin-text: #0f172a;
+  --nice-admin-text-muted: #334155;
+  --nice-admin-primary: #db2777;
+  --nice-admin-primary-hover: #be185d;
+  --nice-admin-input-bg: #ffffff;
+  --nice-admin-input-border: #0f172a;
+  --nice-admin-danger: #b91c1c;
+  --nice-admin-success: #15803d;
+  --nice-admin-subtle-bg: #fef3c7;
+  --nice-admin-hover-bg: rgba(244, 114, 182, 0.12);
+}
+
+html[data-ui-style="memphis"][data-theme="dark"] {
+  --app-memphis-shadow: 8px 8px 0 #facc15;
+  --app-mesh-a: #12061a;
+  --app-mesh-b: #1e0a2e;
+  --app-mesh-c: #0a1620;
+  --glass-surface: #1a1428;
+  --glass-surface-strong: #1f1830;
+  --glass-border: #facc15;
+  --glass-border-outer: #f472b6;
+  --glass-shadow: var(--app-memphis-shadow);
+  --nice-admin-sidebar-text: #fef3c7;
+  --nice-admin-sidebar-active: #f472b6;
+  --nice-admin-sidebar-hover: rgba(250, 204, 21, 0.12);
+  --nice-admin-header-border: #facc15;
+  --nice-admin-card-bg: #1a1428;
+  --nice-admin-card-border: #facc15;
+  --nice-admin-text: #fef3c7;
+  --nice-admin-text-muted: rgba(254, 243, 199, 0.75);
+  --nice-admin-primary: #f472b6;
+  --nice-admin-primary-hover: #fbcfe8;
+  --nice-admin-input-bg: rgba(15, 23, 42, 0.55);
+  --nice-admin-input-border: #facc15;
+  --nice-admin-danger: #f87171;
+  --nice-admin-success: #4ade80;
+  --nice-admin-subtle-bg: rgba(250, 204, 21, 0.08);
+  --nice-admin-hover-bg: rgba(244, 114, 182, 0.12);
+}
+
+html[data-ui-style="memphis"] body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+  background-color: var(--app-mesh-a);
+  background-image:
+    radial-gradient(circle at 18% 24%, #f9a8d4 0, #f9a8d4 32px, transparent 33px),
+    radial-gradient(circle at 82% 16%, #67e8f9 0, #67e8f9 20px, transparent 21px),
+    radial-gradient(circle at 72% 78%, #fde047 0, #fde047 40px, transparent 41px),
+    linear-gradient(135deg, #f0abfc 0%, #f0abfc 6%, transparent 6% 100%),
+    linear-gradient(118deg, transparent 0 62%, #22d3ee 62%, #22d3ee 68%, transparent 68% 100%),
+    repeating-linear-gradient(
+      90deg,
+      rgba(15, 23, 42, 0.05) 0,
+      rgba(15, 23, 42, 0.05) 1px,
+      transparent 1px,
+      transparent 20px
+    ),
+    linear-gradient(168deg, var(--app-mesh-a) 0%, var(--app-mesh-b) 45%, var(--app-mesh-c) 100%);
+  background-attachment: fixed;
+}
+
+html[data-ui-style="memphis"][data-theme="dark"] body {
+  background-image:
+    radial-gradient(circle at 16% 22%, #db2777 0, #db2777 28px, transparent 29px),
+    radial-gradient(circle at 86% 20%, #22d3ee 0, #22d3ee 18px, transparent 19px),
+    radial-gradient(circle at 70% 82%, #facc15 0, #facc15 36px, transparent 37px),
+    linear-gradient(128deg, rgba(244, 114, 182, 0.35) 0, rgba(244, 114, 182, 0.35) 5%, transparent 5% 100%),
+    linear-gradient(110deg, transparent 0 58%, rgba(34, 211, 238, 0.25) 58%, rgba(34, 211, 238, 0.25) 64%, transparent 64% 100%),
+    linear-gradient(165deg, var(--app-mesh-a) 0%, var(--app-mesh-b) 50%, var(--app-mesh-c) 100%);
+  background-attachment: fixed;
+}
+
+html[data-ui-style="memphis"] .nice-admin-sidebar-title,
+html[data-ui-style="memphis"] .nice-admin-header-breadcrumb,
+html[data-ui-style="memphis"] .feeds-header-main h1,
+html[data-ui-style="memphis"] .auth-page h1 {
+  font-family: 'Syne', 'Inter', system-ui, sans-serif;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+}
+
+html[data-ui-style="memphis"] .sidebar-header {
+  font-family: 'Syne', 'Inter', system-ui, sans-serif;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+
+html[data-ui-style="memphis"] .article-title-btn,
+html[data-ui-style="memphis"] .article-detail-title {
+  font-family: 'Syne', 'Inter', system-ui, sans-serif;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+html[data-ui-style="memphis"] .nice-admin-sidebar,
+html[data-ui-style="memphis"] .nice-admin-header,
+html[data-ui-style="memphis"] .feeds-card,
+html[data-ui-style="memphis"] .feeds-header-card,
+html[data-ui-style="memphis"] .auth-page {
+  border-width: 3px;
+  border-style: solid;
+  border-color: var(--nice-admin-card-border);
+  border-radius: 4px;
+  box-shadow: var(--app-memphis-shadow);
+}
+
+html[data-ui-style="memphis"] .nice-admin-sidebar,
+html[data-ui-style="memphis"] .nice-admin-header {
+  border-radius: 0;
+  border-width: 0 3px 0 0;
+}
+
+html[data-ui-style="memphis"] .nice-admin-header {
+  border-width: 0 0 3px 0;
+  border-radius: 0;
+}
+
+html[data-ui-style="memphis"] .nice-admin-sidebar {
+  border-right: 3px solid var(--nice-admin-header-border);
+}
+
+html[data-ui-style="memphis"] .nice-admin-sidebar-link.active {
+  background: var(--nice-admin-primary);
+  color: #0f172a;
+  font-weight: 700;
+}
+
+html[data-ui-style="memphis"][data-theme="dark"] .nice-admin-sidebar-link.active {
+  color: #12061a;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html[data-ui-style="memphis"] .feeds-card,
+  html[data-ui-style="memphis"] .feeds-header-card,
+  html[data-ui-style="memphis"] .auth-page {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  html[data-ui-style="memphis"] .feeds-card:hover,
+  html[data-ui-style="memphis"] .feeds-header-card:hover {
+    transform: translate(-4px, -4px);
+    box-shadow: 12px 12px 0 #0f172a;
+  }
+
+  html[data-ui-style="memphis"][data-theme="dark"] .feeds-card:hover,
+  html[data-ui-style="memphis"][data-theme="dark"] .feeds-header-card:hover {
+    box-shadow: 12px 12px 0 #facc15;
+  }
+
+  html[data-ui-style="memphis"] .auth-page h1 {
+    animation: memphis-title-in 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  html[data-ui-style="memphis"] .nice-admin-sidebar-brand {
+    animation: memphis-fade-rise 0.38s ease-out 0.04s both;
+  }
+}
+
+@keyframes memphis-title-in {
+  from {
+    opacity: 0;
+    transform: translateX(-8px) rotate(-0.5deg);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) rotate(0deg);
+  }
+}
+
+@keyframes memphis-fade-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+html[data-ui-style="memphis"] .ui-style-floating-wrap {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border-width: 2px;
+  border-radius: 2px;
+  box-shadow: 4px 4px 0 #0f172a;
+}
+
+html[data-ui-style="memphis"][data-theme="dark"] .ui-style-floating-wrap {
+  box-shadow: 4px 4px 0 #facc15;
+}
+
+/* ========== 界面风格：Y2K Aesthetic（千禧年：液态高光、粉紫青镭射、气泡圆角、光泽描边） ========== */
+html[data-ui-style="y2k"] {
+  --app-y2k-chrome:
+    0 0 0 1px rgba(255, 255, 255, 0.78), 0 2px 4px rgba(15, 23, 42, 0.05), 0 10px 36px rgba(139, 92, 246, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.92);
+  --app-mesh-a: #f8f5ff;
+  --app-mesh-b: #fdf2f8;
+  --app-mesh-c: #ecfeff;
+  --glass-surface: rgba(255, 255, 255, 0.78);
+  --glass-surface-strong: rgba(255, 255, 255, 0.92);
+  --glass-border: rgba(192, 132, 252, 0.5);
+  --glass-border-outer: rgba(244, 114, 182, 0.28);
+  --glass-shadow: var(--app-y2k-chrome);
+  --glass-blur: blur(18px) saturate(1.42);
+  --nice-admin-sidebar-bg: var(--glass-surface-strong);
+  --nice-admin-sidebar-text: #312e81;
+  --nice-admin-sidebar-active: #c026d3;
+  --nice-admin-sidebar-hover: rgba(192, 132, 252, 0.14);
+  --nice-admin-header-bg: var(--glass-surface-strong);
+  --nice-admin-header-border: rgba(167, 139, 250, 0.38);
+  --nice-admin-card-bg: rgba(255, 255, 255, 0.84);
+  --nice-admin-card-border: rgba(192, 132, 252, 0.42);
+  --nice-admin-text: #312e81;
+  --nice-admin-text-muted: #5b21b6;
+  --nice-admin-primary: #7c3aed;
+  --nice-admin-primary-hover: #6d28d9;
+  --nice-admin-input-bg: rgba(255, 255, 255, 0.93);
+  --nice-admin-input-border: rgba(167, 139, 250, 0.48);
+  --nice-admin-danger: #e11d48;
+  --nice-admin-success: #059669;
+  --nice-admin-subtle-bg: rgba(237, 233, 254, 0.72);
+  --nice-admin-hover-bg: rgba(244, 114, 182, 0.12);
+}
+
+html[data-ui-style="y2k"][data-theme="dark"] {
+  --app-y2k-chrome:
+    0 0 0 1px rgba(244, 114, 182, 0.28), 0 2px 4px rgba(0, 0, 0, 0.35), 0 10px 40px rgba(34, 211, 238, 0.09),
+    inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  --app-mesh-a: #0c0618;
+  --app-mesh-b: #1a0f2e;
+  --app-mesh-c: #071018;
+  --glass-surface: rgba(30, 27, 60, 0.74);
+  --glass-surface-strong: rgba(36, 32, 72, 0.9);
+  --glass-border: rgba(167, 139, 250, 0.42);
+  --glass-border-outer: rgba(34, 211, 238, 0.22);
+  --glass-shadow: var(--app-y2k-chrome);
+  --nice-admin-sidebar-text: #f5f3ff;
+  --nice-admin-sidebar-active: #e879f9;
+  --nice-admin-sidebar-hover: rgba(34, 211, 238, 0.12);
+  --nice-admin-header-border: rgba(167, 139, 250, 0.38);
+  --nice-admin-card-bg: rgba(30, 27, 60, 0.8);
+  --nice-admin-card-border: rgba(192, 132, 252, 0.38);
+  --nice-admin-text: #f5f3ff;
+  --nice-admin-text-muted: rgba(196, 181, 253, 0.88);
+  --nice-admin-primary: #c084fc;
+  --nice-admin-primary-hover: #e879f9;
+  --nice-admin-input-bg: rgba(15, 23, 42, 0.52);
+  --nice-admin-input-border: rgba(167, 139, 250, 0.42);
+  --nice-admin-danger: #fb7185;
+  --nice-admin-success: #34d399;
+  --nice-admin-subtle-bg: rgba(88, 28, 135, 0.28);
+  --nice-admin-hover-bg: rgba(244, 114, 182, 0.14);
+}
+
+html[data-ui-style="y2k"] body {
+  font-family: 'Exo 2', 'Inter', system-ui, sans-serif;
+  background-color: var(--app-mesh-a);
+  background-image:
+    radial-gradient(ellipse 120% 80% at 8% -8%, rgba(244, 114, 182, 0.38) 0%, transparent 56%),
+    radial-gradient(ellipse 100% 58% at 100% 0%, rgba(34, 211, 238, 0.24) 0%, transparent 52%),
+    radial-gradient(ellipse 85% 48% at 48% 100%, rgba(167, 139, 250, 0.3) 0%, transparent 46%),
+    linear-gradient(165deg, var(--app-mesh-a) 0%, var(--app-mesh-b) 40%, var(--app-mesh-c) 100%);
+  background-attachment: fixed;
+}
+
+html[data-ui-style="y2k"][data-theme="dark"] body {
+  background-image:
+    radial-gradient(ellipse 105% 72% at 12% -6%, rgba(217, 70, 239, 0.24) 0%, transparent 56%),
+    radial-gradient(ellipse 92% 52% at 96% 8%, rgba(34, 211, 238, 0.16) 0%, transparent 50%),
+    linear-gradient(168deg, var(--app-mesh-a) 0%, var(--app-mesh-b) 48%, var(--app-mesh-c) 100%);
+  background-attachment: fixed;
+}
+
+html[data-ui-style="y2k"] .nice-admin-sidebar-title,
+html[data-ui-style="y2k"] .nice-admin-header-breadcrumb,
+html[data-ui-style="y2k"] .feeds-header-main h1,
+html[data-ui-style="y2k"] .auth-page h1 {
+  font-family: 'Orbitron', 'Exo 2', system-ui, sans-serif;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+html[data-ui-style="y2k"] .sidebar-header {
+  font-family: 'Orbitron', 'Exo 2', system-ui, sans-serif;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+}
+
+html[data-ui-style="y2k"] .article-title-btn,
+html[data-ui-style="y2k"] .article-detail-title {
+  font-family: 'Exo 2', 'Inter', system-ui, sans-serif;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+html[data-ui-style="y2k"] .nice-admin-sidebar,
+html[data-ui-style="y2k"] .nice-admin-header,
+html[data-ui-style="y2k"] .feeds-card,
+html[data-ui-style="y2k"] .feeds-header-card,
+html[data-ui-style="y2k"] .auth-page {
+  border-width: 2px;
+  border-style: solid;
+  border-color: var(--nice-admin-card-border);
+  border-radius: 1.25rem;
+  box-shadow: var(--app-y2k-chrome);
+}
+
+html[data-ui-style="y2k"] .nice-admin-sidebar,
+html[data-ui-style="y2k"] .nice-admin-header {
+  border-radius: 0;
+  border-width: 0 2px 0 0;
+}
+
+html[data-ui-style="y2k"] .nice-admin-header {
+  border-width: 0 0 2px 0;
+  border-radius: 0;
+}
+
+html[data-ui-style="y2k"] .nice-admin-sidebar {
+  border-right: 2px solid var(--nice-admin-header-border);
+}
+
+html[data-ui-style="y2k"] .nice-admin-sidebar-link.active {
+  background: linear-gradient(135deg, #a855f7 0%, #ec4899 55%, #22d3ee 100%);
+  color: #faf5ff;
+  font-weight: 700;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+html[data-ui-style="y2k"][data-theme="dark"] .nice-admin-sidebar-link.active {
+  color: #0f0a1a;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html[data-ui-style="y2k"] .feeds-card,
+  html[data-ui-style="y2k"] .feeds-header-card,
+  html[data-ui-style="y2k"] .auth-page {
+    transition: transform 0.22s ease, box-shadow 0.22s ease;
+  }
+
+  html[data-ui-style="y2k"] .feeds-card:hover,
+  html[data-ui-style="y2k"] .feeds-header-card:hover {
+    transform: translateY(-3px) scale(1.01);
+    box-shadow:
+      0 0 0 1px rgba(255, 255, 255, 0.85), 0 6px 8px rgba(15, 23, 42, 0.07), 0 16px 44px rgba(139, 92, 246, 0.2),
+      inset 0 1px 0 rgba(255, 255, 255, 0.95);
+  }
+
+  html[data-ui-style="y2k"][data-theme="dark"] .feeds-card:hover,
+  html[data-ui-style="y2k"][data-theme="dark"] .feeds-header-card:hover {
+    box-shadow:
+      0 0 0 1px rgba(244, 114, 182, 0.35), 0 6px 8px rgba(0, 0, 0, 0.4), 0 16px 48px rgba(34, 211, 238, 0.12),
+      inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  }
+
+  html[data-ui-style="y2k"] .auth-page h1 {
+    animation: y2k-title-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  html[data-ui-style="y2k"] .nice-admin-sidebar-brand {
+    animation: y2k-fade-rise 0.4s ease-out 0.05s both;
+  }
+}
+
+@keyframes y2k-title-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+    filter: blur(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+@keyframes y2k-fade-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+html[data-ui-style="y2k"] .ui-style-floating-wrap {
+  backdrop-filter: blur(14px) saturate(1.35);
+  -webkit-backdrop-filter: blur(14px) saturate(1.35);
+  border-width: 2px;
+  border-radius: 999px;
+  box-shadow: var(--app-y2k-chrome);
+}
+
+html[data-ui-style="y2k"][data-theme="dark"] .ui-style-floating-wrap {
+  box-shadow: var(--app-y2k-chrome);
+}
+
+/* ========== 界面风格：Cyberpunk（霓虹网格、冷色描边、暗巷高光；亮/暗双主题） ========== */
+html[data-ui-style="cyberpunk"] {
+  --app-cyber-grid-a: rgba(8, 145, 178, 0.11);
+  --app-cyber-grid-b: rgba(192, 38, 211, 0.07);
+  --app-mesh-a: #e3f4fc;
+  --app-mesh-b: #e8e4ff;
+  --app-mesh-c: #fce7f6;
+  --glass-surface: rgba(255, 255, 255, 0.88);
+  --glass-surface-strong: rgba(255, 255, 255, 0.94);
+  --glass-border: rgba(8, 145, 178, 0.45);
+  --glass-border-outer: rgba(192, 38, 211, 0.28);
+  --glass-shadow:
+    0 4px 28px rgba(8, 145, 178, 0.14),
+    0 0 0 1px rgba(8, 145, 178, 0.22);
+  --glass-blur: none;
+  --nice-admin-sidebar-bg: var(--glass-surface-strong);
+  --nice-admin-sidebar-text: #0a0f1a;
+  --nice-admin-sidebar-active: #a21caf;
+  --nice-admin-sidebar-hover: rgba(8, 145, 178, 0.12);
+  --nice-admin-header-bg: var(--glass-surface-strong);
+  --nice-admin-header-border: rgba(8, 145, 178, 0.38);
+  --nice-admin-card-bg: rgba(255, 255, 255, 0.9);
+  --nice-admin-card-border: rgba(8, 145, 178, 0.42);
+  --nice-admin-text: #0a0f1a;
+  --nice-admin-text-muted: #475569;
+  --nice-admin-primary: #0891b2;
+  --nice-admin-primary-hover: #0e7490;
+  --nice-admin-input-bg: rgba(255, 255, 255, 0.92);
+  --nice-admin-input-border: rgba(8, 145, 178, 0.45);
+  --nice-admin-danger: #be123c;
+  --nice-admin-success: #0d9488;
+  --nice-admin-subtle-bg: rgba(8, 145, 178, 0.08);
+  --nice-admin-hover-bg: rgba(192, 38, 211, 0.08);
+}
+
+html[data-ui-style="cyberpunk"][data-theme="dark"] {
+  --app-cyber-grid-a: rgba(34, 211, 238, 0.09);
+  --app-cyber-grid-b: rgba(232, 121, 249, 0.06);
+  --app-mesh-a: #050814;
+  --app-mesh-b: #0a0e18;
+  --app-mesh-c: #100818;
+  --glass-surface: rgba(8, 12, 24, 0.88);
+  --glass-surface-strong: rgba(10, 16, 32, 0.94);
+  --glass-border: rgba(34, 211, 238, 0.38);
+  --glass-border-outer: rgba(232, 121, 249, 0.28);
+  --glass-shadow:
+    0 0 36px rgba(34, 211, 238, 0.12),
+    inset 0 0 0 1px rgba(34, 211, 238, 0.12);
+  --nice-admin-sidebar-text: #ecfeff;
+  --nice-admin-sidebar-active: #e879f9;
+  --nice-admin-sidebar-hover: rgba(34, 211, 238, 0.12);
+  --nice-admin-header-border: rgba(34, 211, 238, 0.28);
+  --nice-admin-card-bg: rgba(8, 12, 24, 0.9);
+  --nice-admin-card-border: rgba(34, 211, 238, 0.32);
+  --nice-admin-text: #ecfeff;
+  --nice-admin-text-muted: rgba(224, 242, 254, 0.72);
+  --nice-admin-primary: #22d3ee;
+  --nice-admin-primary-hover: #67e8f9;
+  --nice-admin-input-bg: rgba(6, 10, 22, 0.85);
+  --nice-admin-input-border: rgba(34, 211, 238, 0.35);
+  --nice-admin-danger: #fb7185;
+  --nice-admin-success: #2dd4bf;
+  --nice-admin-subtle-bg: rgba(34, 211, 238, 0.06);
+  --nice-admin-hover-bg: rgba(232, 121, 249, 0.1);
+}
+
+html[data-ui-style="cyberpunk"] body {
+  font-family: 'Exo 2', 'Inter', system-ui, sans-serif;
+  background-color: var(--app-mesh-a);
+  background-image:
+    linear-gradient(var(--app-cyber-grid-a) 1px, transparent 1px),
+    linear-gradient(90deg, var(--app-cyber-grid-a) 1px, transparent 1px),
+    linear-gradient(90deg, transparent 48%, var(--app-cyber-grid-b) 49%, var(--app-cyber-grid-b) 51%, transparent 52%),
+    linear-gradient(168deg, var(--app-mesh-a) 0%, var(--app-mesh-b) 48%, var(--app-mesh-c) 100%);
+  background-size:
+    28px 28px,
+    28px 28px,
+    100% 100%,
+    100% 100%;
+  background-attachment: fixed;
+}
+
+html[data-ui-style="cyberpunk"][data-theme="dark"] body {
+  background-image:
+    linear-gradient(var(--app-cyber-grid-a) 1px, transparent 1px),
+    linear-gradient(90deg, var(--app-cyber-grid-a) 1px, transparent 1px),
+    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(232, 121, 249, 0.12), transparent 55%),
+    radial-gradient(ellipse 70% 40% at 100% 100%, rgba(34, 211, 238, 0.08), transparent 50%),
+    linear-gradient(165deg, var(--app-mesh-a) 0%, var(--app-mesh-b) 50%, var(--app-mesh-c) 100%);
+  background-size:
+    32px 32px,
+    32px 32px,
+    100% 100%,
+    100% 100%,
+    100% 100%;
+  background-attachment: fixed;
+}
+
+html[data-ui-style="cyberpunk"] .nice-admin-sidebar-title,
+html[data-ui-style="cyberpunk"] .nice-admin-header-breadcrumb,
+html[data-ui-style="cyberpunk"] .feeds-header-main h1,
+html[data-ui-style="cyberpunk"] .auth-page h1 {
+  font-family: 'Orbitron', 'Exo 2', system-ui, sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+html[data-ui-style="cyberpunk"] .sidebar-header {
+  font-family: 'Orbitron', 'Exo 2', system-ui, sans-serif;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+html[data-ui-style="cyberpunk"] .article-title-btn,
+html[data-ui-style="cyberpunk"] .article-detail-title {
+  font-family: 'Exo 2', 'Inter', system-ui, sans-serif;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+html[data-ui-style="cyberpunk"] .nice-admin-sidebar,
+html[data-ui-style="cyberpunk"] .nice-admin-header,
+html[data-ui-style="cyberpunk"] .feeds-card,
+html[data-ui-style="cyberpunk"] .feeds-header-card,
+html[data-ui-style="cyberpunk"] .auth-page {
+  border-width: 1px;
+  border-style: solid;
+  border-color: var(--nice-admin-card-border);
+  border-radius: 2px;
+  box-shadow: var(--glass-shadow);
+}
+
+html[data-ui-style="cyberpunk"] .nice-admin-sidebar,
+html[data-ui-style="cyberpunk"] .nice-admin-header {
+  border-radius: 0;
+}
+
+html[data-ui-style="cyberpunk"] .nice-admin-sidebar-link.active {
+  background: linear-gradient(135deg, rgba(8, 145, 178, 0.22), rgba(162, 28, 175, 0.18));
+  color: var(--nice-admin-sidebar-text);
+  font-weight: 600;
+  box-shadow: inset 0 0 0 1px rgba(8, 145, 178, 0.35);
+}
+
+html[data-ui-style="cyberpunk"][data-theme="dark"] .nice-admin-sidebar-link.active {
+  background: linear-gradient(135deg, rgba(34, 211, 238, 0.18), rgba(232, 121, 249, 0.14));
+  box-shadow:
+    inset 0 0 0 1px rgba(34, 211, 238, 0.35),
+    0 0 20px rgba(34, 211, 238, 0.12);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html[data-ui-style="cyberpunk"] .feeds-card,
+  html[data-ui-style="cyberpunk"] .feeds-header-card,
+  html[data-ui-style="cyberpunk"] .auth-page {
+    transition:
+      transform 0.22s ease,
+      box-shadow 0.22s ease,
+      border-color 0.22s ease;
+  }
+
+  html[data-ui-style="cyberpunk"] .feeds-card:hover,
+  html[data-ui-style="cyberpunk"] .feeds-header-card:hover {
+    transform: translateY(-2px);
+    box-shadow:
+      0 8px 36px rgba(8, 145, 178, 0.2),
+      0 0 0 1px rgba(192, 38, 211, 0.25);
+  }
+
+  html[data-ui-style="cyberpunk"][data-theme="dark"] .feeds-card:hover,
+  html[data-ui-style="cyberpunk"][data-theme="dark"] .feeds-header-card:hover {
+    box-shadow:
+      0 0 40px rgba(34, 211, 238, 0.18),
+      0 0 0 1px rgba(232, 121, 249, 0.3);
+  }
+
+  html[data-ui-style="cyberpunk"] .auth-page h1 {
+    animation: cyberpunk-title-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  html[data-ui-style="cyberpunk"] .nice-admin-sidebar-brand {
+    animation: cyberpunk-fade-rise 0.4s ease-out 0.05s both;
+  }
+}
+
+@keyframes cyberpunk-title-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+    filter: blur(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+}
+
+@keyframes cyberpunk-fade-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+html[data-ui-style="cyberpunk"] .ui-style-floating-wrap {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border-width: 1px;
+  border-radius: 2px;
+  border-color: var(--nice-admin-card-border);
+  box-shadow: var(--glass-shadow);
+}
+
+/* ========== 界面风格：Pixel Art（8-bit 阶调、硬描边、阶梯阴影、像素网格；亮/暗双主题） ========== */
+html[data-ui-style="pixel-art"] {
+  --app-pixel-shadow: 5px 5px 0 #1e293b;
+  --app-mesh-a: #a8d8ea;
+  --app-mesh-b: #c7b8ea;
+  --app-mesh-c: #fcd5ce;
+  --glass-surface: #fffef8;
+  --glass-surface-strong: #fffef8;
+  --glass-border: #1e293b;
+  --glass-border-outer: #1e293b;
+  --glass-shadow: var(--app-pixel-shadow);
+  --glass-blur: none;
+  --nice-admin-sidebar-bg: var(--glass-surface-strong);
+  --nice-admin-sidebar-text: #1e293b;
+  --nice-admin-sidebar-active: #e11d48;
+  --nice-admin-sidebar-hover: rgba(30, 41, 59, 0.08);
+  --nice-admin-header-bg: var(--glass-surface-strong);
+  --nice-admin-header-border: #1e293b;
+  --nice-admin-card-bg: #fffef8;
+  --nice-admin-card-border: #1e293b;
+  --nice-admin-text: #1e293b;
+  --nice-admin-text-muted: #475569;
+  --nice-admin-primary: #2563eb;
+  --nice-admin-primary-hover: #1d4ed8;
+  --nice-admin-input-bg: #ffffff;
+  --nice-admin-input-border: #1e293b;
+  --nice-admin-danger: #dc2626;
+  --nice-admin-success: #15803d;
+  --nice-admin-subtle-bg: #fde68a;
+  --nice-admin-hover-bg: rgba(37, 99, 235, 0.12);
+}
+
+html[data-ui-style="pixel-art"][data-theme="dark"] {
+  --app-pixel-shadow: 5px 5px 0 #4ade80;
+  --app-mesh-a: #0b1020;
+  --app-mesh-b: #1a1033;
+  --app-mesh-c: #0d2818;
+  --glass-surface: #1e293b;
+  --glass-surface-strong: #0f172a;
+  --glass-border: #4ade80;
+  --glass-border-outer: #22c55e;
+  --glass-shadow: var(--app-pixel-shadow);
+  --nice-admin-sidebar-text: #ecfccb;
+  --nice-admin-sidebar-active: #f472b6;
+  --nice-admin-sidebar-hover: rgba(74, 222, 128, 0.12);
+  --nice-admin-header-border: #4ade80;
+  --nice-admin-card-bg: #1e293b;
+  --nice-admin-card-border: #4ade80;
+  --nice-admin-text: #ecfccb;
+  --nice-admin-text-muted: rgba(236, 252, 203, 0.75);
+  --nice-admin-primary: #4ade80;
+  --nice-admin-primary-hover: #86efac;
+  --nice-admin-input-bg: #0f172a;
+  --nice-admin-input-border: #4ade80;
+  --nice-admin-danger: #fb7185;
+  --nice-admin-success: #4ade80;
+  --nice-admin-subtle-bg: rgba(74, 222, 128, 0.1);
+  --nice-admin-hover-bg: rgba(244, 114, 182, 0.12);
+}
+
+html[data-ui-style="pixel-art"] img,
+html[data-ui-style="pixel-art"] video {
+  image-rendering: crisp-edges;
+  image-rendering: pixelated;
+}
+
+html[data-ui-style="pixel-art"] body {
+  font-family: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+  background-color: var(--app-mesh-a);
+  background-image:
+    linear-gradient(rgba(30, 41, 59, 0.14) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(30, 41, 59, 0.14) 1px, transparent 1px),
+    linear-gradient(168deg, var(--app-mesh-a) 0%, var(--app-mesh-b) 48%, var(--app-mesh-c) 100%);
+  background-size:
+    16px 16px,
+    16px 16px,
+    100% 100%;
+  background-attachment: fixed;
+}
+
+html[data-ui-style="pixel-art"][data-theme="dark"] body {
+  background-image:
+    linear-gradient(rgba(74, 222, 128, 0.12) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(74, 222, 128, 0.12) 1px, transparent 1px),
+    radial-gradient(ellipse 90% 55% at 50% -15%, rgba(244, 114, 182, 0.14), transparent 55%),
+    linear-gradient(168deg, var(--app-mesh-a) 0%, var(--app-mesh-b) 50%, var(--app-mesh-c) 100%);
+  background-size:
+    16px 16px,
+    16px 16px,
+    100% 100%,
+    100% 100%;
+  background-attachment: fixed;
+}
+
+html[data-ui-style="pixel-art"] .nice-admin-sidebar-title,
+html[data-ui-style="pixel-art"] .nice-admin-header-breadcrumb,
+html[data-ui-style="pixel-art"] .feeds-header-main h1,
+html[data-ui-style="pixel-art"] .auth-page h1 {
+  font-family: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+html[data-ui-style="pixel-art"] .sidebar-header {
+  font-family: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+
+html[data-ui-style="pixel-art"] .article-title-btn,
+html[data-ui-style="pixel-art"] .article-detail-title {
+  font-family: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+html[data-ui-style="pixel-art"] .nice-admin-sidebar,
+html[data-ui-style="pixel-art"] .nice-admin-header,
+html[data-ui-style="pixel-art"] .feeds-card,
+html[data-ui-style="pixel-art"] .feeds-header-card,
+html[data-ui-style="pixel-art"] .auth-page {
+  border-width: 3px;
+  border-style: solid;
+  border-color: var(--nice-admin-card-border);
+  border-radius: 0;
+  box-shadow: var(--app-pixel-shadow);
+}
+
+html[data-ui-style="pixel-art"] .nice-admin-sidebar,
+html[data-ui-style="pixel-art"] .nice-admin-header {
+  border-radius: 0;
+}
+
+html[data-ui-style="pixel-art"] .nice-admin-sidebar {
+  border-width: 0 3px 0 0;
+  box-shadow: none;
+}
+
+html[data-ui-style="pixel-art"] .nice-admin-header {
+  border-width: 0 0 3px 0;
+  box-shadow: none;
+}
+
+html[data-ui-style="pixel-art"] .nice-admin-sidebar,
+html[data-ui-style="pixel-art"] .nice-admin-header {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+html[data-ui-style="pixel-art"] .nice-admin-sidebar-link.active {
+  background: var(--nice-admin-primary);
+  color: #fffef8;
+  font-weight: 700;
+  box-shadow: inset 0 0 0 2px #1e293b;
+}
+
+html[data-ui-style="pixel-art"][data-theme="dark"] .nice-admin-sidebar-link.active {
+  color: #0f172a;
+  box-shadow: inset 0 0 0 2px #4ade80;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html[data-ui-style="pixel-art"] .feeds-card,
+  html[data-ui-style="pixel-art"] .feeds-header-card,
+  html[data-ui-style="pixel-art"] .auth-page {
+    transition: transform 0.18s steps(2, end), box-shadow 0.18s steps(2, end);
+  }
+
+  html[data-ui-style="pixel-art"] .feeds-card:hover,
+  html[data-ui-style="pixel-art"] .feeds-header-card:hover {
+    transform: translate(-3px, -3px);
+    box-shadow: 8px 8px 0 #1e293b;
+  }
+
+  html[data-ui-style="pixel-art"][data-theme="dark"] .feeds-card:hover,
+  html[data-ui-style="pixel-art"][data-theme="dark"] .feeds-header-card:hover {
+    box-shadow: 8px 8px 0 #4ade80;
+  }
+
+  html[data-ui-style="pixel-art"] .auth-page h1 {
+    animation: pixel-art-title-in 0.35s steps(4, end) both;
+  }
+
+  html[data-ui-style="pixel-art"] .nice-admin-sidebar-brand {
+    animation: pixel-art-fade-rise 0.32s steps(3, end) 0.04s both;
+  }
+}
+
+@keyframes pixel-art-title-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pixel-art-fade-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+html[data-ui-style="pixel-art"] .ui-style-floating-wrap {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border-width: 3px;
+  border-radius: 0;
+  border-color: var(--nice-admin-card-border);
+  box-shadow: var(--app-pixel-shadow);
+}
+
+html[data-ui-style="pixel-art"][data-theme="dark"] .ui-style-floating-wrap {
+  box-shadow: var(--app-pixel-shadow);
+}
+
+html[data-ui-style="eink"] .nice-admin-sidebar-toggle {
+  border-top-color: var(--nice-admin-header-border);
+}
+
+html[data-ui-style="eink"] .auth-page {
+  border-radius: 16px;
+  box-shadow: var(--nice-admin-shadow-md);
+}
+
+html[data-ui-style="eink"] .nice-admin-sidebar-logo {
+  border-radius: 8px;
 }
 
 * {
@@ -56,7 +2267,12 @@ html, body, #root {
 body {
   margin: 0;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
-  background: var(--nice-admin-content-bg);
+  background-color: var(--app-mesh-a);
+  background-image:
+    radial-gradient(1200px 620px at 8% -8%, var(--app-mesh-b), transparent 58%),
+    radial-gradient(960px 520px at 92% 12%, var(--app-mesh-c), transparent 52%),
+    radial-gradient(800px 480px at 48% 108%, color-mix(in srgb, var(--nice-admin-primary) 28%, transparent), transparent 55%);
+  background-attachment: fixed;
   color: var(--nice-admin-text);
   min-height: 100vh;
 }
@@ -70,12 +2286,14 @@ a:hover {
   text-decoration: underline;
 }
 
-/* ========== NiceAdmin 布局：侧边栏 + 顶栏 + 内容区 ========== */
+/* ========== NiceAdmin 布局：侧边栏 + 顶栏 + 内容区（玻璃态） ========== */
 .nice-admin-layout {
   display: flex;
   width: 100%;
   height: 100vh;
   overflow: hidden;
+  position: relative;
+  isolation: isolate;
 }
 
 .nice-admin-sidebar {
@@ -87,6 +2305,13 @@ a:hover {
   flex-direction: column;
   border-right: 1px solid var(--nice-admin-header-border);
   transition: width 0.2s ease;
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  box-shadow: 4px 0 24px rgba(15, 23, 42, 0.06);
+}
+
+[data-theme="dark"] .nice-admin-sidebar {
+  box-shadow: 4px 0 32px rgba(0, 0, 0, 0.25);
 }
 
 .nice-admin-sidebar.collapsed {
@@ -230,6 +2455,8 @@ a:hover {
   justify-content: space-between;
   padding: 0 24px;
   box-shadow: var(--nice-admin-shadow);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
 }
 
 .nice-admin-header-left {
@@ -240,13 +2467,16 @@ a:hover {
 
 .nice-admin-header-menu-btn {
   display: none;
+  min-width: 44px;
+  min-height: 44px;
   padding: 8px 12px;
   border: 1px solid var(--nice-admin-input-border);
   border-radius: 8px;
   background: var(--nice-admin-card-bg);
   color: var(--nice-admin-text);
   cursor: pointer;
-  font-size: 1.1rem;
+  font-size: 0.9rem;
+  font-weight: 500;
 }
 
 .nice-admin-header-breadcrumb {
@@ -283,8 +2513,9 @@ a:hover {
 }
 
 .nice-admin-header-theme {
-  width: 34px;
-  height: 34px;
+  min-width: 44px;
+  height: 36px;
+  padding: 0 12px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -294,12 +2525,66 @@ a:hover {
   color: var(--nice-admin-text);
   cursor: pointer;
   box-shadow: var(--nice-admin-shadow);
-  padding: 0;
+  font-size: 0.8rem;
+  font-weight: 500;
 }
 
 .nice-admin-header-theme:hover {
   background: var(--nice-admin-hover-bg);
 }
+
+.ui-style-select {
+  min-height: 36px;
+  padding: 0 10px;
+  border-radius: 10px;
+  border: 1px solid var(--nice-admin-input-border);
+  background: var(--nice-admin-card-bg);
+  color: var(--nice-admin-text);
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  box-shadow: var(--nice-admin-shadow);
+  max-width: 7.25rem;
+}
+
+.ui-style-select:focus-visible {
+  outline: 2px solid var(--nice-admin-primary);
+  outline-offset: 2px;
+}
+
+.ui-style-floating-wrap {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: var(--glass-surface-strong);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--nice-admin-shadow-md);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+}
+
+html[data-ui-style="eink"] .ui-style-floating-wrap {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.ui-style-floating-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--nice-admin-text-muted);
+  white-space: nowrap;
+}
+
+.ui-style-select--floating {
+  max-width: 6.5rem;
+}
+
 .nice-admin-content {
   flex: 1;
   min-height: 0;
@@ -312,6 +2597,258 @@ a:hover {
 
 .nice-admin-content > * {
   min-height: 0;
+}
+
+/* 登录后主内容区关键面板：玻璃模糊（避免在长列表项上逐条启用以控制性能） */
+.home-sidebar,
+.article-detail,
+.article-detail-dock,
+.feeds-header-card,
+.feeds-card,
+.settings-sidebar,
+.feeds-modal,
+.bind-feishu-modal,
+.toast {
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nice-admin-sidebar,
+  .nice-admin-header,
+  .auth-page,
+  .home-sidebar,
+  .article-detail,
+  .article-detail-dock,
+  .feeds-header-card,
+  .feeds-card,
+  .settings-sidebar,
+  .feeds-modal,
+  .bind-feishu-modal,
+  .toast,
+  .feishu-qr-inline,
+  .article-ai-drawer-panel {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  html[data-ui-style="glass"] {
+    --nice-admin-sidebar-bg: #ffffff;
+    --nice-admin-header-bg: #ffffff;
+    --nice-admin-card-bg: #ffffff;
+    --glass-surface-strong: #ffffff;
+  }
+
+  html[data-ui-style="glass"][data-theme="dark"] {
+    --nice-admin-sidebar-bg: #0f172a;
+    --nice-admin-header-bg: #0f172a;
+    --nice-admin-card-bg: #0f172a;
+    --glass-surface-strong: #0f172a;
+  }
+
+  html[data-ui-style="kinetic"] {
+    --nice-admin-sidebar-bg: #ffffff;
+    --nice-admin-header-bg: #ffffff;
+    --nice-admin-card-bg: #ffffff;
+    --glass-surface-strong: #ffffff;
+  }
+
+  html[data-ui-style="kinetic"][data-theme="dark"] {
+    --nice-admin-sidebar-bg: #0f172a;
+    --nice-admin-header-bg: #0f172a;
+    --nice-admin-card-bg: #0f172a;
+    --glass-surface-strong: #0f172a;
+  }
+
+  html[data-ui-style="motion-driven"] {
+    --nice-admin-sidebar-bg: #ffffff;
+    --nice-admin-header-bg: #ffffff;
+    --nice-admin-card-bg: #ffffff;
+    --glass-surface-strong: #ffffff;
+  }
+
+  html[data-ui-style="motion-driven"][data-theme="dark"] {
+    --nice-admin-sidebar-bg: #0f172a;
+    --nice-admin-header-bg: #0f172a;
+    --nice-admin-card-bg: #0f172a;
+    --glass-surface-strong: #0f172a;
+  }
+
+  html[data-ui-style="retro-futurism"] {
+    --nice-admin-sidebar-bg: #ffffff;
+    --nice-admin-header-bg: #ffffff;
+    --nice-admin-card-bg: #ffffff;
+    --glass-surface-strong: #ffffff;
+  }
+
+  html[data-ui-style="retro-futurism"][data-theme="dark"] {
+    --nice-admin-sidebar-bg: #0f0820;
+    --nice-admin-header-bg: #0f0820;
+    --nice-admin-card-bg: #0f0820;
+    --glass-surface-strong: #0f0820;
+  }
+
+  html[data-ui-style="hud-scifi-fui"] {
+    --nice-admin-sidebar-bg: #f8fafc;
+    --nice-admin-header-bg: #f8fafc;
+    --nice-admin-card-bg: #f8fafc;
+    --glass-surface-strong: #f8fafc;
+  }
+
+  html[data-ui-style="hud-scifi-fui"][data-theme="dark"] {
+    --nice-admin-sidebar-bg: #0f172a;
+    --nice-admin-header-bg: #0f172a;
+    --nice-admin-card-bg: #0f172a;
+    --glass-surface-strong: #0f172a;
+  }
+
+  html[data-ui-style="vibrant-block"] {
+    --nice-admin-sidebar-bg: #ffffff;
+    --nice-admin-header-bg: #ffffff;
+    --nice-admin-card-bg: #ffffff;
+    --glass-surface-strong: #ffffff;
+  }
+
+  html[data-ui-style="vibrant-block"][data-theme="dark"] {
+    --nice-admin-sidebar-bg: #1a1625;
+    --nice-admin-header-bg: #1a1625;
+    --nice-admin-card-bg: #1a1625;
+    --glass-surface-strong: #1a1625;
+  }
+
+  html[data-ui-style="aurora"] {
+    --nice-admin-sidebar-bg: #f8fafc;
+    --nice-admin-header-bg: #f8fafc;
+    --nice-admin-card-bg: rgba(255, 255, 255, 0.92);
+    --glass-surface-strong: #f8fafc;
+  }
+
+  html[data-ui-style="aurora"][data-theme="dark"] {
+    --nice-admin-sidebar-bg: #0f172a;
+    --nice-admin-header-bg: #0f172a;
+    --nice-admin-card-bg: #0f172a;
+    --glass-surface-strong: #0f172a;
+  }
+
+  html[data-ui-style="aurora-evolved"] {
+    --nice-admin-sidebar-bg: #f8fafc;
+    --nice-admin-header-bg: #f8fafc;
+    --nice-admin-card-bg: rgba(255, 255, 255, 0.92);
+    --glass-surface-strong: #f8fafc;
+  }
+
+  html[data-ui-style="aurora-evolved"][data-theme="dark"] {
+    --nice-admin-sidebar-bg: #0f172a;
+    --nice-admin-header-bg: #0f172a;
+    --nice-admin-card-bg: #0f172a;
+    --glass-surface-strong: #0f172a;
+  }
+
+  html[data-ui-style="memphis"] {
+    --nice-admin-sidebar-bg: #ffffff;
+    --nice-admin-header-bg: #ffffff;
+    --nice-admin-card-bg: #ffffff;
+    --glass-surface-strong: #ffffff;
+  }
+
+  html[data-ui-style="memphis"][data-theme="dark"] {
+    --nice-admin-sidebar-bg: #1f1830;
+    --nice-admin-header-bg: #1f1830;
+    --nice-admin-card-bg: #1a1428;
+    --glass-surface-strong: #1f1830;
+  }
+
+  html[data-ui-style="y2k"] {
+    --nice-admin-sidebar-bg: #ffffff;
+    --nice-admin-header-bg: #ffffff;
+    --nice-admin-card-bg: #ffffff;
+    --glass-surface-strong: #ffffff;
+  }
+
+  html[data-ui-style="y2k"][data-theme="dark"] {
+    --nice-admin-sidebar-bg: #242048;
+    --nice-admin-header-bg: #242048;
+    --nice-admin-card-bg: #1e1b3c;
+    --glass-surface-strong: #242048;
+  }
+
+  html[data-ui-style="cyberpunk"] {
+    --nice-admin-sidebar-bg: #ffffff;
+    --nice-admin-header-bg: #ffffff;
+    --nice-admin-card-bg: #ffffff;
+    --glass-surface-strong: #ffffff;
+  }
+
+  html[data-ui-style="cyberpunk"][data-theme="dark"] {
+    --nice-admin-sidebar-bg: #0a0e18;
+    --nice-admin-header-bg: #0a0e18;
+    --nice-admin-card-bg: #050814;
+    --glass-surface-strong: #0a0e18;
+  }
+
+  html[data-ui-style="pixel-art"] {
+    --nice-admin-sidebar-bg: #fffef8;
+    --nice-admin-header-bg: #fffef8;
+    --nice-admin-card-bg: #fffef8;
+    --glass-surface-strong: #fffef8;
+  }
+
+  html[data-ui-style="pixel-art"][data-theme="dark"] {
+    --nice-admin-sidebar-bg: #0f172a;
+    --nice-admin-header-bg: #0f172a;
+    --nice-admin-card-bg: #1e293b;
+    --glass-surface-strong: #0f172a;
+  }
+
+  html[data-ui-style="glass"] .auth-page {
+    background: var(--nice-admin-card-bg);
+  }
+
+  html[data-ui-style="kinetic"] .auth-page {
+    background: var(--nice-admin-card-bg);
+  }
+
+  html[data-ui-style="motion-driven"] .auth-page {
+    background: var(--nice-admin-card-bg);
+  }
+
+  html[data-ui-style="retro-futurism"] .auth-page {
+    background: var(--nice-admin-card-bg);
+  }
+
+  html[data-ui-style="hud-scifi-fui"] .auth-page {
+    background: var(--nice-admin-card-bg);
+  }
+
+  html[data-ui-style="vibrant-block"] .auth-page {
+    background: var(--nice-admin-card-bg);
+  }
+
+  html[data-ui-style="aurora"] .auth-page {
+    background: var(--nice-admin-card-bg);
+  }
+
+  html[data-ui-style="aurora-evolved"] .auth-page {
+    background: var(--nice-admin-card-bg);
+  }
+
+  html[data-ui-style="memphis"] .auth-page {
+    background: var(--nice-admin-card-bg);
+  }
+
+  html[data-ui-style="y2k"] .auth-page {
+    background: var(--nice-admin-card-bg);
+  }
+
+  html[data-ui-style="cyberpunk"] .auth-page {
+    background: var(--nice-admin-card-bg);
+  }
+
+  html[data-ui-style="pixel-art"] .auth-page {
+    background: var(--nice-admin-card-bg);
+  }
 }
 
 @media (max-width: 768px) {
@@ -348,16 +2885,28 @@ a:hover {
   }
 }
 
-/* 登录/注册页 - NiceAdmin 卡片风格 */
+/* 登录/注册页 - 玻璃态卡片 */
+.auth-scene {
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+  box-sizing: border-box;
+}
+
 .auth-page {
-  max-width: 400px;
-  margin: 60px auto;
-  padding: 32px;
-  background: var(--nice-admin-card-bg);
-  border: 1px solid var(--nice-admin-card-border);
-  border-radius: 12px;
-  box-shadow: var(--nice-admin-shadow-md);
+  width: 100%;
+  max-width: 420px;
+  margin: 0 auto;
+  padding: 32px 28px;
+  background: var(--glass-surface-strong);
+  border: 1px solid var(--glass-border);
+  border-radius: 20px;
+  box-shadow: var(--glass-shadow);
   text-align: center;
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
 }
 
 .auth-page h1 {
@@ -375,17 +2924,29 @@ a:hover {
 
 .login-tabs button {
   padding: 8px 16px;
-  border-radius: 8px;
+  border-radius: 10px;
   border: 1px solid var(--nice-admin-input-border);
-  background: var(--nice-admin-input-bg);
+  background: var(--nice-admin-subtle-bg);
   color: var(--nice-admin-text-muted);
   font-size: 0.9rem;
   cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.login-tabs button:hover {
+  background: var(--nice-admin-hover-bg);
+  color: var(--nice-admin-text);
 }
 
 .login-tabs button.active {
-  background: var(--nice-admin-primary);
+  background: color-mix(in srgb, var(--nice-admin-primary) 88%, white);
   color: #fff;
+  border-color: color-mix(in srgb, var(--nice-admin-primary) 70%, transparent);
+  box-shadow: 0 4px 16px color-mix(in srgb, var(--nice-admin-primary) 35%, transparent);
+}
+
+[data-theme="dark"] .login-tabs button.active {
+  background: color-mix(in srgb, var(--nice-admin-primary) 55%, #0f172a);
   border-color: var(--nice-admin-primary);
 }
 
@@ -827,6 +3388,8 @@ a:hover {
   border-left: 1px solid var(--nice-admin-card-border);
   box-shadow: -8px 0 32px rgba(0, 0, 0, 0.12);
   animation: article-ai-drawer-in 0.22s ease-out;
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
 }
 
 @keyframes article-ai-drawer-in {
@@ -2496,6 +5059,27 @@ label.feeds-summary-feed-check input {
 .auth-form-feishu {
   text-align: center;
 }
+
+.feishu-qr-inline {
+  width: 280px;
+  height: 280px;
+  margin: 16px auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 14px;
+  background: rgba(15, 23, 42, 0.35);
+  border: 1px solid var(--glass-border);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+}
+
+[data-theme="dark"] .feishu-qr-inline {
+  background: rgba(0, 0, 0, 0.35);
+}
+
 .feishu-qr-hint {
   margin: 0;
   font-size: 0.9rem;

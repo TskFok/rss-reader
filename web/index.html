@@ -1,7 +1,32 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
+    <script>
+      try {
+        var _u = localStorage.getItem('ui.uistyle');
+        if (
+          _u === 'eink' ||
+          _u === 'kinetic' ||
+          _u === 'motion-driven' ||
+          _u === 'retro-futurism' ||
+          _u === 'hud-scifi-fui' ||
+          _u === 'vibrant-block' ||
+          _u === 'aurora' ||
+          _u === 'aurora-evolved' ||
+          _u === 'memphis' ||
+          _u === 'y2k' ||
+          _u === 'cyberpunk' ||
+          _u === 'pixel-art'
+        ) {
+          document.documentElement.setAttribute('data-ui-style', _u);
+        } else {
+          document.documentElement.setAttribute('data-ui-style', 'glass');
+        }
+      } catch (e) {
+        document.documentElement.setAttribute('data-ui-style', 'glass');
+      }
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <!-- 避免旧前端被强缓存，部署后能拿到新版本 -->
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
@@ -11,6 +36,19 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Exo+2:wght@400;500;600;700&family=Orbitron:wght@500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
     <title>RSS 阅读器</title>
   </head>
   <body>

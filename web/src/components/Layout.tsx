@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Outlet, Link, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
+import UiStyleControl from './UiStyleControl';
 
 const mainNavItems: { to: string; label: string }[] = [
   { to: '/', label: '首页' },
@@ -94,9 +95,9 @@ export default function Layout() {
               type="button"
               className="nice-admin-header-menu-btn"
               onClick={() => setSidebarCollapsed((c) => !c)}
-              aria-label="切换侧边栏"
+              aria-label="打开或关闭侧边导航"
             >
-              ☰
+              菜单
             </button>
             <span className="nice-admin-header-breadcrumb">
               {location.pathname === '/feeds' && feedsTab
@@ -107,14 +108,15 @@ export default function Layout() {
             </span>
           </div>
           <div className="nice-admin-header-right">
+            <UiStyleControl variant="header" />
             <button
               type="button"
               className="nice-admin-header-theme"
               onClick={toggleTheme}
-              aria-label="切换明暗模式"
+              aria-label={theme === 'dark' ? '切换到浅色模式' : '切换到深色模式'}
               title={theme === 'dark' ? '切换到浅色模式' : '切换到深色模式'}
             >
-              {theme === 'dark' ? '☀️' : '🌙'}
+              {theme === 'dark' ? '浅色' : '深色'}
             </button>
             <span className="nice-admin-header-user">{user?.username}</span>
             <button type="button" onClick={handleLogout} className="nice-admin-header-logout">

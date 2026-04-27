@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { authApi } from '../api/client';
 import { useAuth } from '../contexts/AuthContext';
+import UiStyleControl from '../components/UiStyleControl';
 
 const FEISHU_QR_VALID_ORIGINS = [
   'https://accounts.feishu.cn',
@@ -177,84 +178,76 @@ export default function Login() {
   }, [feishuGoto, navigate, setUser]);
 
   return (
-    <div className="auth-page">
-      <h1>RSS 阅读器</h1>
-      <div className="login-tabs">
-        <button
-          type="button"
-          className={mode === 'password' ? 'active' : ''}
-          onClick={() => setMode('password')}
-        >
-          账号密码登录
-        </button>
-        <button
-          type="button"
-          className={mode === 'feishu' ? 'active' : ''}
-          onClick={() => setMode('feishu')}
-        >
-          飞书登录
-        </button>
-      </div>
-      {mode === 'password' ? (
-        <form onSubmit={handleSubmit} className="auth-form">
-          <input
-            type="text"
-            placeholder="用户名"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            required
-            autoComplete="username"
-          />
-          <input
-            type="password"
-            placeholder="密码"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            autoComplete="current-password"
-          />
-          {message && <p className="message">{message}</p>}
-          {error && <p className="error">{error}</p>}
-          <button type="submit" disabled={loading}>
-            {loading ? '登录中...' : '登录'}
+    <div className="auth-scene">
+      <UiStyleControl variant="floating" />
+      <div className="auth-page">
+        <h1>RSS 阅读器</h1>
+        <div className="login-tabs">
+          <button
+            type="button"
+            className={mode === 'password' ? 'active' : ''}
+            onClick={() => setMode('password')}
+          >
+            账号密码登录
           </button>
-        </form>
-      ) : (
-        <div className="auth-form auth-form-feishu">
-          {message && <p className="message">{message}</p>}
-          {error && <p className="error">{error}</p>}
-          {feishuGoto == null && !error && (
-            <p className="feishu-qr-hint" style={{ marginTop: 8 }}>
-              正在加载飞书扫码...
-            </p>
-          )}
-          {feishuGoto != null && (
-            <>
-              <div id="feishuLoginIframeContainer" style={{ position: 'absolute', width: 0, height: 0, overflow: 'hidden' }} aria-hidden />
-              <div
-                id="feishuLoginQRContainer"
-                className="feishu-qr-inline"
-                style={{
-                  width: 280,
-                  height: 280,
-                  margin: '16px auto',
-                  background: '#1a1a1a',
-                  border: '1px solid var(--border, #2a2a4a)',
-                  borderRadius: 8,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  overflow: 'hidden',
-                }}
-              />
-              <p className="feishu-qr-hint">使用飞书 App 扫码即可登录</p>
-            </>
-          )}
+          <button
+            type="button"
+            className={mode === 'feishu' ? 'active' : ''}
+            onClick={() => setMode('feishu')}
+          >
+            飞书登录
+          </button>
         </div>
-      )}
-      <p>
-        还没有账号？ <Link to="/register">注册</Link>
-      </p>
+        {mode === 'password' ? (
+          <form onSubmit={handleSubmit} className="auth-form">
+            <input
+              type="text"
+              placeholder="用户名"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              required
+              autoComplete="username"
+            />
+            <input
+              type="password"
+              placeholder="密码"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              autoComplete="current-password"
+            />
+            {message && <p className="message">{message}</p>}
+            {error && <p className="error">{error}</p>}
+            <button type="submit" disabled={loading}>
+              {loading ? '登录中...' : '登录'}
+            </button>
+          </form>
+        ) : (
+          <div className="auth-form auth-form-feishu">
+            {message && <p className="message">{message}</p>}
+            {error && <p className="error">{error}</p>}
+            {feishuGoto == null && !error && (
+              <p className="feishu-qr-hint" style={{ marginTop: 8 }}>
+                正在加载飞书扫码...
+              </p>
+            )}
+            {feishuGoto != null && (
+              <>
+                <div
+                  id="feishuLoginIframeContainer"
+                  style={{ position: 'absolute', width: 0, height: 0, overflow: 'hidden' }}
+                  aria-hidden
+                />
+                <div id="feishuLoginQRContainer" className="feishu-qr-inline" />
+                <p className="feishu-qr-hint">使用飞书 App 扫码即可登录</p>
+              </>
+            )}
+          </div>
+        )}
+        <p>
+          还没有账号？ <Link to="/register">注册</Link>
+        </p>
+      </div>
     </div>
   );
 }
