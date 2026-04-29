@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import { adminApi } from '../api/client';
 import type { User } from '../api/client';
@@ -165,6 +166,64 @@ export default function Admin() {
     };
   }, [bindFeishuAuthUrl]);
 
+  useEffect(() => {
+    if (bindFeishuUrl == null) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [bindFeishuUrl]);
+
+  const bindFeishuModal =
+    bindFeishuUrl != null ? (
+      <div
+        className="bind-feishu-overlay"
+        onClick={closeBindFeishuModal}
+        role="presentation"
+      >
+        <div
+          className="bind-feishu-modal"
+          onClick={(e) => e.stopPropagation()}
+          role="dialog"
+          aria-labelledby="bind-feishu-title"
+          style={{ maxWidth: '420px' }}
+        >
+          <h3 id="bind-feishu-title" className="bind-feishu-title">
+            <span className="bind-feishu-icon" aria-hidden>品</span>
+            绑定飞书
+          </h3>
+          <p className="bind-feishu-desc">使用飞书 App 扫码，可将飞书账号绑定到当前用户</p>
+          <div id="feishuBindIframeContainer" style={{ position: 'absolute', width: 0, height: 0, overflow: 'hidden' }} aria-hidden />
+          {bindFeishuAuthUrl ? (
+            <div
+              id="feishuBindQRContainer"
+              className="bind-feishu-qr-sdk"
+              style={{
+                width: 280,
+                height: 280,
+                margin: '16px auto',
+                background: '#1a1a1a',
+                border: '1px solid var(--border, #2a2a4a)',
+                borderRadius: 8,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                overflow: 'hidden',
+              }}
+            />
+          ) : (
+            <div className="bind-feishu-qr">
+              <QRCodeSVG value={bindFeishuUrl} size={260} level="M" />
+            </div>
+          )}
+          <button type="button" className="bind-feishu-close" onClick={closeBindFeishuModal}>
+            关闭
+          </button>
+        </div>
+      </div>
+    ) : null;
+
   return (
     <div className="admin-page">
       <h2>用户管理</h2>
@@ -211,59 +270,7 @@ export default function Admin() {
         </table>
       )}
 
-      {bindFeishuUrl != null && (
-        <div
-          className="bind-feishu-overlay"
-          onClick={closeBindFeishuModal}
-          role="presentation"
-        >
-          <div
-            className="bind-feishu-modal"
-            onClick={(e) => e.stopPropagation()}
-            role="dialog"
-            aria-labelledby="bind-feishu-title"
-            style={{ maxWidth: '420px' }}
-          >
-            <h3 id="bind-feishu-title" className="bind-feishu-title">
-              <span className="bind-feishu-icon" aria-hidden>品</span>
-              绑定飞书
-            </h3>
-            <p className="bind-feishu-desc">
-              使用飞书 App 扫码，可将飞书账号绑定到当前用户
-            </p>
-            <div id="feishuBindIframeContainer" style={{ position: 'absolute', width: 0, height: 0, overflow: 'hidden' }} aria-hidden />
-            {bindFeishuAuthUrl ? (
-              <div
-                id="feishuBindQRContainer"
-                className="bind-feishu-qr-sdk"
-                style={{
-                  width: 280,
-                  height: 280,
-                  margin: '16px auto',
-                  background: '#1a1a1a',
-                  border: '1px solid var(--border, #2a2a4a)',
-                  borderRadius: 8,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  overflow: 'hidden',
-                }}
-              />
-            ) : (
-              <div className="bind-feishu-qr">
-                <QRCodeSVG value={bindFeishuUrl} size={260} level="M" />
-              </div>
-            )}
-            <button
-              type="button"
-              className="bind-feishu-close"
-              onClick={closeBindFeishuModal}
-            >
-              关闭
-            </button>
-          </div>
-        </div>
-      )}
+      {bindFeishuModal != null ? createPortal(bindFeishuModal, document.body) : null}
     </div>
   );
 }

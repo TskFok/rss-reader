@@ -4729,7 +4729,7 @@ label.feeds-summary-feed-check input {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1000;
+  z-index: 11000;
   padding: 24px;
 }
 
@@ -4954,7 +4954,7 @@ label.feeds-summary-feed-check input {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1000;
+  z-index: 11000;
 }
 
 .bind-feishu-modal {

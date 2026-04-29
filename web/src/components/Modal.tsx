@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 
 interface ModalProps {
   open: boolean;
@@ -23,7 +24,7 @@ export default function Modal({ open, onClose, title, children }: ModalProps) {
 
   if (!open) return null;
 
-  return (
+  return createPortal(
     <div className="feeds-modal-overlay" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="feeds-modal-title">
       <div className="feeds-modal" onClick={(e) => e.stopPropagation()}>
         <div className="feeds-modal-header">
@@ -34,6 +35,7 @@ export default function Modal({ open, onClose, title, children }: ModalProps) {
           {children}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
