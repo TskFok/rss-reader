@@ -115,15 +115,17 @@ export default function SummaryHistory() {
                       </div>
                     </div>
                     <div className="feeds-category-actions">
-                      {it.error && (
-                        <button
-                          type="button"
-                          onClick={() => handleRetry(it.id)}
-                          disabled={retryingId === it.id}
-                        >
-                          {retryingId === it.id ? '重试中...' : '重试'}
-                        </button>
-                      )}
+                      <button
+                        type="button"
+                        onClick={() => handleRetry(it.id)}
+                        disabled={retryingId === it.id}
+                      >
+                        {retryingId === it.id
+                          ? '重试中...'
+                          : it.error
+                            ? '重试'
+                            : '重新总结'}
+                      </button>
                       <button type="button" className="danger" onClick={() => handleDelete(it.id)}>删除</button>
                     </div>
                   </li>

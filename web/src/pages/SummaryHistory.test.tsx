@@ -1,39 +1,50 @@
 import { render, screen, waitFor } from '@testing-library/react';
+import { beforeEach, vi } from 'vitest';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { AuthProvider } from '../contexts/AuthContext';
 import SummaryHistory from './SummaryHistory';
 import { summaryHistoriesApi } from '../api/client';
 
+const { defaultListResponse } = vi.hoisted(() => ({
+  defaultListResponse: {
+    data: {
+      items: [
+        {
+          id: 1,
+          ai_model_id: 1,
+          ai_model_name: 'm',
+          start_time: '',
+          end_time: '',
+          page: 1,
+          page_size: 20,
+          order: 'desc',
+          article_count: 2,
+          total: 2,
+          content: '总结内容',
+          error: '',
+          created_at: '2026-03-11T00:00:00Z',
+        },
+      ],
+      total: 1,
+    },
+  },
+}));
+
 vi.mock('../api/client', async () => {
   return {
     summaryHistoriesApi: {
-      list: vi.fn().mockResolvedValue({
-        data: {
-          items: [
-            {
-              id: 1,
-              ai_model_id: 1,
-              ai_model_name: 'm',
-              start_time: '',
-              end_time: '',
-              page: 1,
-              page_size: 20,
-              order: 'desc',
-              article_count: 2,
-              total: 2,
-              content: '总结内容',
-              error: '',
-              created_at: '2026-03-11T00:00:00Z',
-            },
-          ],
-          total: 1,
-        },
-      }),
+      list: vi.fn().mockResolvedValue(defaultListResponse),
       delete: vi.fn().mockResolvedValue({}),
       retry: vi.fn().mockResolvedValue({ data: { id: 2, content: 'ok', error: '' } }),
     },
   };
+});
+
+beforeEach(() => {
+  (summaryHistoriesApi.list as unknown as { mockResolvedValue: (v: unknown) => void }).mockResolvedValue(defaultListResponse);
+  (summaryHistoriesApi.retry as unknown as { mockClear: () => void }).mockClear();
+  (summaryHistoriesApi.delete as unknown as { mockClear: () => void }).mockClear();
 });
 
 test('删除历史记录会调用删除接口', async () => {
@@ -63,10 +74,40 @@ test('删除历史记录会调用删除接口', async () => {
   );
 
   await screen.findByText('总结内容');
+  expect(screen.getByRole('button', { name: '重新总结' })).toBeTruthy();
   await user.click(screen.getByRole('button', { name: '删除' }));
 
   await waitFor(() => expect(summaryHistoriesApi.delete).toHaveBeenCalledTimes(1));
   expect((summaryHistoriesApi.delete as unknown as { mock: { calls: unknown[][] } }).mock.calls[0][0]).toBe(1);
+});
+
+test('成功记录可点击重新总结并调用重试接口', async () => {
+  const user = userEvent.setup();
+
+  const store = new Map<string, string>();
+  // @ts-expect-error test polyfill
+  globalThis.localStorage = {
+    getItem: (k: string) => (store.has(k) ? store.get(k)! : null),
+    setItem: (k: string, v: string) => { store.set(k, String(v)); },
+    removeItem: (k: string) => { store.delete(k); },
+  };
+  globalThis.localStorage.setItem('user', JSON.stringify({ id: 1, username: 'u', status: 'active', is_super_admin: false, created_at: '' }));
+
+  render(
+    <MemoryRouter initialEntries={['/summary-history']}>
+      <AuthProvider>
+        <Routes>
+          <Route path="/summary-history" element={<SummaryHistory />} />
+        </Routes>
+      </AuthProvider>
+    </MemoryRouter>
+  );
+
+  await screen.findByText('总结内容');
+  await user.click(screen.getByRole('button', { name: '重新总结' }));
+
+  await waitFor(() => expect(summaryHistoriesApi.retry).toHaveBeenCalledTimes(1));
+  expect((summaryHistoriesApi.retry as unknown as { mock: { calls: unknown[][] } }).mock.calls[0][0]).toBe(1);
 });
 
 test('失败记录展示重试按钮并可触发重试接口', async () => {
@@ -81,7 +122,7 @@ test('失败记录展示重试按钮并可触发重试接口', async () => {
   };
   globalThis.localStorage.setItem('user', JSON.stringify({ id: 1, username: 'u', status: 'active', is_super_admin: false, created_at: '' }));
 
-  (summaryHistoriesApi.list as unknown as { mockResolvedValueOnce: (v: unknown) => void }).mockResolvedValueOnce({
+  const failedListResponse = {
     data: {
       items: [
         {
@@ -102,7 +143,8 @@ test('失败记录展示重试按钮并可触发重试接口', async () => {
       ],
       total: 1,
     },
-  });
+  };
+  (summaryHistoriesApi.list as unknown as { mockResolvedValue: (v: unknown) => void }).mockResolvedValue(failedListResponse);
 
   render(
     <MemoryRouter initialEntries={['/summary-history']}>
