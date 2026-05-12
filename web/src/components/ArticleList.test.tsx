@@ -24,9 +24,19 @@ test('点击标题会触发 onOpen，并高亮选中项', async () => {
   const onOpen = vi.fn();
   render(<ArticleList articles={[makeArticle()]} selectedId={null} onOpen={onOpen} />);
 
-  await user.click(screen.getByRole('button', { name: '标题1' }));
+  await user.click(screen.getByRole('button', { name: /标题1/ }));
   expect(onOpen).toHaveBeenCalledTimes(1);
   expect(onOpen.mock.calls[0][0].link).toBe('https://example.com/a');
+});
+
+test('点击行内非标题区域（如订阅名）也会触发 onOpen', async () => {
+  const user = userEvent.setup();
+  const onOpen = vi.fn();
+  render(<ArticleList articles={[makeArticle({ feed_title: '某订阅' })]} selectedId={null} onOpen={onOpen} />);
+
+  await user.click(screen.getByText('某订阅'));
+  expect(onOpen).toHaveBeenCalledTimes(1);
+  expect(onOpen.mock.calls[0][0].feed_title).toBe('某订阅');
 });
 
 test('displayLang=translated 时展示译文标题', () => {
@@ -38,5 +48,5 @@ test('displayLang=translated 时展示译文标题', () => {
       onOpen={() => {}}
     />
   );
-  expect(screen.getByRole('button', { name: '译文标题' })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /译文标题/ })).toBeInTheDocument();
 });

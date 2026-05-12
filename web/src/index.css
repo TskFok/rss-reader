@@ -261,7 +261,7 @@ html[data-ui-style="kinetic"] .sidebar-header {
   letter-spacing: -0.02em;
 }
 
-html[data-ui-style="kinetic"] .article-title-btn,
+html[data-ui-style="kinetic"] .article-row-btn .article-title-text,
 html[data-ui-style="kinetic"] .article-detail-title {
   font-family: 'Syne', 'Inter', system-ui, sans-serif;
   font-weight: 600;
@@ -574,7 +574,7 @@ html[data-ui-style="retro-futurism"] .sidebar-header {
   font-size: 0.82rem;
 }
 
-html[data-ui-style="retro-futurism"] .article-title-btn,
+html[data-ui-style="retro-futurism"] .article-row-btn .article-title-text,
 html[data-ui-style="retro-futurism"] .article-detail-title {
   font-family: 'Exo 2', 'Inter', system-ui, sans-serif;
   font-weight: 600;
@@ -772,7 +772,7 @@ html[data-ui-style="hud-scifi-fui"] .sidebar-header {
   font-size: 0.78rem;
 }
 
-html[data-ui-style="hud-scifi-fui"] .article-title-btn,
+html[data-ui-style="hud-scifi-fui"] .article-row-btn .article-title-text,
 html[data-ui-style="hud-scifi-fui"] .article-detail-title {
   font-family: 'Exo 2', 'Inter', system-ui, sans-serif;
   font-weight: 600;
@@ -919,7 +919,7 @@ html[data-ui-style="vibrant-block"] .sidebar-header {
   letter-spacing: -0.03em;
 }
 
-html[data-ui-style="vibrant-block"] .article-title-btn,
+html[data-ui-style="vibrant-block"] .article-row-btn .article-title-text,
 html[data-ui-style="vibrant-block"] .article-detail-title {
   font-family: 'Space Grotesk', 'Inter', system-ui, sans-serif;
   font-weight: 600;
@@ -1144,8 +1144,8 @@ html[data-ui-style="aurora-evolved"] .sidebar-header {
   letter-spacing: -0.025em;
 }
 
-html[data-ui-style="aurora"] .article-title-btn,
-html[data-ui-style="aurora-evolved"] .article-title-btn,
+html[data-ui-style="aurora"] .article-row-btn .article-title-text,
+html[data-ui-style="aurora-evolved"] .article-row-btn .article-title-text,
 html[data-ui-style="aurora"] .article-detail-title,
 html[data-ui-style="aurora-evolved"] .article-detail-title {
   font-family: 'Syne', 'Inter', system-ui, sans-serif;
@@ -1484,7 +1484,7 @@ html[data-ui-style="memphis"] .sidebar-header {
   letter-spacing: -0.03em;
 }
 
-html[data-ui-style="memphis"] .article-title-btn,
+html[data-ui-style="memphis"] .article-row-btn .article-title-text,
 html[data-ui-style="memphis"] .article-detail-title {
   font-family: 'Syne', 'Inter', system-ui, sans-serif;
   font-weight: 600;
@@ -1688,7 +1688,7 @@ html[data-ui-style="y2k"] .sidebar-header {
   letter-spacing: 0.05em;
 }
 
-html[data-ui-style="y2k"] .article-title-btn,
+html[data-ui-style="y2k"] .article-row-btn .article-title-text,
 html[data-ui-style="y2k"] .article-detail-title {
   font-family: 'Exo 2', 'Inter', system-ui, sans-serif;
   font-weight: 600;
@@ -1915,7 +1915,7 @@ html[data-ui-style="cyberpunk"] .sidebar-header {
   letter-spacing: 0.04em;
 }
 
-html[data-ui-style="cyberpunk"] .article-title-btn,
+html[data-ui-style="cyberpunk"] .article-row-btn .article-title-text,
 html[data-ui-style="cyberpunk"] .article-detail-title {
   font-family: 'Exo 2', 'Inter', system-ui, sans-serif;
   font-weight: 600;
@@ -2129,7 +2129,7 @@ html[data-ui-style="pixel-art"] .sidebar-header {
   letter-spacing: 0.03em;
 }
 
-html[data-ui-style="pixel-art"] .article-title-btn,
+html[data-ui-style="pixel-art"] .article-row-btn .article-title-text,
 html[data-ui-style="pixel-art"] .article-detail-title {
   font-family: 'Space Grotesk', 'Inter', system-ui, sans-serif;
   font-weight: 600;
@@ -3206,7 +3206,7 @@ html[data-ui-style="eink"] .ui-style-floating-wrap {
 }
 
 .article-list li {
-  padding: 16px;
+  padding: 0;
   border-bottom: 1px solid var(--nice-admin-card-border);
 }
 
@@ -3224,18 +3224,26 @@ html[data-ui-style="eink"] .ui-style-floating-wrap {
   gap: 12px;
 }
 
-.article-title-btn {
-  flex: 1;
-  text-align: left;
-  padding: 0;
+.article-row-btn {
+  display: block;
+  width: 100%;
+  padding: 16px;
   border: none;
   background: transparent;
-  color: var(--nice-admin-text);
-  font-weight: 500;
+  color: inherit;
+  font: inherit;
+  text-align: left;
   cursor: pointer;
+  box-sizing: border-box;
 }
 
-.article-title-btn:hover {
+.article-title-text {
+  flex: 1;
+  font-weight: 500;
+  color: var(--nice-admin-text);
+}
+
+.article-row-btn:hover .article-title-text {
   color: var(--nice-admin-primary);
   text-decoration: underline;
 }

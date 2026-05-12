@@ -32,28 +32,30 @@ export default function ArticleList({
             .filter(Boolean)
             .join(' ')}
         >
-          <div className="article-header">
-            <button
-              type="button"
-              className="article-title-btn"
-              onClick={() => onOpen(a)}
-              title={title}
-              aria-current={selectedId === a.id ? 'true' : undefined}
-            >
-              {a.ai_process_status === 'pending' && (a.feed_ai_classify_enabled || a.feed_ai_translate_enabled) ? (
-                <span className="article-ai-pending">处理中… </span>
-              ) : null}
-              {title}
-            </button>
-          </div>
-          <div className="article-meta">
-            {cat && (
-              <span className="article-ai-category" title="AI 领域分类（如财经、军事）">
-                {cat}
+          <button
+            type="button"
+            className="article-row-btn"
+            onClick={() => onOpen(a)}
+            title={title}
+            aria-current={selectedId === a.id ? 'true' : undefined}
+          >
+            <div className="article-header">
+              <span className="article-title-text">
+                {a.ai_process_status === 'pending' && (a.feed_ai_classify_enabled || a.feed_ai_translate_enabled) ? (
+                  <span className="article-ai-pending">处理中… </span>
+                ) : null}
+                {title}
               </span>
-            )}
-            {a.feed_title && <span className="feed">{a.feed_title}</span>}
-          </div>
+            </div>
+            <div className="article-meta">
+              {cat && (
+                <span className="article-ai-category" title="AI 领域分类（如财经、军事）">
+                  {cat}
+                </span>
+              )}
+              {a.feed_title && <span className="feed">{a.feed_title}</span>}
+            </div>
+          </button>
         </li>
         );
       })}
