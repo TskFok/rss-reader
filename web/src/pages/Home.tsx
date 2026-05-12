@@ -42,6 +42,7 @@ export default function Home() {
   );
   const sidebarLoadedRef = useRef(false);
   const listScrollRef = useRef<HTMLDivElement>(null);
+  const detailDockScrollRef = useRef<HTMLDivElement>(null);
 
   // 串行请求：feeds -> categories -> articles，避免同时请求导致数据库 unexpected EOF
   useEffect(() => {
@@ -111,6 +112,19 @@ export default function Home() {
     );
     setCollapsedCategories((prev) => (prev.size !== nextCollapsed.size || [...prev].some((id) => !nextCollapsed.has(id)) ? nextCollapsed : prev));
   }, [searchParams]);
+
+  // 切换当前订阅筛选时，重置文章详情区域的滚动位置
+  useEffect(() => {
+    const el = detailDockScrollRef.current;
+    if (el) el.scrollTop = 0;
+  }, [filterFeed]);
+
+  // 在列表中切换选中的文章时，重置文章详情区域的滚动位置
+  useEffect(() => {
+    const el = detailDockScrollRef.current;
+    if (!el || !selected) return;
+    el.scrollTop = 0;
+  }, [selected?.id]);
 
   const toggleCategoryCollapsed = useCallback((categoryId: number) => {
     setCollapsedCategories((prev) => {
@@ -410,7 +424,7 @@ export default function Home() {
         </div>
 
         {selected && (
-          <div className="article-detail-dock">
+          <div ref={detailDockScrollRef} className="article-detail-dock">
             <div className="article-detail-header">
               <a
                 className="article-detail-title"
