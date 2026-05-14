@@ -98,8 +98,10 @@ export default function ArticleManualAI({
 
   const showClassify = articleNeedsClassifySlot(article);
   const showTranslate = articleNeedsTranslateSlot(article);
+  const showClassifyOnly = showClassify && !showTranslate;
+  const translateIncludesClassify = showClassify && showTranslate;
 
-  if (!showClassify && !showTranslate) return null;
+  if (!showClassifyOnly && !showTranslate) return null;
 
   const runClassify = async () => {
     setUiErr(null);
@@ -143,7 +145,10 @@ export default function ArticleManualAI({
     const payload = useFeedForTranslate
       ? {}
       : { ai_model_id: trModelId, ai_target_language: trLang };
-    const tid = toast.showToast({ message: 'AI 翻译中…', variant: 'loading' });
+    const tid = toast.showToast({
+      message: translateIncludesClassify ? 'AI 分类与翻译中…' : 'AI 翻译中…',
+      variant: 'loading',
+    });
     onTranslateStart?.();
     let streamed = '';
     onArticlePatched({
@@ -173,7 +178,10 @@ export default function ArticleManualAI({
         },
       });
       toast.dismiss(tid);
-      toast.showToast({ message: '译文已保存', variant: 'success' });
+      toast.showToast({
+        message: translateIncludesClassify ? '分类与译文已保存' : '译文已保存',
+        variant: 'success',
+      });
       setDrawerOpen(false);
     } catch (e) {
       toast.dismiss(tid);
@@ -211,7 +219,7 @@ export default function ArticleManualAI({
           </div>
         )}
 
-        {showClassify && (
+        {showClassifyOnly && (
           <div className="article-manual-ai-block">
             <div className="article-manual-ai-block-title">AI 分类</div>
             <label className="article-manual-ai-check">
@@ -253,7 +261,9 @@ export default function ArticleManualAI({
 
         {showTranslate && (
           <div className="article-manual-ai-block">
-            <div className="article-manual-ai-block-title">AI 翻译</div>
+            <div className="article-manual-ai-block-title">
+              {translateIncludesClassify ? 'AI 分类与翻译' : 'AI 翻译'}
+            </div>
             <label className="article-manual-ai-check">
               <input
                 type="checkbox"
@@ -298,7 +308,7 @@ export default function ArticleManualAI({
               </>
             )}
             <button type="button" className="article-manual-ai-btn primary" onClick={runTranslate}>
-              执行翻译
+              {translateIncludesClassify ? '执行分类与翻译' : '执行翻译'}
             </button>
           </div>
         )}

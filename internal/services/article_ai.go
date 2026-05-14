@@ -28,13 +28,15 @@ var (
 var articleAIHTMLTagRe = regexp.MustCompile(`<[^>]*>`)
 
 const (
-	translateStreamTitleMarker   = "[[[TITLE]]]"
-	translateStreamContentMarker = "[[[CONTENT_HTML]]]"
-	errEmptyTranslationContent   = "AI 返回空正文译文，请重试"
-	aiProcessPendingMaxAge       = 30 * time.Minute
-	articleAIDefaultQueueSize    = 100
-	articleAIDefaultWorkers      = 1
-	articleAIDefaultMinInterval  = 600 * time.Millisecond
+	translateStreamCategoryMarker           = "[[[CATEGORY]]]"
+	translateStreamCategoryTranslatedMarker = "[[[CATEGORY_TRANSLATED]]]"
+	translateStreamTitleMarker              = "[[[TITLE]]]"
+	translateStreamContentMarker            = "[[[CONTENT_HTML]]]"
+	errEmptyTranslationContent              = "AI 返回空正文译文，请重试"
+	aiProcessPendingMaxAge                  = 30 * time.Minute
+	articleAIDefaultQueueSize               = 100
+	articleAIDefaultWorkers                 = 1
+	articleAIDefaultMinInterval             = 600 * time.Millisecond
 )
 
 // ArticleAIProcessor 在新文章入库后异步调用 AI 做分类/翻译
@@ -321,6 +323,28 @@ func buildTranslateStreamSystemPrompt(targetLang string) string {
 	return b.String()
 }
 
+func buildClassifyTranslateStreamSystemPrompt(targetLang string) string {
+	var b strings.Builder
+	b.WriteString("You are a helper for an RSS reader.\n")
+	b.WriteString("Classify and translate the provided title and HTML body in one response.\n")
+	b.WriteString("For category, return a concise Chinese DOMAIN label that summarizes what the article is broadly about (inductive bucketing / 领域归纳), NOT a fine-grained headline or keyword list. Prefer 2–8 characters; pick ONE best-fitting label.\n")
+	b.WriteString("Translate the category, title, and HTML body into ")
+	b.WriteString(targetLang)
+	b.WriteString(".\n")
+	b.WriteString("For body translation, preserve the original HTML structure, element order, links, image/audio/video/iframe/embed nodes, attributes, and non-text elements. Only translate human-readable text content inside the HTML.\n")
+	b.WriteString("Do not add explanations or markdown code fences.\n")
+	b.WriteString("Return output in the exact format below:\n")
+	b.WriteString(translateStreamCategoryMarker + "\n")
+	b.WriteString("<Chinese category>\n")
+	b.WriteString(translateStreamCategoryTranslatedMarker + "\n")
+	b.WriteString("<translated category>\n")
+	b.WriteString(translateStreamTitleMarker + "\n")
+	b.WriteString("<translated title>\n")
+	b.WriteString(translateStreamContentMarker + "\n")
+	b.WriteString("<translated html fragment>\n")
+	return b.String()
+}
+
 func (p *ArticleAIProcessor) run(userID uint, feed models.Feed, articleID uint) {
 	if p.ai == nil || p.db == nil {
 		return
@@ -478,6 +502,32 @@ func parseTranslateStreamOutput(raw string) (titleTranslated string, contentTran
 	return strings.TrimSpace(titleTranslated), strings.TrimSpace(contentTranslated)
 }
 
+func streamTextBetween(raw, startMarker, endMarker string) string {
+	startIdx := strings.Index(raw, startMarker)
+	if startIdx < 0 {
+		return ""
+	}
+	out := raw[startIdx+len(startMarker):]
+	if endMarker != "" {
+		if endIdx := strings.Index(out, endMarker); endIdx >= 0 {
+			out = out[:endIdx]
+		}
+	}
+	return strings.TrimSpace(stripMarkdownFence(out))
+}
+
+func parseClassifyTranslateStreamOutput(raw string) (category, categoryTranslated, titleTranslated, contentTranslated string) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return "", "", "", ""
+	}
+	category = streamTextBetween(raw, translateStreamCategoryMarker, translateStreamCategoryTranslatedMarker)
+	categoryTranslated = streamTextBetween(raw, translateStreamCategoryTranslatedMarker, translateStreamTitleMarker)
+	titleTranslated = streamTextBetween(raw, translateStreamTitleMarker, translateStreamContentMarker)
+	contentTranslated = streamTextBetween(raw, translateStreamContentMarker, "")
+	return category, categoryTranslated, titleTranslated, contentTranslated
+}
+
 func (p *ArticleAIProcessor) runClassifyOnly(userID uint, modelID uint, articleID uint, title, body string) {
 	msgs := []chatMessage{
 		{Role: "system", Content: buildClassifySystemPrompt()},
@@ -573,7 +623,8 @@ func (p *ArticleAIProcessor) ManualClassify(userID uint, articleID uint, overrid
 	return p.errIfArticleAIFailed(articleID)
 }
 
-// ManualTranslate 同步手动翻译（尚无可用正文译文）。overrideModelID / overrideTargetLang 可临时覆盖订阅；语言为空串时表示使用订阅默认目标语言。
+// ManualTranslate 同步手动翻译（尚无可用正文译文）；若尚无分类，则同一次模型调用生成分类与译文。
+// overrideModelID / overrideTargetLang 可临时覆盖订阅；语言为空串时表示使用订阅默认目标语言。
 func (p *ArticleAIProcessor) ManualTranslate(userID uint, articleID uint, overrideModelID *uint, overrideTargetLang string) error {
 	if p == nil || p.db == nil || p.ai == nil {
 		return errors.New("AI 服务不可用")
@@ -623,11 +674,15 @@ func (p *ArticleAIProcessor) ManualTranslate(userID uint, articleID uint, overri
 	if bodyHTML == "" {
 		bodyHTML = bodyPlain
 	}
+	if strings.TrimSpace(art.AICategory) == "" {
+		p.runClassifyAndTranslate(userID, modelID, &ff, articleID, title, bodyPlain, bodyHTML)
+		return p.errIfArticleAIFailed(articleID)
+	}
 	p.translateWithOptionalCategory(userID, modelID, &ff, articleID, title, bodyPlain, bodyHTML, strings.TrimSpace(art.AICategory))
 	return p.errIfArticleAIFailed(articleID)
 }
 
-// ManualTranslateStream 流式手动翻译（仅当文章尚无可用正文译文）。
+// ManualTranslateStream 流式手动翻译（仅当文章尚无可用正文译文）；若尚无分类，则同一次模型调用生成分类与译文。
 func (p *ArticleAIProcessor) ManualTranslateStream(userID uint, articleID uint, overrideModelID *uint, overrideTargetLang string, onChunk func(string) error) error {
 	if p == nil || p.db == nil || p.ai == nil {
 		return errors.New("AI 服务不可用")
@@ -681,9 +736,16 @@ func (p *ArticleAIProcessor) ManualTranslateStream(userID uint, articleID uint, 
 	}
 
 	topic := strings.TrimSpace(art.AICategory)
+	shouldClassify := topic == ""
 	msgs := []chatMessage{
 		{Role: "system", Content: buildTranslateStreamSystemPrompt(targetLang)},
 		{Role: "user", Content: buildTranslateStreamUserContent(topic, title, bodyHTML, bodyPlain)},
+	}
+	if shouldClassify {
+		msgs = []chatMessage{
+			{Role: "system", Content: buildClassifyTranslateStreamSystemPrompt(targetLang)},
+			{Role: "user", Content: buildTranslateStreamUserContent("", title, bodyHTML, bodyPlain)},
+		}
 	}
 
 	var raw strings.Builder
@@ -718,7 +780,12 @@ func (p *ArticleAIProcessor) ManualTranslateStream(userID uint, articleID uint, 
 		return err
 	}
 
-	titleTranslated, contentTranslated := parseTranslateStreamOutput(raw.String())
+	var category, categoryTranslated, titleTranslated, contentTranslated string
+	if shouldClassify {
+		category, categoryTranslated, titleTranslated, contentTranslated = parseClassifyTranslateStreamOutput(raw.String())
+	} else {
+		titleTranslated, contentTranslated = parseTranslateStreamOutput(raw.String())
+	}
 	contentTranslated = truncateRunes(strings.TrimSpace(contentTranslated), 200000)
 	if contentTranslated == "" {
 		p.applyAIFailed(articleID, "解析模型流式输出失败")
@@ -729,6 +796,10 @@ func (p *ArticleAIProcessor) ManualTranslateStream(userID uint, articleID uint, 
 		"ai_last_error":      "",
 		"title_translated":   truncateRunes(strings.TrimSpace(titleTranslated), 1000),
 		"content_translated": contentTranslated,
+	}
+	if shouldClassify {
+		updates["ai_category"] = truncateRunes(strings.TrimSpace(category), 250)
+		updates["ai_category_translated"] = truncateRunes(strings.TrimSpace(categoryTranslated), 250)
 	}
 	if err := p.db.Model(&models.Article{}).Where("id = ?", articleID).Updates(updates).Error; err != nil {
 		return err

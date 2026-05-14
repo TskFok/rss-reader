@@ -528,7 +528,7 @@ func TestArticleAIProcessor_ManualTranslate(t *testing.T) {
 		AIModelID: &m.ID, AITargetLanguage: "en",
 	}
 	require.NoError(t, db.Create(&feed).Error)
-	art := models.Article{FeedID: feed.ID, GUID: models.ArticleGUIDHash("mtg"), GUIDRaw: "mtg", Title: "标题", Content: "正文"}
+	art := models.Article{FeedID: feed.ID, GUID: models.ArticleGUIDHash("mtg"), GUIDRaw: "mtg", Title: "标题", Content: "正文", AICategory: "科技"}
 	require.NoError(t, db.Create(&art).Error)
 
 	p := NewArticleAIProcessor(db, NewAIModelService(db))
@@ -536,6 +536,55 @@ func TestArticleAIProcessor_ManualTranslate(t *testing.T) {
 
 	var out models.Article
 	require.NoError(t, db.First(&out, art.ID).Error)
+	assert.Equal(t, "T", out.TitleTranslated)
+	assert.Equal(t, "B", out.ContentTranslated)
+}
+
+func TestArticleAIProcessor_ManualTranslate_ClassifiesAndTranslatesWithSingleModelCall(t *testing.T) {
+	db := setupArticleAIDB(t)
+	var n int
+	var requestBody string
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		raw, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
+		requestBody = string(raw)
+		n++
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"choices": []map[string]any{
+				{"message": map[string]string{"content": `{"category":"科技","category_translated":"Tech","title_translated":"T","content_translated":"B"}`}},
+			},
+		})
+	}))
+	defer ts.Close()
+
+	user := models.User{Username: "mt-combined", PasswordHash: "x"}
+	require.NoError(t, db.Create(&user).Error)
+	m := models.AIModel{UserID: user.ID, Name: "m", BaseURL: ts.URL + "/v1"}
+	require.NoError(t, db.Create(&m).Error)
+	feed := models.Feed{
+		UserID: user.ID, URL: "http://example.com/mt-combined", Title: "F", UpdateIntervalMinutes: 60,
+		AIModelID: &m.ID, AITargetLanguage: "en",
+	}
+	require.NoError(t, db.Create(&feed).Error)
+	art := models.Article{FeedID: feed.ID, GUID: models.ArticleGUIDHash("mt-combined"), GUIDRaw: "mt-combined", Title: "标题", Content: "正文"}
+	require.NoError(t, db.Create(&art).Error)
+
+	p := NewArticleAIProcessor(db, NewAIModelService(db))
+	require.NoError(t, p.ManualTranslate(user.ID, art.ID, nil, ""))
+
+	assert.Equal(t, 1, n)
+	var sent chatCompletionsRequest
+	require.NoError(t, json.Unmarshal([]byte(requestBody), &sent))
+	require.Len(t, sent.Messages, 2)
+	assert.Contains(t, sent.Messages[0].Content, `"category"`)
+	assert.Contains(t, sent.Messages[0].Content, `"category_translated"`)
+	assert.Contains(t, sent.Messages[0].Content, `"content_translated"`)
+
+	var out models.Article
+	require.NoError(t, db.First(&out, art.ID).Error)
+	assert.Equal(t, models.AIProcessDone, out.AIProcessStatus)
+	assert.Equal(t, "科技", out.AICategory)
+	assert.Equal(t, "Tech", out.AICategoryTranslated)
 	assert.Equal(t, "T", out.TitleTranslated)
 	assert.Equal(t, "B", out.ContentTranslated)
 }
@@ -630,4 +679,64 @@ func TestArticleAIProcessor_ManualTranslate_AllowsStalePending(t *testing.T) {
 	assert.Equal(t, models.AIProcessDone, out.AIProcessStatus)
 	assert.Equal(t, "Recovered", out.TitleTranslated)
 	assert.Equal(t, "Body", out.ContentTranslated)
+}
+
+func TestArticleAIProcessor_ManualTranslateStream_ClassifiesAndTranslatesWithSingleModelCall(t *testing.T) {
+	db := setupArticleAIDB(t)
+	var n int
+	var requestBody string
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		raw, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
+		requestBody = string(raw)
+		n++
+		w.Header().Set("Content-Type", "text/event-stream")
+		chunk, err := json.Marshal(map[string]any{
+			"choices": []map[string]any{
+				{"delta": map[string]string{"content": "[[[CATEGORY]]]\n科技\n[[[CATEGORY_TRANSLATED]]]\nTech\n" + translateStreamTitleMarker + "\nT\n" + translateStreamContentMarker + "\n<p>B</p>"}},
+			},
+		})
+		require.NoError(t, err)
+		_, _ = w.Write([]byte("data: " + string(chunk) + "\n\n"))
+		_, _ = w.Write([]byte("data: [DONE]\n\n"))
+	}))
+	defer ts.Close()
+
+	user := models.User{Username: "mts-combined", PasswordHash: "x"}
+	require.NoError(t, db.Create(&user).Error)
+	m := models.AIModel{UserID: user.ID, Name: "m", BaseURL: ts.URL + "/v1"}
+	require.NoError(t, db.Create(&m).Error)
+	feed := models.Feed{
+		UserID: user.ID, URL: "http://example.com/mts-combined", Title: "F", UpdateIntervalMinutes: 60,
+		AIModelID: &m.ID, AITargetLanguage: "en",
+	}
+	require.NoError(t, db.Create(&feed).Error)
+	art := models.Article{
+		FeedID: feed.ID, GUID: models.ArticleGUIDHash("mts-combined"), GUIDRaw: "mts-combined",
+		Title: "标题", Content: "<p>正文</p>",
+	}
+	require.NoError(t, db.Create(&art).Error)
+
+	var chunks []string
+	p := NewArticleAIProcessor(db, NewAIModelService(db))
+	require.NoError(t, p.ManualTranslateStream(user.ID, art.ID, nil, "", func(delta string) error {
+		chunks = append(chunks, delta)
+		return nil
+	}))
+
+	assert.Equal(t, 1, n)
+	var sent chatCompletionsRequest
+	require.NoError(t, json.Unmarshal([]byte(requestBody), &sent))
+	require.Len(t, sent.Messages, 2)
+	assert.Contains(t, sent.Messages[0].Content, "category")
+	assert.Contains(t, sent.Messages[0].Content, translateStreamContentMarker)
+	assert.Equal(t, "<p>B</p>", strings.TrimSpace(strings.Join(chunks, "")))
+
+	var out models.Article
+	require.NoError(t, db.First(&out, art.ID).Error)
+	assert.Equal(t, models.AIProcessDone, out.AIProcessStatus)
+	assert.Equal(t, "科技", out.AICategory)
+	assert.Equal(t, "Tech", out.AICategoryTranslated)
+	assert.Equal(t, "T", out.TitleTranslated)
+	assert.Equal(t, "<p>B</p>", out.ContentTranslated)
 }

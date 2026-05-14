@@ -355,7 +355,7 @@ paths:
       tags: [articles]
       summary: 手动翻译文章
       description: |
-        对单篇文章执行同步 AI 翻译。
+        对单篇文章执行同步 AI 翻译。若文章尚无 AI 分类，会在同一次模型调用中同时生成分类与译文。
         `ai_model_id` 与 `ai_target_language` 都是可选字段：
         - 不传 `ai_model_id` 时，使用该文章所属订阅上配置的默认 AI 模型
         - 不传 `ai_target_language` 或传空串时，使用订阅上配置的默认翻译目标语言
@@ -406,7 +406,7 @@ paths:
       tags: [articles]
       summary: 手动翻译文章（流式）
       description: |
-        对单篇文章执行流式 AI 翻译（SSE）。
+        对单篇文章执行流式 AI 翻译（SSE）。若文章尚无 AI 分类，会在同一次模型调用中同时生成分类与译文；`delta` 事件仍只输出译文正文增量。
         请求参数与 `/articles/{id}/ai/translate` 相同：
         - 不传 `ai_model_id` 时，使用该文章所属订阅上配置的默认 AI 模型
         - 不传 `ai_target_language` 或传空串时，使用订阅上配置的默认翻译目标语言

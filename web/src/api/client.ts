@@ -301,12 +301,12 @@ export const articlesApi = {
   /** 手动 AI 分类（同步）；body 可传 { ai_model_id } 覆盖订阅默认模型 */
   manualAIClassify: (id: number, body?: { ai_model_id?: number }) =>
     client.post<{ article: Article }>(`/articles/${id}/ai/classify`, body ?? {}),
-  /** 手动翻译；body 可传 { ai_model_id, ai_target_language }，空对象表示使用订阅默认 */
+  /** 手动翻译；无分类时服务端会同次生成分类。body 可传 { ai_model_id, ai_target_language }，空对象表示使用订阅默认 */
   manualAITranslate: (
     id: number,
     body?: { ai_model_id?: number; ai_target_language?: string }
   ) => client.post<{ article: Article }>(`/articles/${id}/ai/translate`, body ?? {}),
-  /** 手动翻译（流式）：onChunk 逐段接收译文，最终 onDone 返回完整文章 */
+  /** 手动翻译（流式）：无分类时服务端会同次生成分类；onChunk 逐段接收译文，最终 onDone 返回完整文章 */
   manualAITranslateStream: async (
     id: number,
     body: { ai_model_id?: number; ai_target_language?: string },
