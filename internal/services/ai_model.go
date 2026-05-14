@@ -160,17 +160,54 @@ type chatMessage struct {
 	Content string `json:"content"`
 }
 
+func chatCompletionsURL(baseURL string) string {
+	baseURL = strings.TrimSuffix(baseURL, "/")
+	if strings.HasSuffix(baseURL, "/chat/completions") {
+		return baseURL
+	}
+	return baseURL + "/chat/completions"
+}
+
+func modelFallbackError(primaryErr, backupErr error) error {
+	if backupErr == nil {
+		return primaryErr
+	}
+	return errors.New("主模型调用失败: " + primaryErr.Error() + "；备用模型调用失败: " + backupErr.Error())
+}
+
+func (s *AIModelService) getBackupModel(userID uint, primary *models.AIModel) (*models.AIModel, error) {
+	if primary == nil || primary.BackupModelID == nil || *primary.BackupModelID == 0 || *primary.BackupModelID == primary.ID {
+		return nil, nil
+	}
+	return s.GetByID(userID, *primary.BackupModelID)
+}
+
 // ChatCompletionText 非流式调用 OpenAI 兼容 chat/completions，返回首条回复正文
 func (s *AIModelService) ChatCompletionText(userID uint, modelID uint, maxTokens int, messages []chatMessage) (string, error) {
 	m, err := s.GetByID(userID, modelID)
 	if err != nil {
 		return "", err
 	}
-	baseURL := strings.TrimSuffix(m.BaseURL, "/")
-	chatURL := baseURL
-	if !strings.HasSuffix(chatURL, "/chat/completions") {
-		chatURL = baseURL + "/chat/completions"
+	text, err := s.chatCompletionTextWithModel(m, maxTokens, messages)
+	if err == nil {
+		return text, nil
 	}
+	backup, backupErr := s.getBackupModel(userID, m)
+	if backupErr != nil {
+		return "", modelFallbackError(err, backupErr)
+	}
+	if backup == nil {
+		return "", err
+	}
+	text, backupErr = s.chatCompletionTextWithModel(backup, maxTokens, messages)
+	if backupErr != nil {
+		return "", modelFallbackError(err, backupErr)
+	}
+	return text, nil
+}
+
+func (s *AIModelService) chatCompletionTextWithModel(m *models.AIModel, maxTokens int, messages []chatMessage) (string, error) {
+	chatURL := chatCompletionsURL(m.BaseURL)
 	body := chatCompletionsRequest{
 		Model:     m.Name,
 		MaxTokens: maxTokens,
@@ -222,50 +259,8 @@ func (s *AIModelService) Summarize(userID uint, modelID uint, articles []Article
 	if len(articles) == 0 {
 		return "", errors.New("没有可总结的文章")
 	}
-	m, err := s.GetByID(userID, modelID)
-	if err != nil {
-		return "", err
-	}
 	msgs := BuildSummaryChatMessages(opts, articles)
-	baseURL := strings.TrimSuffix(m.BaseURL, "/")
-	chatURL := baseURL
-	if !strings.HasSuffix(chatURL, "/chat/completions") {
-		chatURL = baseURL + "/chat/completions"
-	}
-	body := chatCompletionsRequest{
-		Model:     m.Name,
-		MaxTokens: 2000,
-		Messages:  msgs,
-	}
-	bodyBytes, err := json.Marshal(body)
-	if err != nil {
-		return "", err
-	}
-	req, err := http.NewRequest(http.MethodPost, chatURL, bytes.NewReader(bodyBytes))
-	if err != nil {
-		return "", err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	if m.APIKey != "" {
-		req.Header.Set("Authorization", "Bearer "+m.APIKey)
-	}
-	client := &http.Client{Timeout: 120 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return "", errors.New("模型调用失败: HTTP " + resp.Status)
-	}
-	var respBody chatCompletionsResponse
-	if err := json.NewDecoder(resp.Body).Decode(&respBody); err != nil {
-		return "", err
-	}
-	if len(respBody.Choices) == 0 || respBody.Choices[0].Message.Content == "" {
-		return "", errors.New("模型未返回有效内容")
-	}
-	return strings.TrimSpace(respBody.Choices[0].Message.Content), nil
+	return s.ChatCompletionText(userID, modelID, 2000, msgs)
 }
 
 // streamChunk OpenAI 流式响应中的单个 chunk
@@ -293,11 +288,32 @@ func (s *AIModelService) ChatCompletionStream(userID uint, modelID uint, maxToke
 	if err != nil {
 		return err
 	}
-	baseURL := strings.TrimSuffix(m.BaseURL, "/")
-	chatURL := baseURL
-	if !strings.HasSuffix(chatURL, "/chat/completions") {
-		chatURL = baseURL + "/chat/completions"
+	emitted := false
+	err = s.chatCompletionStreamWithModel(m, maxTokens, messages, func(chunk string) error {
+		emitted = true
+		if onChunk == nil {
+			return nil
+		}
+		return onChunk(chunk)
+	})
+	if err == nil {
+		return nil
 	}
+	if emitted {
+		return err
+	}
+	backup, backupErr := s.getBackupModel(userID, m)
+	if backupErr != nil {
+		return modelFallbackError(err, backupErr)
+	}
+	if backup == nil {
+		return err
+	}
+	return s.chatCompletionStreamWithModel(backup, maxTokens, messages, onChunk)
+}
+
+func (s *AIModelService) chatCompletionStreamWithModel(m *models.AIModel, maxTokens int, messages []chatMessage, onChunk func(string) error) error {
+	chatURL := chatCompletionsURL(m.BaseURL)
 	body := chatCompletionsRequest{
 		Model:     m.Name,
 		MaxTokens: maxTokens,
@@ -341,8 +357,10 @@ func (s *AIModelService) ChatCompletionStream(userID uint, modelID uint, maxToke
 			continue
 		}
 		if len(chunk.Choices) > 0 && chunk.Choices[0].Delta.Content != "" {
-			if err := onChunk(chunk.Choices[0].Delta.Content); err != nil {
-				return err
+			if onChunk != nil {
+				if err := onChunk(chunk.Choices[0].Delta.Content); err != nil {
+					return err
+				}
 			}
 		}
 	}
@@ -355,11 +373,7 @@ func (s *AIModelService) Test(userID uint, id uint) error {
 	if err != nil {
 		return err
 	}
-	baseURL := strings.TrimSuffix(m.BaseURL, "/")
-	chatURL := baseURL
-	if !strings.HasSuffix(chatURL, "/chat/completions") {
-		chatURL = baseURL + "/chat/completions"
-	}
+	chatURL := chatCompletionsURL(m.BaseURL)
 	body := chatCompletionsRequest{
 		Model:     m.Name,
 		MaxTokens: 5,

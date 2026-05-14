@@ -1,6 +1,7 @@
 package services
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -229,6 +230,86 @@ func TestAIModelService_Summarize_ModelNotFound(t *testing.T) {
 	assert.ErrorIs(t, err, ErrAIModelNotFound)
 }
 
+func TestAIModelService_ChatCompletionText_UsesBackupModelWhenPrimaryFails(t *testing.T) {
+	db := setupAIModelDB(t)
+	svc := NewAIModelService(db)
+
+	var primaryCalls int
+	primary := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		primaryCalls++
+		w.WriteHeader(http.StatusBadGateway)
+	}))
+	defer primary.Close()
+
+	var backupCalls int
+	backup := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		backupCalls++
+		assert.Equal(t, "/chat/completions", r.URL.Path)
+		assert.Equal(t, "Bearer sk-backup", r.Header.Get("Authorization"))
+		var req chatCompletionsRequest
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&req))
+		assert.Equal(t, "backup-model", req.Model)
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"choices":[{"message":{"content":"备用模型结果"}}]}`))
+	}))
+	defer backup.Close()
+
+	backupModel, err := svc.Create(1, CreateAIModelRequest{
+		Name:    "backup-model",
+		BaseURL: backup.URL,
+		APIKey:  "sk-backup",
+	})
+	require.NoError(t, err)
+	primaryModel, err := svc.Create(1, CreateAIModelRequest{
+		Name:          "primary-model",
+		BaseURL:       primary.URL,
+		BackupModelID: &backupModel.ID,
+	})
+	require.NoError(t, err)
+
+	got, err := svc.ChatCompletionText(1, primaryModel.ID, 100, []chatMessage{{Role: "user", Content: "hi"}})
+	require.NoError(t, err)
+	assert.Equal(t, "备用模型结果", got)
+	assert.Equal(t, 1, primaryCalls)
+	assert.Equal(t, 1, backupCalls)
+}
+
+func TestAIModelService_Summarize_UsesBackupModelWhenPrimaryFails(t *testing.T) {
+	db := setupAIModelDB(t)
+	svc := NewAIModelService(db)
+
+	primary := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadGateway)
+	}))
+	defer primary.Close()
+
+	var backupCalls int
+	backup := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		backupCalls++
+		var req chatCompletionsRequest
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&req))
+		assert.Equal(t, "backup-summary", req.Model)
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"choices":[{"message":{"content":"备用总结"}}]}`))
+	}))
+	defer backup.Close()
+
+	backupModel, err := svc.Create(1, CreateAIModelRequest{Name: "backup-summary", BaseURL: backup.URL})
+	require.NoError(t, err)
+	primaryModel, err := svc.Create(1, CreateAIModelRequest{
+		Name:          "primary-summary",
+		BaseURL:       primary.URL,
+		BackupModelID: &backupModel.ID,
+	})
+	require.NoError(t, err)
+
+	articles := []ArticleForSummary{{Title: "a", Content: "b", FeedTitle: "f", PublishedAt: "2025-03-01"}}
+	got, err := svc.Summarize(1, primaryModel.ID, articles, nil)
+	require.NoError(t, err)
+	assert.Equal(t, "备用总结", got)
+	assert.Equal(t, 1, backupCalls)
+}
+
 func TestAIModelService_SummarizeStream(t *testing.T) {
 	db := setupAIModelDB(t)
 	svc := NewAIModelService(db)
@@ -258,4 +339,48 @@ func TestAIModelService_SummarizeStream(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.Equal(t, "中文总结", collected.String())
+}
+
+func TestAIModelService_SummarizeStream_UsesBackupModelWhenPrimaryFails(t *testing.T) {
+	db := setupAIModelDB(t)
+	svc := NewAIModelService(db)
+
+	primary := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadGateway)
+	}))
+	defer primary.Close()
+
+	var backupCalls int
+	backup := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		backupCalls++
+		assert.Equal(t, "/chat/completions", r.URL.Path)
+		var req chatCompletionsRequest
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&req))
+		assert.Equal(t, "backup-stream", req.Model)
+		assert.True(t, req.Stream)
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.Write([]byte("data: {\"choices\":[{\"delta\":{\"content\":\"备\"}}]}\n\n"))
+		w.Write([]byte("data: {\"choices\":[{\"delta\":{\"content\":\"用\"}}]}\n\n"))
+		w.Write([]byte("data: [DONE]\n\n"))
+	}))
+	defer backup.Close()
+
+	backupModel, err := svc.Create(1, CreateAIModelRequest{Name: "backup-stream", BaseURL: backup.URL})
+	require.NoError(t, err)
+	primaryModel, err := svc.Create(1, CreateAIModelRequest{
+		Name:          "primary-stream",
+		BaseURL:       primary.URL,
+		BackupModelID: &backupModel.ID,
+	})
+	require.NoError(t, err)
+
+	articles := []ArticleForSummary{{Title: "a", Content: "b", FeedTitle: "f", PublishedAt: "2025-03-01"}}
+	var collected strings.Builder
+	err = svc.SummarizeStream(1, primaryModel.ID, articles, nil, func(chunk string) error {
+		collected.WriteString(chunk)
+		return nil
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "备用", collected.String())
+	assert.Equal(t, 1, backupCalls)
 }
