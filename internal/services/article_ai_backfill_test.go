@@ -2,6 +2,7 @@ package services
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -47,6 +48,60 @@ func TestBackfillClassifyBatch(t *testing.T) {
 	var out models.Article
 	require.NoError(t, db.First(&out, art.ID).Error)
 	assert.Equal(t, "补漏", out.AICategory)
+	assert.Equal(t, models.AIProcessDone, out.AIProcessStatus)
+}
+
+func TestBackfillClassifyBatch_ClassifyAndTranslateUsesSingleModelCall(t *testing.T) {
+	db := setupArticleAIDB(t)
+	var n int
+	var requestBody string
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		raw, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
+		requestBody = string(raw)
+		n++
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"choices": []map[string]any{
+				{"message": map[string]string{"content": `{"category":"科技","category_translated":"Tech","title_translated":"TT","content_translated":"BB"}`}},
+			},
+		})
+	}))
+	defer ts.Close()
+
+	user := models.User{Username: "bf-combined", PasswordHash: "x"}
+	require.NoError(t, db.Create(&user).Error)
+	m := models.AIModel{UserID: user.ID, Name: "m", BaseURL: ts.URL + "/v1"}
+	require.NoError(t, db.Create(&m).Error)
+	feed := models.Feed{
+		UserID: user.ID, URL: "http://bf.example/combined", Title: "F", UpdateIntervalMinutes: 60,
+		AIModelID: &m.ID, AIClassifyEnabled: true, AITranslateEnabled: true, AITargetLanguage: "en",
+	}
+	require.NoError(t, db.Create(&feed).Error)
+	art := models.Article{
+		FeedID: feed.ID, GUID: models.ArticleGUIDHash("bf-combined"), GUIDRaw: "bf-combined",
+		Title: "标题", Content: "正文",
+		AIProcessStatus: models.AIProcessFailed, AILastError: "timeout",
+	}
+	require.NoError(t, db.Create(&art).Error)
+
+	p := NewArticleAIProcessor(db, NewAIModelService(db))
+	ok, fail := p.BackfillClassifyBatch(5, 0)
+	assert.Equal(t, 1, ok)
+	assert.Equal(t, 0, fail)
+	assert.Equal(t, 1, n)
+
+	var sent chatCompletionsRequest
+	require.NoError(t, json.Unmarshal([]byte(requestBody), &sent))
+	require.Len(t, sent.Messages, 2)
+	assert.Contains(t, sent.Messages[0].Content, `"category"`)
+	assert.Contains(t, sent.Messages[0].Content, `"content_translated"`)
+
+	var out models.Article
+	require.NoError(t, db.First(&out, art.ID).Error)
+	assert.Equal(t, "科技", out.AICategory)
+	assert.Equal(t, "Tech", out.AICategoryTranslated)
+	assert.Equal(t, "TT", out.TitleTranslated)
+	assert.Equal(t, "BB", out.ContentTranslated)
 	assert.Equal(t, models.AIProcessDone, out.AIProcessStatus)
 }
 

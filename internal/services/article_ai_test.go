@@ -146,20 +146,18 @@ func TestBuildTranslateSystemPrompt_PreservesHTML(t *testing.T) {
 	assert.Contains(t, s, "Do not drop elements")
 }
 
-func TestArticleAIProcessor_run_ClassifyThenTranslate(t *testing.T) {
+func TestArticleAIProcessor_run_ClassifyThenTranslate_UsesSingleModelCall(t *testing.T) {
 	db := setupArticleAIDB(t)
 	var n int
+	var requestBody string
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		raw, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
+		requestBody = string(raw)
 		n++
-		var content string
-		if n == 1 {
-			content = `{"category":"科技"}`
-		} else {
-			content = `{"category_translated":"Tech","title_translated":"T","content_translated":"B"}`
-		}
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"choices": []map[string]any{
-				{"message": map[string]string{"content": content}},
+				{"message": map[string]string{"content": `{"category":"科技","category_translated":"Tech","title_translated":"T","content_translated":"B"}`}},
 			},
 		})
 	}))
@@ -186,7 +184,15 @@ func TestArticleAIProcessor_run_ClassifyThenTranslate(t *testing.T) {
 	p := NewArticleAIProcessor(db, NewAIModelService(db))
 	p.run(user.ID, feed, art.ID)
 
-	assert.Equal(t, 2, n)
+	assert.Equal(t, 1, n)
+
+	var sent chatCompletionsRequest
+	require.NoError(t, json.Unmarshal([]byte(requestBody), &sent))
+	require.Len(t, sent.Messages, 2)
+	assert.Contains(t, sent.Messages[0].Content, `"category"`)
+	assert.Contains(t, sent.Messages[0].Content, `"category_translated"`)
+	assert.Contains(t, sent.Messages[0].Content, `"title_translated"`)
+	assert.Contains(t, sent.Messages[0].Content, `"content_translated"`)
 
 	var out models.Article
 	require.NoError(t, db.First(&out, art.ID).Error)
@@ -319,23 +325,18 @@ func TestArticleAIProcessor_EnqueueRateLimitsAutomaticJobs(t *testing.T) {
 	assert.GreaterOrEqual(t, gap, 500*time.Millisecond)
 }
 
-func TestArticleAIProcessor_EnqueueRateLimitsClassifyThenTranslateCalls(t *testing.T) {
+func TestArticleAIProcessor_EnqueueClassifyThenTranslateUsesOneModelCall(t *testing.T) {
 	db := setupArticleAIDB(t)
 	var mu sync.Mutex
 	var starts []time.Time
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		mu.Lock()
 		starts = append(starts, time.Now())
-		call := len(starts)
 		mu.Unlock()
 
-		content := `{"category":"科技"}`
-		if call == 2 {
-			content = `{"category_translated":"Tech","title_translated":"T","content_translated":"B"}`
-		}
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"choices": []map[string]any{
-				{"message": map[string]string{"content": content}},
+				{"message": map[string]string{"content": `{"category":"科技","category_translated":"Tech","title_translated":"T","content_translated":"B"}`}},
 			},
 		})
 	}))
@@ -369,12 +370,10 @@ func TestArticleAIProcessor_EnqueueRateLimitsClassifyThenTranslateCalls(t *testi
 	mu.Lock()
 	gotStarts := append([]time.Time(nil), starts...)
 	mu.Unlock()
-	require.Len(t, gotStarts, 2)
-	gap := gotStarts[1].Sub(gotStarts[0])
-	assert.GreaterOrEqual(t, gap, 500*time.Millisecond)
+	require.Len(t, gotStarts, 1)
 }
 
-func TestArticleAIProcessor_run_FailsPendingWhenPipelineReturnsEarly(t *testing.T) {
+func TestArticleAIProcessor_run_ClassifyAndTranslateCompletesSingleCallWhenFeedDeletedDuringCall(t *testing.T) {
 	db := setupArticleAIDB(t)
 	var feed models.Feed
 	var n int
@@ -385,7 +384,7 @@ func TestArticleAIProcessor_run_FailsPendingWhenPipelineReturnsEarly(t *testing.
 		}
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"choices": []map[string]any{
-				{"message": map[string]string{"content": `{"category":"科技"}`}},
+				{"message": map[string]string{"content": `{"category":"科技","category_translated":"Tech","title_translated":"T","content_translated":"B"}`}},
 			},
 		})
 	}))
@@ -412,9 +411,12 @@ func TestArticleAIProcessor_run_FailsPendingWhenPipelineReturnsEarly(t *testing.
 	assert.Equal(t, 1, n)
 	var out models.Article
 	require.NoError(t, db.First(&out, art.ID).Error)
-	assert.Equal(t, models.AIProcessFailed, out.AIProcessStatus)
-	assert.Contains(t, out.AILastError, "AI 处理未完成")
+	assert.Equal(t, models.AIProcessDone, out.AIProcessStatus)
+	assert.Empty(t, out.AILastError)
 	assert.Equal(t, "科技", out.AICategory)
+	assert.Equal(t, "Tech", out.AICategoryTranslated)
+	assert.Equal(t, "T", out.TitleTranslated)
+	assert.Equal(t, "B", out.ContentTranslated)
 }
 
 func TestArticleAIProcessor_ManualClassify(t *testing.T) {

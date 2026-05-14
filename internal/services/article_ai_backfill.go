@@ -42,7 +42,16 @@ func (p *ArticleAIProcessor) BackfillClassifyBatch(limit int, delayBetween time.
 		title := art.Title
 		body := plainFromHTMLForAI(art.Content)
 		body = truncateRunes(body, 12000)
-		p.runClassifyOnly(f.UserID, *f.AIModelID, art.ID, title, body)
+		needsTranslation := strings.TrimSpace(art.TitleTranslated) == "" && strings.TrimSpace(art.ContentTranslated) == ""
+		if f.AITranslateEnabled && strings.TrimSpace(f.AITargetLanguage) != "" && needsTranslation {
+			bodyHTML := truncateRunes(strings.TrimSpace(art.Content), 20000)
+			if bodyHTML == "" {
+				bodyHTML = body
+			}
+			p.runClassifyAndTranslate(f.UserID, *f.AIModelID, &f, art.ID, title, body, bodyHTML)
+		} else {
+			p.runClassifyOnly(f.UserID, *f.AIModelID, art.ID, title, body)
+		}
 		var after models.Article
 		_ = p.db.First(&after, art.ID).Error
 		if after.AIProcessStatus == models.AIProcessFailed {

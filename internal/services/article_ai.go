@@ -278,6 +278,19 @@ func buildTranslateSystemPrompt(targetLang string, withCategoryHint bool) string
 	return b.String()
 }
 
+func buildClassifyTranslateSystemPrompt(targetLang string) string {
+	var b strings.Builder
+	b.WriteString("You are a helper for an RSS reader. Reply with a single JSON object only, no markdown code fences.\n")
+	b.WriteString("Fields: \"category\" (a concise Chinese DOMAIN label), \"category_translated\" (same meaning as category, in ")
+	b.WriteString(targetLang)
+	b.WriteString("), \"title_translated\", \"content_translated\" (an HTML fragment translated to ")
+	b.WriteString(targetLang)
+	b.WriteString(").\n")
+	b.WriteString("For \"category\", summarize what the article is broadly about (inductive bucketing / 领域归纳), NOT a fine-grained headline or keyword list. Prefer 2–8 characters. Use common high-level domains when applicable, e.g. 财经、军事、科技、体育、社会、国际、健康、文化、娱乐、房产、汽车、教育、科学、环境、政治; pick ONE best-fitting label.\n")
+	b.WriteString("For \"content_translated\", preserve the original HTML structure, element order, links, image/audio/video/iframe/embed nodes, attributes, and non-text elements. Only translate human-readable text content inside the HTML. Do not drop elements. Do not convert HTML to Markdown or plain text.\n")
+	return b.String()
+}
+
 func buildTranslateStreamSystemPrompt(targetLang string) string {
 	var b strings.Builder
 	b.WriteString("You are a helper for an RSS reader.\n")
@@ -341,9 +354,12 @@ func (p *ArticleAIProcessor) run(userID uint, feed models.Feed, articleID uint) 
 		bodyHTML = bodyPlain
 	}
 
-	// 同时开启分类+翻译：分两次模型调用。分类先落库，再异步完成翻译（仍在 Enqueue 的 goroutine 内，不阻塞 RSS 入库 Create）。
+	// 同时开启分类+翻译：一次模型调用返回分类、分类译名、标题译文和正文译文（仍在 Enqueue 的 goroutine 内，不阻塞 RSS 入库 Create）。
 	if f.AIClassifyEnabled && f.AITranslateEnabled {
-		p.runClassifyThenTranslate(userID, modelID, &f, articleID, title, bodyPlain, bodyHTML)
+		if !p.waitForAutoModelCall() {
+			return
+		}
+		p.runClassifyAndTranslate(userID, modelID, &f, articleID, title, bodyPlain, bodyHTML)
 		return
 	}
 
@@ -474,48 +490,30 @@ func (p *ArticleAIProcessor) runTranslateOnly(userID uint, modelID uint, f *mode
 	p.translateWithOptionalCategory(userID, modelID, f, articleID, title, bodyPlain, bodyHTML, "")
 }
 
-func (p *ArticleAIProcessor) runClassifyThenTranslate(userID uint, modelID uint, f *models.Feed, articleID uint, title, bodyPlain, bodyHTML string) {
-	msgsClassify := []chatMessage{
-		{Role: "system", Content: buildClassifySystemPrompt()},
-		{Role: "user", Content: "Title:\n" + title + "\n\nBody:\n" + bodyPlain},
+func (p *ArticleAIProcessor) runClassifyAndTranslate(userID uint, modelID uint, f *models.Feed, articleID uint, title, bodyPlain, bodyHTML string) {
+	msgs := []chatMessage{
+		{Role: "system", Content: buildClassifyTranslateSystemPrompt(f.AITargetLanguage)},
+		{Role: "user", Content: buildTranslateUserContent("", title, bodyHTML, bodyPlain)},
 	}
-	if !p.waitForAutoModelCall() {
-		return
-	}
-	raw, err := p.ai.ChatCompletionText(userID, modelID, 4096, msgsClassify)
+	raw, err := p.ai.ChatCompletionText(userID, modelID, 8192, msgs)
 	if err != nil {
 		p.applyAIFailed(articleID, err.Error())
 		return
 	}
 	payload := extractJSONObject(raw)
-	var parsedClass aiArticleJSON
-	if err := json.Unmarshal([]byte(payload), &parsedClass); err != nil {
+	var parsed aiArticleJSON
+	if err := json.Unmarshal([]byte(payload), &parsed); err != nil {
 		p.applyAIFailed(articleID, "解析模型 JSON 失败")
 		return
 	}
-	cat := truncateRunes(strings.TrimSpace(parsedClass.Category), 250)
 	_ = p.db.Model(&models.Article{}).Where("id = ?", articleID).Updates(map[string]interface{}{
-		"ai_category":            cat,
-		"ai_category_translated": "",
-		"title_translated":       "",
-		"content_translated":     "",
+		"ai_process_status":      models.AIProcessDone,
+		"ai_last_error":          "",
+		"ai_category":            truncateRunes(strings.TrimSpace(parsed.Category), 250),
+		"ai_category_translated": truncateRunes(strings.TrimSpace(parsed.CategoryTranslated), 250),
+		"title_translated":       truncateRunes(strings.TrimSpace(parsed.TitleTranslated), 1000),
+		"content_translated":     truncateRunes(strings.TrimSpace(parsed.ContentTranslated), 200000),
 	}).Error
-
-	if err := p.db.First(f, f.ID).Error; err != nil {
-		return
-	}
-	if !f.AITranslateEnabled || strings.TrimSpace(f.AITargetLanguage) == "" {
-		_ = p.db.Model(&models.Article{}).Where("id = ?", articleID).Updates(map[string]interface{}{
-			"ai_process_status": models.AIProcessDone,
-			"ai_last_error":     "",
-		}).Error
-		return
-	}
-
-	if !p.waitForAutoModelCall() {
-		return
-	}
-	p.translateWithOptionalCategory(userID, modelID, f, articleID, title, bodyPlain, bodyHTML, cat)
 }
 
 // ManualClassify 同步手动分类（文章尚无分类）。overrideModelID 非空时使用该模型（须属于当前用户），否则使用订阅默认模型。
