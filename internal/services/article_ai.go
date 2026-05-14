@@ -30,6 +30,7 @@ var articleAIHTMLTagRe = regexp.MustCompile(`<[^>]*>`)
 const (
 	translateStreamTitleMarker   = "[[[TITLE]]]"
 	translateStreamContentMarker = "[[[CONTENT_HTML]]]"
+	errEmptyTranslationContent   = "AI 返回空正文译文，请重试"
 	aiProcessPendingMaxAge       = 30 * time.Minute
 	articleAIDefaultQueueSize    = 100
 	articleAIDefaultWorkers      = 1
@@ -209,6 +210,19 @@ func truncateRunes(s string, max int) string {
 func plainFromHTMLForAI(s string) string {
 	s = articleAIHTMLTagRe.ReplaceAllString(s, " ")
 	return strings.TrimSpace(strings.Join(strings.Fields(s), " "))
+}
+
+func articleHasCompletedTranslation(art models.Article) bool {
+	if strings.TrimSpace(art.ContentTranslated) == "" {
+		return false
+	}
+	return art.AIProcessStatus != models.AIProcessFailed && art.AIProcessStatus != models.AIProcessPending
+}
+
+func normalizeAITranslation(parsed aiArticleJSON) (titleTranslated, contentTranslated string, ok bool) {
+	titleTranslated = truncateRunes(strings.TrimSpace(parsed.TitleTranslated), 1000)
+	contentTranslated = truncateRunes(strings.TrimSpace(parsed.ContentTranslated), 200000)
+	return titleTranslated, contentTranslated, contentTranslated != ""
 }
 
 func (p *ArticleAIProcessor) applyAIFailed(articleID uint, errMsg string) {
@@ -396,11 +410,16 @@ func (p *ArticleAIProcessor) translateWithOptionalCategory(userID uint, modelID 
 		p.applyAIFailed(articleID, "解析模型 JSON 失败")
 		return
 	}
+	titleTranslated, contentTranslated, ok := normalizeAITranslation(parsed)
+	if !ok {
+		p.applyAIFailed(articleID, errEmptyTranslationContent)
+		return
+	}
 	updates := map[string]interface{}{
 		"ai_process_status":  models.AIProcessDone,
 		"ai_last_error":      "",
-		"title_translated":   truncateRunes(strings.TrimSpace(parsed.TitleTranslated), 1000),
-		"content_translated": truncateRunes(strings.TrimSpace(parsed.ContentTranslated), 200000),
+		"title_translated":   titleTranslated,
+		"content_translated": contentTranslated,
 	}
 	if withHint {
 		updates["ai_category_translated"] = truncateRunes(strings.TrimSpace(parsed.CategoryTranslated), 250)
@@ -506,13 +525,18 @@ func (p *ArticleAIProcessor) runClassifyAndTranslate(userID uint, modelID uint, 
 		p.applyAIFailed(articleID, "解析模型 JSON 失败")
 		return
 	}
+	titleTranslated, contentTranslated, ok := normalizeAITranslation(parsed)
+	if !ok {
+		p.applyAIFailed(articleID, errEmptyTranslationContent)
+		return
+	}
 	_ = p.db.Model(&models.Article{}).Where("id = ?", articleID).Updates(map[string]interface{}{
 		"ai_process_status":      models.AIProcessDone,
 		"ai_last_error":          "",
 		"ai_category":            truncateRunes(strings.TrimSpace(parsed.Category), 250),
 		"ai_category_translated": truncateRunes(strings.TrimSpace(parsed.CategoryTranslated), 250),
-		"title_translated":       truncateRunes(strings.TrimSpace(parsed.TitleTranslated), 1000),
-		"content_translated":     truncateRunes(strings.TrimSpace(parsed.ContentTranslated), 200000),
+		"title_translated":       titleTranslated,
+		"content_translated":     contentTranslated,
 	}).Error
 }
 
@@ -549,7 +573,7 @@ func (p *ArticleAIProcessor) ManualClassify(userID uint, articleID uint, overrid
 	return p.errIfArticleAIFailed(articleID)
 }
 
-// ManualTranslate 同步手动翻译（尚无译文）。overrideModelID / overrideTargetLang 可临时覆盖订阅；语言为空串时表示使用订阅默认目标语言。
+// ManualTranslate 同步手动翻译（尚无可用正文译文）。overrideModelID / overrideTargetLang 可临时覆盖订阅；语言为空串时表示使用订阅默认目标语言。
 func (p *ArticleAIProcessor) ManualTranslate(userID uint, articleID uint, overrideModelID *uint, overrideTargetLang string) error {
 	if p == nil || p.db == nil || p.ai == nil {
 		return errors.New("AI 服务不可用")
@@ -568,7 +592,7 @@ func (p *ArticleAIProcessor) ManualTranslate(userID uint, articleID uint, overri
 	if art.AIProcessStatus == models.AIProcessPending && !aiProcessPendingIsStale(art, time.Now()) {
 		return ErrManualAIPending
 	}
-	if strings.TrimSpace(art.TitleTranslated) != "" || strings.TrimSpace(art.ContentTranslated) != "" {
+	if articleHasCompletedTranslation(art) {
 		return ErrManualAIAlreadyTranslated
 	}
 	modelID, err := p.resolveManualModelID(userID, &f, overrideModelID)
@@ -603,7 +627,7 @@ func (p *ArticleAIProcessor) ManualTranslate(userID uint, articleID uint, overri
 	return p.errIfArticleAIFailed(articleID)
 }
 
-// ManualTranslateStream 流式手动翻译（仅当文章尚无译文）。
+// ManualTranslateStream 流式手动翻译（仅当文章尚无可用正文译文）。
 func (p *ArticleAIProcessor) ManualTranslateStream(userID uint, articleID uint, overrideModelID *uint, overrideTargetLang string, onChunk func(string) error) error {
 	if p == nil || p.db == nil || p.ai == nil {
 		return errors.New("AI 服务不可用")
@@ -622,7 +646,7 @@ func (p *ArticleAIProcessor) ManualTranslateStream(userID uint, articleID uint, 
 	if art.AIProcessStatus == models.AIProcessPending && !aiProcessPendingIsStale(art, time.Now()) {
 		return ErrManualAIPending
 	}
-	if strings.TrimSpace(art.TitleTranslated) != "" || strings.TrimSpace(art.ContentTranslated) != "" {
+	if articleHasCompletedTranslation(art) {
 		return ErrManualAIAlreadyTranslated
 	}
 	modelID, err := p.resolveManualModelID(userID, &f, overrideModelID)

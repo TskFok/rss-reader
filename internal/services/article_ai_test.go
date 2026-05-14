@@ -140,6 +140,42 @@ func TestArticleAIProcessor_run_TranslateOnly(t *testing.T) {
 	assert.Contains(t, sent.Messages[1].Content, "Body plain text (for reference):\n正文")
 }
 
+func TestArticleAIProcessor_run_TranslateOnly_TitleOnlyDoesNotComplete(t *testing.T) {
+	db := setupArticleAIDB(t)
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"choices": []map[string]any{
+				{"message": map[string]string{"content": `{"title_translated":"T","content_translated":""}`}},
+			},
+		})
+	}))
+	defer ts.Close()
+
+	user := models.User{Username: "title-only", PasswordHash: "x"}
+	require.NoError(t, db.Create(&user).Error)
+	m := models.AIModel{UserID: user.ID, Name: "m", BaseURL: ts.URL + "/v1"}
+	require.NoError(t, db.Create(&m).Error)
+	feed := models.Feed{
+		UserID: user.ID, URL: "http://example.com/title-only", Title: "F", UpdateIntervalMinutes: 60,
+		AIModelID: &m.ID, AITranslateEnabled: true, AITargetLanguage: "en",
+	}
+	require.NoError(t, db.Create(&feed).Error)
+	art := models.Article{
+		FeedID: feed.ID, GUID: models.ArticleGUIDHash("title-only"), GUIDRaw: "title-only",
+		Title: "标题", Content: "正文",
+	}
+	require.NoError(t, db.Create(&art).Error)
+
+	p := NewArticleAIProcessor(db, NewAIModelService(db))
+	p.run(user.ID, feed, art.ID)
+
+	var out models.Article
+	require.NoError(t, db.First(&out, art.ID).Error)
+	assert.Equal(t, models.AIProcessFailed, out.AIProcessStatus)
+	assert.Contains(t, out.AILastError, "正文译文")
+	assert.Empty(t, out.ContentTranslated)
+}
+
 func TestBuildTranslateSystemPrompt_PreservesHTML(t *testing.T) {
 	s := buildTranslateSystemPrompt("en", false)
 	assert.Contains(t, s, "preserve the original HTML structure")
@@ -502,6 +538,42 @@ func TestArticleAIProcessor_ManualTranslate(t *testing.T) {
 	require.NoError(t, db.First(&out, art.ID).Error)
 	assert.Equal(t, "T", out.TitleTranslated)
 	assert.Equal(t, "B", out.ContentTranslated)
+}
+
+func TestArticleAIProcessor_ManualTranslate_AllowsRetryWhenOnlyTitleTranslated(t *testing.T) {
+	db := setupArticleAIDB(t)
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"choices": []map[string]any{
+				{"message": map[string]string{"content": `{"title_translated":"New title","content_translated":"New body"}`}},
+			},
+		})
+	}))
+	defer ts.Close()
+
+	user := models.User{Username: "retry-title-only", PasswordHash: "x"}
+	require.NoError(t, db.Create(&user).Error)
+	m := models.AIModel{UserID: user.ID, Name: "m", BaseURL: ts.URL + "/v1"}
+	require.NoError(t, db.Create(&m).Error)
+	feed := models.Feed{
+		UserID: user.ID, URL: "http://example.com/retry-title-only", Title: "F", UpdateIntervalMinutes: 60,
+		AIModelID: &m.ID, AITargetLanguage: "en",
+	}
+	require.NoError(t, db.Create(&feed).Error)
+	art := models.Article{
+		FeedID: feed.ID, GUID: models.ArticleGUIDHash("retry-title-only"), GUIDRaw: "retry-title-only",
+		Title: "标题", Content: "正文", TitleTranslated: "Old title", ContentTranslated: "",
+	}
+	require.NoError(t, db.Create(&art).Error)
+
+	p := NewArticleAIProcessor(db, NewAIModelService(db))
+	require.NoError(t, p.ManualTranslate(user.ID, art.ID, nil, ""))
+
+	var out models.Article
+	require.NoError(t, db.First(&out, art.ID).Error)
+	assert.Equal(t, models.AIProcessDone, out.AIProcessStatus)
+	assert.Equal(t, "New title", out.TitleTranslated)
+	assert.Equal(t, "New body", out.ContentTranslated)
 }
 
 func TestArticleAIProcessor_ManualTranslate_InvalidOverrideLang(t *testing.T) {

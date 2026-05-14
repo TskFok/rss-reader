@@ -42,7 +42,7 @@ func (p *ArticleAIProcessor) BackfillClassifyBatch(limit int, delayBetween time.
 		title := art.Title
 		body := plainFromHTMLForAI(art.Content)
 		body = truncateRunes(body, 12000)
-		needsTranslation := strings.TrimSpace(art.TitleTranslated) == "" && strings.TrimSpace(art.ContentTranslated) == ""
+		needsTranslation := !articleHasCompletedTranslation(*art)
 		if f.AITranslateEnabled && strings.TrimSpace(f.AITargetLanguage) != "" && needsTranslation {
 			bodyHTML := truncateRunes(strings.TrimSpace(art.Content), 20000)
 			if bodyHTML == "" {
@@ -72,7 +72,7 @@ func (p *ArticleAIProcessor) BackfillClassifyBatch(limit int, delayBetween time.
 	return success, failed
 }
 
-// BackfillTranslateBatch 对「开启 AI 翻译且仍无译文」的文章补跑翻译。
+// BackfillTranslateBatch 对「开启 AI 翻译且仍无可用正文译文」的文章补跑翻译。
 // 若订阅同时开启分类，则仅处理已有 ai_category 的条目（与异步流水线一致）。
 func (p *ArticleAIProcessor) BackfillTranslateBatch(limit int, delayBetween time.Duration) (success, failed int) {
 	if p == nil || p.db == nil || p.ai == nil || limit <= 0 {
@@ -86,7 +86,7 @@ func (p *ArticleAIProcessor) BackfillTranslateBatch(limit int, delayBetween time
 		Where("feeds.ai_translate_enabled = ?", true).
 		Where("LENGTH(TRIM(COALESCE(feeds.ai_target_language, ''))) > 0").
 		Where("feeds.ai_model_id IS NOT NULL AND feeds.ai_model_id > ?", 0).
-		Where("(LENGTH(TRIM(COALESCE(articles.title_translated, ''))) = 0 AND LENGTH(TRIM(COALESCE(articles.content_translated, ''))) = 0)").
+		Where("(LENGTH(TRIM(COALESCE(articles.content_translated, ''))) = 0 OR COALESCE(articles.ai_process_status, '') IN ?)", []string{models.AIProcessFailed, models.AIProcessPending}).
 		Where("(NOT feeds.ai_classify_enabled OR LENGTH(TRIM(COALESCE(articles.ai_category, ''))) > 0)").
 		Where("(COALESCE(articles.ai_process_status, '') <> ? OR articles.updated_at <= ?)", models.AIProcessPending, stalePendingCutoff).
 		Order("articles.created_at ASC").
@@ -123,8 +123,7 @@ func (p *ArticleAIProcessor) BackfillTranslateBatch(limit int, delayBetween time
 		_ = p.db.First(&after, art.ID).Error
 		if after.AIProcessStatus == models.AIProcessFailed {
 			failed++
-		} else if after.AIProcessStatus == models.AIProcessDone &&
-			(strings.TrimSpace(after.TitleTranslated) != "" || strings.TrimSpace(after.ContentTranslated) != "") {
+		} else if after.AIProcessStatus == models.AIProcessDone && articleHasCompletedTranslation(after) {
 			success++
 		} else if after.AIProcessStatus == models.AIProcessDone {
 			failed++

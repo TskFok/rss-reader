@@ -50,8 +50,16 @@ describe('articleNeedsTranslateSlot', () => {
   it('无译文时 true', () => {
     expect(articleNeedsTranslateSlot(base({}))).toBe(true);
   });
-  it('已有译文 false', () => {
-    expect(articleNeedsTranslateSlot(base({ title_translated: 'T' }))).toBe(false);
+  it('只有标题译文时 true', () => {
+    expect(articleNeedsTranslateSlot(base({ title_translated: 'T', content_translated: '' }))).toBe(true);
+  });
+  it('已有正文译文 false', () => {
+    expect(articleNeedsTranslateSlot(base({ content_translated: 'B' }))).toBe(false);
+  });
+  it('失败状态保留了部分正文译文时 true', () => {
+    expect(
+      articleNeedsTranslateSlot(base({ ai_process_status: 'failed', content_translated: 'partial' }))
+    ).toBe(true);
   });
   it('处理中 false', () => {
     expect(articleNeedsTranslateSlot(base({ ai_process_status: 'pending' }))).toBe(false);
