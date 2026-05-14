@@ -30,6 +30,7 @@ var articleAIHTMLTagRe = regexp.MustCompile(`<[^>]*>`)
 const (
 	translateStreamCategoryMarker           = "[[[CATEGORY]]]"
 	translateStreamCategoryTranslatedMarker = "[[[CATEGORY_TRANSLATED]]]"
+	translateStreamCategoryTranslatedTypo   = "[[[CATEGORY_TRANSALTED]]]"
 	translateStreamTitleMarker              = "[[[TITLE]]]"
 	translateStreamContentMarker            = "[[[CONTENT_HTML]]]"
 	errEmptyTranslationContent              = "AI 返回空正文译文，请重试"
@@ -342,6 +343,7 @@ func buildClassifyTranslateStreamSystemPrompt(targetLang string) string {
 	b.WriteString("<translated title>\n")
 	b.WriteString(translateStreamContentMarker + "\n")
 	b.WriteString("<translated html fragment>\n")
+	b.WriteString("Use these markers exactly as written.\n")
 	return b.String()
 }
 
@@ -502,16 +504,42 @@ func parseTranslateStreamOutput(raw string) (titleTranslated string, contentTran
 	return strings.TrimSpace(titleTranslated), strings.TrimSpace(contentTranslated)
 }
 
-func streamTextBetween(raw, startMarker, endMarker string) string {
-	startIdx := strings.Index(raw, startMarker)
+func firstMarkerIndex(s string, markers ...string) int {
+	first := -1
+	for _, marker := range markers {
+		if marker == "" {
+			continue
+		}
+		idx := strings.Index(s, marker)
+		if idx < 0 {
+			continue
+		}
+		if first < 0 || idx < first {
+			first = idx
+		}
+	}
+	return first
+}
+
+func streamTextBetweenAny(raw string, startMarkers []string, endMarkers ...string) string {
+	startIdx := -1
+	startLen := 0
+	for _, marker := range startMarkers {
+		idx := strings.Index(raw, marker)
+		if idx < 0 {
+			continue
+		}
+		if startIdx < 0 || idx < startIdx {
+			startIdx = idx
+			startLen = len(marker)
+		}
+	}
 	if startIdx < 0 {
 		return ""
 	}
-	out := raw[startIdx+len(startMarker):]
-	if endMarker != "" {
-		if endIdx := strings.Index(out, endMarker); endIdx >= 0 {
-			out = out[:endIdx]
-		}
+	out := raw[startIdx+startLen:]
+	if endIdx := firstMarkerIndex(out, endMarkers...); endIdx >= 0 {
+		out = out[:endIdx]
 	}
 	return strings.TrimSpace(stripMarkdownFence(out))
 }
@@ -521,10 +549,22 @@ func parseClassifyTranslateStreamOutput(raw string) (category, categoryTranslate
 	if raw == "" {
 		return "", "", "", ""
 	}
-	category = streamTextBetween(raw, translateStreamCategoryMarker, translateStreamCategoryTranslatedMarker)
-	categoryTranslated = streamTextBetween(raw, translateStreamCategoryTranslatedMarker, translateStreamTitleMarker)
-	titleTranslated = streamTextBetween(raw, translateStreamTitleMarker, translateStreamContentMarker)
-	contentTranslated = streamTextBetween(raw, translateStreamContentMarker, "")
+	category = streamTextBetweenAny(
+		raw,
+		[]string{translateStreamCategoryMarker},
+		translateStreamCategoryTranslatedMarker,
+		translateStreamCategoryTranslatedTypo,
+		translateStreamTitleMarker,
+		translateStreamContentMarker,
+	)
+	categoryTranslated = streamTextBetweenAny(
+		raw,
+		[]string{translateStreamCategoryTranslatedMarker, translateStreamCategoryTranslatedTypo},
+		translateStreamTitleMarker,
+		translateStreamContentMarker,
+	)
+	titleTranslated = streamTextBetweenAny(raw, []string{translateStreamTitleMarker}, translateStreamContentMarker)
+	contentTranslated = streamTextBetweenAny(raw, []string{translateStreamContentMarker})
 	return category, categoryTranslated, titleTranslated, contentTranslated
 }
 

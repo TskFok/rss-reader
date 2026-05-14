@@ -740,3 +740,49 @@ func TestArticleAIProcessor_ManualTranslateStream_ClassifiesAndTranslatesWithSin
 	assert.Equal(t, "T", out.TitleTranslated)
 	assert.Equal(t, "<p>B</p>", out.ContentTranslated)
 }
+
+func TestArticleAIProcessor_ManualTranslateStream_ToleratesMisspelledCategoryTranslatedMarker(t *testing.T) {
+	db := setupArticleAIDB(t)
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		chunk, err := json.Marshal(map[string]any{
+			"choices": []map[string]any{
+				{"delta": map[string]string{"content": "[[[CATEGORY]]]\n外交安全\n[[[CATEGORY_TRANSALTED]]]\nDiplomacy and Security\n" + translateStreamTitleMarker + "\nTitle\n" + translateStreamContentMarker + "\n<div>Body</div>"}},
+			},
+		})
+		require.NoError(t, err)
+		_, _ = w.Write([]byte("data: " + string(chunk) + "\n\n"))
+		_, _ = w.Write([]byte("data: [DONE]\n\n"))
+	}))
+	defer ts.Close()
+
+	user := models.User{Username: "mts-marker-typo", PasswordHash: "x"}
+	require.NoError(t, db.Create(&user).Error)
+	m := models.AIModel{UserID: user.ID, Name: "m", BaseURL: ts.URL + "/v1"}
+	require.NoError(t, db.Create(&m).Error)
+	feed := models.Feed{
+		UserID: user.ID, URL: "http://example.com/mts-marker-typo", Title: "F", UpdateIntervalMinutes: 60,
+		AIModelID: &m.ID, AITargetLanguage: "en",
+	}
+	require.NoError(t, db.Create(&feed).Error)
+	art := models.Article{
+		FeedID: feed.ID, GUID: models.ArticleGUIDHash("mts-marker-typo"), GUIDRaw: "mts-marker-typo",
+		Title: "标题", Content: "<div>正文</div>",
+	}
+	require.NoError(t, db.Create(&art).Error)
+
+	var chunks []string
+	p := NewArticleAIProcessor(db, NewAIModelService(db))
+	require.NoError(t, p.ManualTranslateStream(user.ID, art.ID, nil, "", func(delta string) error {
+		chunks = append(chunks, delta)
+		return nil
+	}))
+
+	assert.Equal(t, "<div>Body</div>", strings.TrimSpace(strings.Join(chunks, "")))
+	var out models.Article
+	require.NoError(t, db.First(&out, art.ID).Error)
+	assert.Equal(t, "外交安全", out.AICategory)
+	assert.Equal(t, "Diplomacy and Security", out.AICategoryTranslated)
+	assert.Equal(t, "Title", out.TitleTranslated)
+	assert.Equal(t, "<div>Body</div>", out.ContentTranslated)
+}
