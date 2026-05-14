@@ -3,8 +3,11 @@ package services
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"regexp"
 	"strings"
+	"sync"
+	"time"
 	"unicode/utf8"
 
 	"github.com/ushopal/rss-reader/internal/models"
@@ -27,16 +30,99 @@ var articleAIHTMLTagRe = regexp.MustCompile(`<[^>]*>`)
 const (
 	translateStreamTitleMarker   = "[[[TITLE]]]"
 	translateStreamContentMarker = "[[[CONTENT_HTML]]]"
+	aiProcessPendingMaxAge       = 30 * time.Minute
+	articleAIDefaultQueueSize    = 100
+	articleAIDefaultWorkers      = 1
+	articleAIDefaultMinInterval  = 600 * time.Millisecond
 )
 
 // ArticleAIProcessor 在新文章入库后异步调用 AI 做分类/翻译
 type ArticleAIProcessor struct {
-	db *gorm.DB
-	ai *AIModelService
+	db              *gorm.DB
+	ai              *AIModelService
+	queue           chan articleAIJob
+	stop            chan struct{}
+	stopOnce        sync.Once
+	workerWG        sync.WaitGroup
+	throttleMu      sync.Mutex
+	nextAutoJobTime time.Time
+	autoMinInterval time.Duration
+}
+
+type articleAIJob struct {
+	userID    uint
+	feed      models.Feed
+	articleID uint
 }
 
 func NewArticleAIProcessor(db *gorm.DB, ai *AIModelService) *ArticleAIProcessor {
-	return &ArticleAIProcessor{db: db, ai: ai}
+	p := &ArticleAIProcessor{
+		db:              db,
+		ai:              ai,
+		queue:           make(chan articleAIJob, articleAIDefaultQueueSize),
+		stop:            make(chan struct{}),
+		autoMinInterval: articleAIDefaultMinInterval,
+	}
+	p.startAutoWorkers(articleAIDefaultWorkers)
+	return p
+}
+
+func (p *ArticleAIProcessor) startAutoWorkers(workers int) {
+	if workers <= 0 {
+		workers = 1
+	}
+	for i := 0; i < workers; i++ {
+		p.workerWG.Add(1)
+		go p.autoWorker()
+	}
+}
+
+func (p *ArticleAIProcessor) autoWorker() {
+	defer p.workerWG.Done()
+	for {
+		select {
+		case <-p.stop:
+			return
+		case job := <-p.queue:
+			p.run(job.userID, job.feed, job.articleID)
+		}
+	}
+}
+
+func (p *ArticleAIProcessor) waitForAutoModelCall() bool {
+	if p.autoMinInterval <= 0 {
+		return true
+	}
+	p.throttleMu.Lock()
+	now := time.Now()
+	startAt := now
+	if p.nextAutoJobTime.After(now) {
+		startAt = p.nextAutoJobTime
+	}
+	p.nextAutoJobTime = startAt.Add(p.autoMinInterval)
+	p.throttleMu.Unlock()
+
+	if delay := time.Until(startAt); delay > 0 {
+		timer := time.NewTimer(delay)
+		defer timer.Stop()
+		select {
+		case <-timer.C:
+			return true
+		case <-p.stop:
+			return false
+		}
+	}
+	return true
+}
+
+func (p *ArticleAIProcessor) Stop() {
+	if p == nil || p.stop == nil {
+		return
+	}
+	p.stopOnce.Do(func() {
+		close(p.stop)
+		p.workerWG.Wait()
+	})
 }
 
 // FeedNeedsAIProcessing 订阅是否应在入库后异步跑 AI
@@ -62,9 +148,22 @@ func (p *ArticleAIProcessor) Enqueue(feed *models.Feed, articleID uint) {
 		return
 	}
 	fd := *feed
-	uid := fd.UserID
-	aid := articleID
-	go p.run(uid, fd, aid)
+	job := articleAIJob{userID: fd.UserID, feed: fd, articleID: articleID}
+	if p.queue == nil {
+		go p.run(job.userID, job.feed, job.articleID)
+		return
+	}
+	select {
+	case <-p.stop:
+		if p.db != nil {
+			p.applyAIFailed(articleID, "AI 自动处理队列已停止，请稍后重试")
+		}
+	case p.queue <- job:
+	default:
+		if p.db != nil {
+			p.applyAIFailed(articleID, "AI 自动处理队列已满，请稍后重试")
+		}
+	}
 }
 
 func stripMarkdownJSONFence(s string) string {
@@ -119,6 +218,38 @@ func (p *ArticleAIProcessor) applyAIFailed(articleID uint, errMsg string) {
 	}).Error
 }
 
+func (p *ArticleAIProcessor) markAIPending(articleID uint) error {
+	return p.db.Model(&models.Article{}).Where("id = ?", articleID).Updates(map[string]interface{}{
+		"ai_process_status": models.AIProcessPending,
+		"ai_last_error":     "",
+	}).Error
+}
+
+func aiProcessPendingIsStale(art models.Article, now time.Time) bool {
+	if art.AIProcessStatus != models.AIProcessPending {
+		return false
+	}
+	ts := art.UpdatedAt
+	if ts.IsZero() {
+		ts = art.CreatedAt
+	}
+	if ts.IsZero() {
+		return true
+	}
+	return !ts.After(now.Add(-aiProcessPendingMaxAge))
+}
+
+func (p *ArticleAIProcessor) failPendingIfUnfinished(articleID uint, errMsg string) {
+	var art models.Article
+	if err := p.db.Select("id", "ai_process_status").First(&art, articleID).Error; err != nil {
+		return
+	}
+	if art.AIProcessStatus != models.AIProcessPending {
+		return
+	}
+	p.applyAIFailed(articleID, errMsg)
+}
+
 func buildClassifySystemPrompt() string {
 	var b strings.Builder
 	b.WriteString("You are a helper for an RSS reader. Reply with a single JSON object only, no markdown code fences.\n")
@@ -167,6 +298,17 @@ func (p *ArticleAIProcessor) run(userID uint, feed models.Feed, articleID uint) 
 	if p.ai == nil || p.db == nil {
 		return
 	}
+	claimed := false
+	defer func() {
+		if !claimed {
+			return
+		}
+		if r := recover(); r != nil {
+			p.failPendingIfUnfinished(articleID, fmt.Sprintf("AI 处理异常：%v", r))
+			return
+		}
+		p.failPendingIfUnfinished(articleID, "AI 处理未完成，请重试")
+	}()
 	var art models.Article
 	if err := p.db.First(&art, articleID).Error; err != nil {
 		return
@@ -185,6 +327,10 @@ func (p *ArticleAIProcessor) run(userID uint, feed models.Feed, articleID uint) 
 		}).Error
 		return
 	}
+	if err := p.markAIPending(articleID); err != nil {
+		return
+	}
+	claimed = true
 	modelID := *f.AIModelID
 
 	title := art.Title
@@ -202,10 +348,16 @@ func (p *ArticleAIProcessor) run(userID uint, feed models.Feed, articleID uint) 
 	}
 
 	if f.AIClassifyEnabled {
+		if !p.waitForAutoModelCall() {
+			return
+		}
 		p.runClassifyOnly(userID, modelID, articleID, title, bodyPlain)
 		return
 	}
 
+	if !p.waitForAutoModelCall() {
+		return
+	}
 	p.runTranslateOnly(userID, modelID, &f, articleID, title, bodyPlain, bodyHTML)
 }
 
@@ -327,6 +479,9 @@ func (p *ArticleAIProcessor) runClassifyThenTranslate(userID uint, modelID uint,
 		{Role: "system", Content: buildClassifySystemPrompt()},
 		{Role: "user", Content: "Title:\n" + title + "\n\nBody:\n" + bodyPlain},
 	}
+	if !p.waitForAutoModelCall() {
+		return
+	}
 	raw, err := p.ai.ChatCompletionText(userID, modelID, 4096, msgsClassify)
 	if err != nil {
 		p.applyAIFailed(articleID, err.Error())
@@ -357,6 +512,9 @@ func (p *ArticleAIProcessor) runClassifyThenTranslate(userID uint, modelID uint,
 		return
 	}
 
+	if !p.waitForAutoModelCall() {
+		return
+	}
 	p.translateWithOptionalCategory(userID, modelID, f, articleID, title, bodyPlain, bodyHTML, cat)
 }
 
@@ -376,7 +534,7 @@ func (p *ArticleAIProcessor) ManualClassify(userID uint, articleID uint, overrid
 	if f.UserID != userID {
 		return ErrArticleNotFound
 	}
-	if art.AIProcessStatus == models.AIProcessPending {
+	if art.AIProcessStatus == models.AIProcessPending && !aiProcessPendingIsStale(art, time.Now()) {
 		return ErrManualAIPending
 	}
 	if strings.TrimSpace(art.AICategory) != "" {
@@ -409,7 +567,7 @@ func (p *ArticleAIProcessor) ManualTranslate(userID uint, articleID uint, overri
 	if f.UserID != userID {
 		return ErrArticleNotFound
 	}
-	if art.AIProcessStatus == models.AIProcessPending {
+	if art.AIProcessStatus == models.AIProcessPending && !aiProcessPendingIsStale(art, time.Now()) {
 		return ErrManualAIPending
 	}
 	if strings.TrimSpace(art.TitleTranslated) != "" || strings.TrimSpace(art.ContentTranslated) != "" {
@@ -463,7 +621,7 @@ func (p *ArticleAIProcessor) ManualTranslateStream(userID uint, articleID uint, 
 	if f.UserID != userID {
 		return ErrArticleNotFound
 	}
-	if art.AIProcessStatus == models.AIProcessPending {
+	if art.AIProcessStatus == models.AIProcessPending && !aiProcessPendingIsStale(art, time.Now()) {
 		return ErrManualAIPending
 	}
 	if strings.TrimSpace(art.TitleTranslated) != "" || strings.TrimSpace(art.ContentTranslated) != "" {

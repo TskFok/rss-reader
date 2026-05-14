@@ -8,12 +8,13 @@ import (
 	"github.com/ushopal/rss-reader/internal/models"
 )
 
-// BackfillClassifyBatch 对「开启 AI 分类且仍无领域标签」的文章分批补跑分类（跳过 pending）。
+// BackfillClassifyBatch 对「开启 AI 分类且仍无领域标签」的文章分批补跑分类（跳过仍活跃的 pending）。
 // delayBetween 为每条之间的休眠，降低模型接口压力。
 func (p *ArticleAIProcessor) BackfillClassifyBatch(limit int, delayBetween time.Duration) (success, failed int) {
 	if p == nil || p.db == nil || p.ai == nil || limit <= 0 {
 		return 0, 0
 	}
+	stalePendingCutoff := time.Now().Add(-aiProcessPendingMaxAge)
 	var arts []models.Article
 	err := p.db.Model(&models.Article{}).
 		Preload("Feed").
@@ -21,7 +22,7 @@ func (p *ArticleAIProcessor) BackfillClassifyBatch(limit int, delayBetween time.
 		Where("feeds.ai_classify_enabled = ?", true).
 		Where("feeds.ai_model_id IS NOT NULL AND feeds.ai_model_id > ?", 0).
 		Where("LENGTH(TRIM(COALESCE(articles.ai_category, ''))) = 0").
-		Where("COALESCE(articles.ai_process_status, '') <> ?", models.AIProcessPending).
+		Where("(COALESCE(articles.ai_process_status, '') <> ? OR articles.updated_at <= ?)", models.AIProcessPending, stalePendingCutoff).
 		Order("articles.created_at ASC").
 		Limit(limit).
 		Find(&arts).Error
@@ -68,6 +69,7 @@ func (p *ArticleAIProcessor) BackfillTranslateBatch(limit int, delayBetween time
 	if p == nil || p.db == nil || p.ai == nil || limit <= 0 {
 		return 0, 0
 	}
+	stalePendingCutoff := time.Now().Add(-aiProcessPendingMaxAge)
 	var arts []models.Article
 	err := p.db.Model(&models.Article{}).
 		Preload("Feed").
@@ -77,7 +79,7 @@ func (p *ArticleAIProcessor) BackfillTranslateBatch(limit int, delayBetween time
 		Where("feeds.ai_model_id IS NOT NULL AND feeds.ai_model_id > ?", 0).
 		Where("(LENGTH(TRIM(COALESCE(articles.title_translated, ''))) = 0 AND LENGTH(TRIM(COALESCE(articles.content_translated, ''))) = 0)").
 		Where("(NOT feeds.ai_classify_enabled OR LENGTH(TRIM(COALESCE(articles.ai_category, ''))) > 0)").
-		Where("COALESCE(articles.ai_process_status, '') <> ?", models.AIProcessPending).
+		Where("(COALESCE(articles.ai_process_status, '') <> ? OR articles.updated_at <= ?)", models.AIProcessPending, stalePendingCutoff).
 		Order("articles.created_at ASC").
 		Limit(limit).
 		Find(&arts).Error

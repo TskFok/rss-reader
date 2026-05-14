@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -107,4 +108,43 @@ func TestBackfillClassifyBatch_skipsPending(t *testing.T) {
 	ok, fail := p.BackfillClassifyBatch(5, 0)
 	assert.Equal(t, 0, ok)
 	assert.Equal(t, 0, fail)
+}
+
+func TestBackfillClassifyBatch_recoversStalePending(t *testing.T) {
+	db := setupArticleAIDB(t)
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"choices": []map[string]any{
+				{"message": map[string]string{"content": "{\"category\":\"恢复\"}"}},
+			},
+		})
+	}))
+	defer ts.Close()
+
+	user := models.User{Username: "stale-p", PasswordHash: "x"}
+	require.NoError(t, db.Create(&user).Error)
+	m := models.AIModel{UserID: user.ID, Name: "m", BaseURL: ts.URL + "/v1"}
+	require.NoError(t, db.Create(&m).Error)
+	feed := models.Feed{
+		UserID: user.ID, URL: "http://stale.example/f", Title: "F", UpdateIntervalMinutes: 60,
+		AIModelID: &m.ID, AIClassifyEnabled: true,
+	}
+	require.NoError(t, db.Create(&feed).Error)
+	art := models.Article{
+		FeedID: feed.ID, GUID: models.ArticleGUIDHash("stale-p"), GUIDRaw: "stale-p",
+		Title: "t", Content: "c", AIProcessStatus: models.AIProcessPending,
+	}
+	require.NoError(t, db.Create(&art).Error)
+	require.NoError(t, db.Model(&models.Article{}).Where("id = ?", art.ID).
+		Update("updated_at", time.Now().Add(-31*time.Minute)).Error)
+
+	p := NewArticleAIProcessor(db, NewAIModelService(db))
+	ok, fail := p.BackfillClassifyBatch(5, 0)
+	assert.Equal(t, 1, ok)
+	assert.Equal(t, 0, fail)
+
+	var out models.Article
+	require.NoError(t, db.First(&out, art.ID).Error)
+	assert.Equal(t, "恢复", out.AICategory)
+	assert.Equal(t, models.AIProcessDone, out.AIProcessStatus)
 }

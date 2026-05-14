@@ -5,7 +5,11 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
+	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/assert"
@@ -128,8 +132,12 @@ func TestArticleAIProcessor_run_TranslateOnly(t *testing.T) {
 	assert.Equal(t, models.AIProcessDone, out.AIProcessStatus)
 	assert.Equal(t, "T", out.TitleTranslated)
 	assert.Equal(t, `<p>译文<img src="https://cdn.example.com/a.jpg"></p>`, out.ContentTranslated)
-	assert.Contains(t, requestBody, `Body HTML:\n<p>正文<img src=\"https://cdn.example.com/a.jpg\"></p>`)
-	assert.Contains(t, requestBody, `Body plain text (for reference):\n正文`)
+
+	var sent chatCompletionsRequest
+	require.NoError(t, json.Unmarshal([]byte(requestBody), &sent))
+	require.Len(t, sent.Messages, 2)
+	assert.Contains(t, sent.Messages[1].Content, "Body HTML:\n<p>正文<img src=\"https://cdn.example.com/a.jpg\"></p>")
+	assert.Contains(t, sent.Messages[1].Content, "Body plain text (for reference):\n正文")
 }
 
 func TestBuildTranslateSystemPrompt_PreservesHTML(t *testing.T) {
@@ -187,6 +195,226 @@ func TestArticleAIProcessor_run_ClassifyThenTranslate(t *testing.T) {
 	assert.Equal(t, "Tech", out.AICategoryTranslated)
 	assert.Equal(t, "T", out.TitleTranslated)
 	assert.Equal(t, "B", out.ContentTranslated)
+}
+
+func TestArticleAIProcessor_EnqueueLimitsAutomaticConcurrency(t *testing.T) {
+	db := setupArticleAIDB(t)
+	var mu sync.Mutex
+	inFlight := 0
+	maxInFlight := 0
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		inFlight++
+		if inFlight > maxInFlight {
+			maxInFlight = inFlight
+		}
+		mu.Unlock()
+
+		time.Sleep(80 * time.Millisecond)
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"choices": []map[string]any{
+				{"message": map[string]string{"content": `{"title_translated":"T","content_translated":"B"}`}},
+			},
+		})
+
+		mu.Lock()
+		inFlight--
+		mu.Unlock()
+	}))
+	defer ts.Close()
+
+	user := models.User{Username: "auto-concurrency", PasswordHash: "x"}
+	require.NoError(t, db.Create(&user).Error)
+	m := models.AIModel{UserID: user.ID, Name: "m", BaseURL: ts.URL + "/v1"}
+	require.NoError(t, db.Create(&m).Error)
+	feed := models.Feed{
+		UserID: user.ID, URL: "http://example.com/auto-concurrency", Title: "F", UpdateIntervalMinutes: 60,
+		AIModelID: &m.ID, AITranslateEnabled: true, AITargetLanguage: "en",
+	}
+	require.NoError(t, db.Create(&feed).Error)
+	ids := make([]uint, 0, 3)
+	for i := 0; i < 3; i++ {
+		art := models.Article{
+			FeedID: feed.ID, GUID: models.ArticleGUIDHash("auto-concurrency-" + strconv.Itoa(i)),
+			GUIDRaw: "auto-concurrency", Title: "标题", Content: "正文",
+		}
+		require.NoError(t, db.Create(&art).Error)
+		ids = append(ids, art.ID)
+	}
+
+	p := NewArticleAIProcessor(db, NewAIModelService(db))
+	defer p.Stop()
+	for _, id := range ids {
+		p.Enqueue(&feed, id)
+	}
+
+	require.Eventually(t, func() bool {
+		var n int64
+		require.NoError(t, db.Model(&models.Article{}).
+			Where("feed_id = ? AND content_translated <> ''", feed.ID).
+			Count(&n).Error)
+		return n == int64(len(ids))
+	}, 5*time.Second, 20*time.Millisecond)
+
+	mu.Lock()
+	got := maxInFlight
+	mu.Unlock()
+	assert.Equal(t, 1, got)
+}
+
+func TestArticleAIProcessor_EnqueueRateLimitsAutomaticJobs(t *testing.T) {
+	db := setupArticleAIDB(t)
+	var mu sync.Mutex
+	var starts []time.Time
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		starts = append(starts, time.Now())
+		mu.Unlock()
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"choices": []map[string]any{
+				{"message": map[string]string{"content": `{"title_translated":"T","content_translated":"B"}`}},
+			},
+		})
+	}))
+	defer ts.Close()
+
+	user := models.User{Username: "auto-rate", PasswordHash: "x"}
+	require.NoError(t, db.Create(&user).Error)
+	m := models.AIModel{UserID: user.ID, Name: "m", BaseURL: ts.URL + "/v1"}
+	require.NoError(t, db.Create(&m).Error)
+	feed := models.Feed{
+		UserID: user.ID, URL: "http://example.com/auto-rate", Title: "F", UpdateIntervalMinutes: 60,
+		AIModelID: &m.ID, AITranslateEnabled: true, AITargetLanguage: "en",
+	}
+	require.NoError(t, db.Create(&feed).Error)
+	ids := make([]uint, 0, 2)
+	for i := 0; i < 2; i++ {
+		art := models.Article{
+			FeedID: feed.ID, GUID: models.ArticleGUIDHash("auto-rate-" + strconv.Itoa(i)),
+			GUIDRaw: "auto-rate", Title: "标题", Content: "正文",
+		}
+		require.NoError(t, db.Create(&art).Error)
+		ids = append(ids, art.ID)
+	}
+
+	p := NewArticleAIProcessor(db, NewAIModelService(db))
+	defer p.Stop()
+	for _, id := range ids {
+		p.Enqueue(&feed, id)
+	}
+
+	require.Eventually(t, func() bool {
+		var n int64
+		require.NoError(t, db.Model(&models.Article{}).
+			Where("feed_id = ? AND content_translated <> ''", feed.ID).
+			Count(&n).Error)
+		return n == int64(len(ids))
+	}, 5*time.Second, 20*time.Millisecond)
+
+	mu.Lock()
+	gotStarts := append([]time.Time(nil), starts...)
+	mu.Unlock()
+	require.Len(t, gotStarts, len(ids))
+	gap := gotStarts[1].Sub(gotStarts[0])
+	assert.GreaterOrEqual(t, gap, 500*time.Millisecond)
+}
+
+func TestArticleAIProcessor_EnqueueRateLimitsClassifyThenTranslateCalls(t *testing.T) {
+	db := setupArticleAIDB(t)
+	var mu sync.Mutex
+	var starts []time.Time
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		starts = append(starts, time.Now())
+		call := len(starts)
+		mu.Unlock()
+
+		content := `{"category":"科技"}`
+		if call == 2 {
+			content = `{"category_translated":"Tech","title_translated":"T","content_translated":"B"}`
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"choices": []map[string]any{
+				{"message": map[string]string{"content": content}},
+			},
+		})
+	}))
+	defer ts.Close()
+
+	user := models.User{Username: "auto-rate-pipeline", PasswordHash: "x"}
+	require.NoError(t, db.Create(&user).Error)
+	m := models.AIModel{UserID: user.ID, Name: "m", BaseURL: ts.URL + "/v1"}
+	require.NoError(t, db.Create(&m).Error)
+	feed := models.Feed{
+		UserID: user.ID, URL: "http://example.com/auto-rate-pipeline", Title: "F", UpdateIntervalMinutes: 60,
+		AIModelID: &m.ID, AIClassifyEnabled: true, AITranslateEnabled: true, AITargetLanguage: "en",
+	}
+	require.NoError(t, db.Create(&feed).Error)
+	art := models.Article{
+		FeedID: feed.ID, GUID: models.ArticleGUIDHash("auto-rate-pipeline"),
+		GUIDRaw: "auto-rate-pipeline", Title: "标题", Content: "正文",
+	}
+	require.NoError(t, db.Create(&art).Error)
+
+	p := NewArticleAIProcessor(db, NewAIModelService(db))
+	defer p.Stop()
+	p.Enqueue(&feed, art.ID)
+
+	require.Eventually(t, func() bool {
+		var out models.Article
+		require.NoError(t, db.First(&out, art.ID).Error)
+		return strings.TrimSpace(out.ContentTranslated) != ""
+	}, 5*time.Second, 20*time.Millisecond)
+
+	mu.Lock()
+	gotStarts := append([]time.Time(nil), starts...)
+	mu.Unlock()
+	require.Len(t, gotStarts, 2)
+	gap := gotStarts[1].Sub(gotStarts[0])
+	assert.GreaterOrEqual(t, gap, 500*time.Millisecond)
+}
+
+func TestArticleAIProcessor_run_FailsPendingWhenPipelineReturnsEarly(t *testing.T) {
+	db := setupArticleAIDB(t)
+	var feed models.Feed
+	var n int
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n++
+		if n == 1 {
+			require.NoError(t, db.Delete(&feed).Error)
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"choices": []map[string]any{
+				{"message": map[string]string{"content": `{"category":"科技"}`}},
+			},
+		})
+	}))
+	defer ts.Close()
+
+	user := models.User{Username: "early-return", PasswordHash: "x"}
+	require.NoError(t, db.Create(&user).Error)
+	m := models.AIModel{UserID: user.ID, Name: "m", BaseURL: ts.URL + "/v1"}
+	require.NoError(t, db.Create(&m).Error)
+	feed = models.Feed{
+		UserID: user.ID, URL: "http://example.com/early-return", Title: "F", UpdateIntervalMinutes: 60,
+		AIModelID: &m.ID, AIClassifyEnabled: true, AITranslateEnabled: true, AITargetLanguage: "en",
+	}
+	require.NoError(t, db.Create(&feed).Error)
+	art := models.Article{
+		FeedID: feed.ID, GUID: models.ArticleGUIDHash("early-return"), GUIDRaw: "early-return",
+		Title: "标题", Content: "正文", AIProcessStatus: models.AIProcessPending,
+	}
+	require.NoError(t, db.Create(&art).Error)
+
+	p := NewArticleAIProcessor(db, NewAIModelService(db))
+	p.run(user.ID, feed, art.ID)
+
+	assert.Equal(t, 1, n)
+	var out models.Article
+	require.NoError(t, db.First(&out, art.ID).Error)
+	assert.Equal(t, models.AIProcessFailed, out.AIProcessStatus)
+	assert.Contains(t, out.AILastError, "AI 处理未完成")
+	assert.Equal(t, "科技", out.AICategory)
 }
 
 func TestArticleAIProcessor_ManualClassify(t *testing.T) {
@@ -290,4 +518,42 @@ func TestArticleAIProcessor_ManualTranslate_InvalidOverrideLang(t *testing.T) {
 
 	p := NewArticleAIProcessor(db, NewAIModelService(db))
 	assert.ErrorIs(t, p.ManualTranslate(user.ID, art.ID, nil, "not-a-lang"), ErrManualAIInvalidTargetLang)
+}
+
+func TestArticleAIProcessor_ManualTranslate_AllowsStalePending(t *testing.T) {
+	db := setupArticleAIDB(t)
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"choices": []map[string]any{
+				{"message": map[string]string{"content": `{"title_translated":"Recovered","content_translated":"Body"}`}},
+			},
+		})
+	}))
+	defer ts.Close()
+
+	user := models.User{Username: "stale-manual", PasswordHash: "x"}
+	require.NoError(t, db.Create(&user).Error)
+	m := models.AIModel{UserID: user.ID, Name: "m", BaseURL: ts.URL + "/v1"}
+	require.NoError(t, db.Create(&m).Error)
+	feed := models.Feed{
+		UserID: user.ID, URL: "http://example.com/stale-manual", Title: "F", UpdateIntervalMinutes: 60,
+		AIModelID: &m.ID, AITargetLanguage: "en",
+	}
+	require.NoError(t, db.Create(&feed).Error)
+	art := models.Article{
+		FeedID: feed.ID, GUID: models.ArticleGUIDHash("stale-manual"), GUIDRaw: "stale-manual",
+		Title: "t", Content: "c", AIProcessStatus: models.AIProcessPending,
+	}
+	require.NoError(t, db.Create(&art).Error)
+	require.NoError(t, db.Model(&models.Article{}).Where("id = ?", art.ID).
+		Update("updated_at", time.Now().Add(-31*time.Minute)).Error)
+
+	p := NewArticleAIProcessor(db, NewAIModelService(db))
+	require.NoError(t, p.ManualTranslate(user.ID, art.ID, nil, ""))
+
+	var out models.Article
+	require.NoError(t, db.First(&out, art.ID).Error)
+	assert.Equal(t, models.AIProcessDone, out.AIProcessStatus)
+	assert.Equal(t, "Recovered", out.TitleTranslated)
+	assert.Equal(t, "Body", out.ContentTranslated)
 }

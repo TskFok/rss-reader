@@ -132,19 +132,14 @@ func (s *RSSService) FetchFeed(feed *models.Feed) error {
 		} else if item.Description != "" {
 			content = item.Description
 		}
-		st := ""
-		if FeedNeedsAIProcessing(feed) {
-			st = models.AIProcessPending
-		}
 		article := models.Article{
-			FeedID:          feed.ID,
-			GUID:            guid,
-			GUIDRaw:         raw,
-			Title:           item.Title,
-			Link:            item.Link,
-			Content:         content,
-			PublishedAt:     pubAt,
-			AIProcessStatus: st,
+			FeedID:      feed.ID,
+			GUID:        guid,
+			GUIDRaw:     raw,
+			Title:       item.Title,
+			Link:        item.Link,
+			Content:     content,
+			PublishedAt: pubAt,
 		}
 		if err := s.db.Create(&article).Error; err != nil {
 			return err

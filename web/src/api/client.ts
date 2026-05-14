@@ -106,6 +106,7 @@ export interface Article {
   content_translated?: string;
   published_at: string | null;
   created_at: string;
+  updated_at?: string;
   read: boolean;
   favorite?: boolean;
   feed_title?: string;

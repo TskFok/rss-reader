@@ -38,6 +38,7 @@ func main() {
 	rssSvc := services.NewRSSService(db)
 	aiModelSvc := services.NewAIModelService(db)
 	articleAI := services.NewArticleAIProcessor(db, aiModelSvc)
+	defer articleAI.Stop()
 	rssSvc.SetArticleAI(articleAI)
 	feedSvc := services.NewFeedService(db, rssSvc)
 	categorySvc := services.NewCategoryService(db)

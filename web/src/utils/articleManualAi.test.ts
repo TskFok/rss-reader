@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Article } from '../api/client';
 import { articleNeedsClassifySlot, articleNeedsTranslateSlot } from './articleManualAi';
 
@@ -18,6 +18,10 @@ function base(overrides: Partial<Article> = {}): Article {
 }
 
 describe('articleNeedsClassifySlot', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('无分类时 true', () => {
     expect(articleNeedsClassifySlot(base({ ai_category: '' }))).toBe(true);
   });
@@ -27,9 +31,22 @@ describe('articleNeedsClassifySlot', () => {
   it('处理中 false', () => {
     expect(articleNeedsClassifySlot(base({ ai_process_status: 'pending' }))).toBe(false);
   });
+  it('过期 pending 且无分类时 true', () => {
+    vi.setSystemTime(new Date('2026-01-01T01:00:00Z'));
+    expect(
+      articleNeedsClassifySlot(base({
+        ai_process_status: 'pending',
+        updated_at: '2026-01-01T00:29:00Z',
+      }))
+    ).toBe(true);
+  });
 });
 
 describe('articleNeedsTranslateSlot', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('无译文时 true', () => {
     expect(articleNeedsTranslateSlot(base({}))).toBe(true);
   });
@@ -38,5 +55,14 @@ describe('articleNeedsTranslateSlot', () => {
   });
   it('处理中 false', () => {
     expect(articleNeedsTranslateSlot(base({ ai_process_status: 'pending' }))).toBe(false);
+  });
+  it('过期 pending 且无译文时 true', () => {
+    vi.setSystemTime(new Date('2026-01-01T01:00:00Z'));
+    expect(
+      articleNeedsTranslateSlot(base({
+        ai_process_status: 'pending',
+        updated_at: '2026-01-01T00:29:00Z',
+      }))
+    ).toBe(true);
   });
 });
