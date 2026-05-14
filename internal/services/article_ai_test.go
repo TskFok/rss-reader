@@ -140,6 +140,51 @@ func TestArticleAIProcessor_run_TranslateOnly(t *testing.T) {
 	assert.Contains(t, sent.Messages[1].Content, "Body plain text (for reference):\n正文")
 }
 
+func TestArticleAIProcessor_run_TranslateOnly_SendsFullBodyToModel(t *testing.T) {
+	db := setupArticleAIDB(t)
+	var requestBody string
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		raw, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
+		requestBody = string(raw)
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"choices": []map[string]any{
+				{"message": map[string]string{"content": `{"title_translated":"T","content_translated":"B"}`}},
+			},
+		})
+	}))
+	defer ts.Close()
+
+	user := models.User{Username: "full-body", PasswordHash: "x"}
+	require.NoError(t, db.Create(&user).Error)
+	m := models.AIModel{UserID: user.ID, Name: "m", BaseURL: ts.URL + "/v1"}
+	require.NoError(t, db.Create(&m).Error)
+	feed := models.Feed{
+		UserID: user.ID, URL: "http://example.com/full-body", Title: "F", UpdateIntervalMinutes: 60,
+		AIModelID: &m.ID, AITranslateEnabled: true, AITargetLanguage: "en",
+	}
+	require.NoError(t, db.Create(&feed).Error)
+	longPlain := strings.Repeat("长", 12050) + "PLAIN_TAIL"
+	mediaHTML := strings.Repeat(`<img src="https://cdn.example.com/a.jpg" alt="x">`, 180)
+	content := "<article><p>" + longPlain + "</p>" + mediaHTML + "<p>HTML_TAIL</p></article>"
+	require.Greater(t, strings.Index(plainFromHTMLForAI(content), "PLAIN_TAIL"), 12000)
+	require.Greater(t, strings.Index(content, "HTML_TAIL"), 20000)
+	art := models.Article{
+		FeedID: feed.ID, GUID: models.ArticleGUIDHash("full-body"), GUIDRaw: "full-body",
+		Title: "标题", Content: content,
+	}
+	require.NoError(t, db.Create(&art).Error)
+
+	p := NewArticleAIProcessor(db, NewAIModelService(db))
+	p.run(user.ID, feed, art.ID)
+
+	var sent chatCompletionsRequest
+	require.NoError(t, json.Unmarshal([]byte(requestBody), &sent))
+	require.Len(t, sent.Messages, 2)
+	assert.Contains(t, sent.Messages[1].Content, "PLAIN_TAIL")
+	assert.Contains(t, sent.Messages[1].Content, "HTML_TAIL")
+}
+
 func TestArticleAIProcessor_run_TranslateOnly_TitleOnlyDoesNotComplete(t *testing.T) {
 	db := setupArticleAIDB(t)
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

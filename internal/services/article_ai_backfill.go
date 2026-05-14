@@ -40,15 +40,11 @@ func (p *ArticleAIProcessor) BackfillClassifyBatch(limit int, delayBetween time.
 			continue
 		}
 		title := art.Title
-		body := plainFromHTMLForAI(art.Content)
-		body = truncateRunes(body, 12000)
+		body := classifyBodyForAI(art.Content)
 		needsTranslation := !articleHasCompletedTranslation(*art)
 		if f.AITranslateEnabled && strings.TrimSpace(f.AITargetLanguage) != "" && needsTranslation {
-			bodyHTML := truncateRunes(strings.TrimSpace(art.Content), 20000)
-			if bodyHTML == "" {
-				bodyHTML = body
-			}
-			p.runClassifyAndTranslate(f.UserID, *f.AIModelID, &f, art.ID, title, body, bodyHTML)
+			bodyPlain, bodyHTML := translateBodiesForAI(art.Content)
+			p.runClassifyAndTranslate(f.UserID, *f.AIModelID, &f, art.ID, title, bodyPlain, bodyHTML)
 		} else {
 			p.runClassifyOnly(f.UserID, *f.AIModelID, art.ID, title, body)
 		}
@@ -106,12 +102,7 @@ func (p *ArticleAIProcessor) BackfillTranslateBatch(limit int, delayBetween time
 			continue
 		}
 		title := art.Title
-		bodyPlain := plainFromHTMLForAI(art.Content)
-		bodyPlain = truncateRunes(bodyPlain, 12000)
-		bodyHTML := truncateRunes(strings.TrimSpace(art.Content), 20000)
-		if bodyHTML == "" {
-			bodyHTML = bodyPlain
-		}
+		bodyPlain, bodyHTML := translateBodiesForAI(art.Content)
 		mid := *f.AIModelID
 		if f.AIClassifyEnabled && f.AITranslateEnabled {
 			cat := strings.TrimSpace(art.AICategory)

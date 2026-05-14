@@ -215,6 +215,19 @@ func plainFromHTMLForAI(s string) string {
 	return strings.TrimSpace(strings.Join(strings.Fields(s), " "))
 }
 
+func classifyBodyForAI(content string) string {
+	return truncateRunes(plainFromHTMLForAI(content), 12000)
+}
+
+func translateBodiesForAI(content string) (bodyPlain, bodyHTML string) {
+	bodyPlain = plainFromHTMLForAI(content)
+	bodyHTML = strings.TrimSpace(content)
+	if bodyHTML == "" {
+		bodyHTML = bodyPlain
+	}
+	return bodyPlain, bodyHTML
+}
+
 func articleHasCompletedTranslation(art models.Article) bool {
 	if strings.TrimSpace(art.ContentTranslated) == "" {
 		return false
@@ -387,18 +400,13 @@ func (p *ArticleAIProcessor) run(userID uint, feed models.Feed, articleID uint) 
 	modelID := *f.AIModelID
 
 	title := art.Title
-	bodyPlain := plainFromHTMLForAI(art.Content)
-	bodyPlain = truncateRunes(bodyPlain, 12000)
-	bodyHTML := truncateRunes(strings.TrimSpace(art.Content), 20000)
-	if bodyHTML == "" {
-		bodyHTML = bodyPlain
-	}
 
 	// 同时开启分类+翻译：一次模型调用返回分类、分类译名、标题译文和正文译文（仍在 Enqueue 的 goroutine 内，不阻塞 RSS 入库 Create）。
 	if f.AIClassifyEnabled && f.AITranslateEnabled {
 		if !p.waitForAutoModelCall() {
 			return
 		}
+		bodyPlain, bodyHTML := translateBodiesForAI(art.Content)
 		p.runClassifyAndTranslate(userID, modelID, &f, articleID, title, bodyPlain, bodyHTML)
 		return
 	}
@@ -407,6 +415,7 @@ func (p *ArticleAIProcessor) run(userID uint, feed models.Feed, articleID uint) 
 		if !p.waitForAutoModelCall() {
 			return
 		}
+		bodyPlain := classifyBodyForAI(art.Content)
 		p.runClassifyOnly(userID, modelID, articleID, title, bodyPlain)
 		return
 	}
@@ -414,6 +423,7 @@ func (p *ArticleAIProcessor) run(userID uint, feed models.Feed, articleID uint) 
 	if !p.waitForAutoModelCall() {
 		return
 	}
+	bodyPlain, bodyHTML := translateBodiesForAI(art.Content)
 	p.runTranslateOnly(userID, modelID, &f, articleID, title, bodyPlain, bodyHTML)
 }
 
@@ -657,8 +667,7 @@ func (p *ArticleAIProcessor) ManualClassify(userID uint, articleID uint, overrid
 		return err
 	}
 	title := art.Title
-	body := plainFromHTMLForAI(art.Content)
-	body = truncateRunes(body, 12000)
+	body := classifyBodyForAI(art.Content)
 	p.runClassifyOnly(userID, modelID, articleID, title, body)
 	return p.errIfArticleAIFailed(articleID)
 }
@@ -708,12 +717,7 @@ func (p *ArticleAIProcessor) ManualTranslate(userID uint, articleID uint, overri
 	mid := modelID
 	ff.AIModelID = &mid
 	title := art.Title
-	bodyPlain := plainFromHTMLForAI(art.Content)
-	bodyPlain = truncateRunes(bodyPlain, 12000)
-	bodyHTML := truncateRunes(strings.TrimSpace(art.Content), 20000)
-	if bodyHTML == "" {
-		bodyHTML = bodyPlain
-	}
+	bodyPlain, bodyHTML := translateBodiesForAI(art.Content)
 	if strings.TrimSpace(art.AICategory) == "" {
 		p.runClassifyAndTranslate(userID, modelID, &ff, articleID, title, bodyPlain, bodyHTML)
 		return p.errIfArticleAIFailed(articleID)
@@ -762,12 +766,7 @@ func (p *ArticleAIProcessor) ManualTranslateStream(userID uint, articleID uint, 
 		return ErrManualAINoTargetLang
 	}
 	title := art.Title
-	bodyPlain := plainFromHTMLForAI(art.Content)
-	bodyPlain = truncateRunes(bodyPlain, 12000)
-	bodyHTML := truncateRunes(strings.TrimSpace(art.Content), 20000)
-	if bodyHTML == "" {
-		bodyHTML = bodyPlain
-	}
+	bodyPlain, bodyHTML := translateBodiesForAI(art.Content)
 	if err := p.db.Model(&models.Article{}).Where("id = ?", articleID).Updates(map[string]interface{}{
 		"ai_process_status": models.AIProcessPending,
 		"ai_last_error":     "",
