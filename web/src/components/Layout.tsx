@@ -1,7 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Outlet, Link, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
+import {
+  getInitialSidebarCollapsed,
+  setStoredSidebarCollapsed,
+} from '../utils/sidebarCollapsed';
 import UiStyleControl from './UiStyleControl';
 
 const mainNavItems: { to: string; label: string }[] = [
@@ -29,9 +33,11 @@ export default function Layout() {
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const feedsTab = location.pathname === '/feeds' ? searchParams.get('tab') || 'feeds' : null;
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(() =>
-    typeof window !== 'undefined' && window.innerWidth <= 768
-  );
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => getInitialSidebarCollapsed());
+
+  useEffect(() => {
+    setStoredSidebarCollapsed(sidebarCollapsed);
+  }, [sidebarCollapsed]);
 
   const handleLogout = () => {
     logout();
