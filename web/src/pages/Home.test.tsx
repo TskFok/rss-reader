@@ -1,9 +1,10 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { ThemeProvider } from '../contexts/ThemeContext';
 import { ToastProvider } from '../contexts/ToastContext';
 import type { Article, Feed } from '../api/client';
+import { articlesApi } from '../api/client';
 import Home from './Home';
 
 const { feedOne, feedTwo, sharedArticle, articleTwo } = vi.hoisted(() => {
@@ -147,4 +148,51 @@ test('在文章列表中切换另一篇文章时重置文章详情面板滚动�
   await waitFor(() => {
     expect(dock.scrollTop).toBe(0);
   });
+});
+
+test('刷新后首屏文章加载完成时重置文章列表滚动位置', async () => {
+  const store = new Map<string, string>();
+  // @ts-expect-error test polyfill
+  globalThis.localStorage = {
+    getItem: (k: string) => (store.has(k) ? store.get(k)! : null),
+    setItem: (k: string, v: string) => {
+      store.set(k, String(v));
+    },
+    removeItem: (k: string) => {
+      store.delete(k);
+    },
+  };
+
+  let resolveArticles: (value: { data: { items: Article[]; total: number } }) => void = () => {};
+  vi.mocked(articlesApi.list).mockImplementationOnce(
+    () => new Promise((resolve) => {
+      resolveArticles = resolve;
+    })
+  );
+  const listCallsBefore = vi.mocked(articlesApi.list).mock.calls.length;
+
+  const { container } = render(
+    <MemoryRouter initialEntries={['/?feed=1']}>
+      <ThemeProvider>
+        <ToastProvider>
+          <Home />
+        </ToastProvider>
+      </ThemeProvider>
+    </MemoryRouter>
+  );
+
+  const listScroll = container.querySelector('.article-list-scroll') as HTMLDivElement;
+  expect(listScroll).not.toBeNull();
+  listScroll.scrollTop = 420;
+
+  await waitFor(() => {
+    expect(vi.mocked(articlesApi.list).mock.calls.length).toBeGreaterThan(listCallsBefore);
+  });
+
+  await act(async () => {
+    resolveArticles({ data: { items: [sharedArticle, articleTwo], total: 2 } });
+  });
+
+  await screen.findByRole('button', { name: /长文/ });
+  expect(listScroll.scrollTop).toBe(0);
 });

@@ -119,6 +119,13 @@ export default function Home() {
     if (el) el.scrollTop = 0;
   }, [filterFeed]);
 
+  // 刷新或切换筛选后，浏览器可能恢复文章列表滚动位置；首屏加载完成后主动回到顶部
+  useEffect(() => {
+    if (page !== 1 || loading) return;
+    const el = listScrollRef.current;
+    if (el) el.scrollTop = 0;
+  }, [filterFeed, filterRead, loading, page]);
+
   // 在列表中切换选中的文章时，重置文章详情区域的滚动位置
   useEffect(() => {
     const el = detailDockScrollRef.current;
