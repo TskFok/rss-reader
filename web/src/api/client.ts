@@ -213,6 +213,7 @@ export const feedsApi = {
     }),
   update: (
     id: number,
+    url: string,
     update_interval_minutes: number,
     proxy_id?: number | null,
     expire_days?: number,
@@ -220,6 +221,7 @@ export const feedsApi = {
     ai?: FeedAIOptions
   ) =>
     client.put<Feed>(`/feeds/${id}`, {
+      url,
       update_interval_minutes,
       proxy_id: proxy_id ?? null,
       ...(expire_days !== undefined && { expire_days }),
@@ -229,6 +231,7 @@ export const feedsApi = {
       ...(ai?.ai_translate_enabled !== undefined && { ai_translate_enabled: ai.ai_translate_enabled }),
       ...(ai?.ai_target_language !== undefined && { ai_target_language: ai.ai_target_language }),
     }),
+  refresh: (id: number) => client.post<Feed>(`/feeds/${id}/refresh`),
   delete: (id: number) => client.delete(`/feeds/${id}`),
 };
 

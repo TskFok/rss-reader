@@ -2,6 +2,7 @@ package services
 
 import (
 	"errors"
+	"net/url"
 	"strings"
 
 	"github.com/ushopal/rss-reader/internal/models"
@@ -12,10 +13,25 @@ var (
 	ErrFeedNotFound = errors.New("订阅不存在")
 )
 
+func normalizeFeedURL(raw string) (string, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return "", ErrInvalidFeedURL
+	}
+	parsed, err := url.ParseRequestURI(trimmed)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return "", ErrInvalidFeedURL
+	}
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return "", ErrInvalidFeedURL
+	}
+	return trimmed, nil
+}
+
 // FeedService 订阅服务
 type FeedService struct {
-	db   *gorm.DB
-	rss  *RSSService
+	db  *gorm.DB
+	rss *RSSService
 }
 
 // NewFeedService 创建订阅服务
@@ -141,15 +157,35 @@ func (s *FeedService) GetByID(userID uint, id uint) (*models.Feed, error) {
 	return &feed, nil
 }
 
+// Refresh 立即抓取一个用户拥有的订阅，并返回刷新后的订阅信息
+func (s *FeedService) Refresh(userID uint, id uint) (*models.Feed, error) {
+	feed, err := s.GetByID(userID, id)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.rss.FetchFeed(feed); err != nil {
+		return nil, err
+	}
+	var result models.Feed
+	if err := s.db.Preload("Category").Preload("Proxy").Where("user_id = ? AND id = ?", userID, id).First(&result).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrFeedNotFound
+		}
+		return nil, err
+	}
+	return &result, nil
+}
+
 // UpdateFeedRequest 更新订阅请求
 type UpdateFeedRequest struct {
-	CategoryID            *uint `json:"category_id"`             // nil 表示不修改
-	UpdateIntervalMinutes int   `json:"update_interval_minutes" binding:"required,min=5,max=10080"`
-	ProxyID               *uint `json:"proxy_id"`
-	ExpireDays            *int  `json:"expire_days"` // 0=永不过期，nil 表示不修改
-	AIModelID             *uint `json:"ai_model_id"` // nil 不修改；0 清空
-	AIClassifyEnabled     *bool `json:"ai_classify_enabled"`
-	AITranslateEnabled    *bool `json:"ai_translate_enabled"`
+	URL                   *string `json:"url" binding:"omitempty,url"` // nil 表示不修改
+	CategoryID            *uint   `json:"category_id"`                 // nil 表示不修改
+	UpdateIntervalMinutes int     `json:"update_interval_minutes" binding:"required,min=5,max=10080"`
+	ProxyID               *uint   `json:"proxy_id"`
+	ExpireDays            *int    `json:"expire_days"` // 0=永不过期，nil 表示不修改
+	AIModelID             *uint   `json:"ai_model_id"` // nil 不修改；0 清空
+	AIClassifyEnabled     *bool   `json:"ai_classify_enabled"`
+	AITranslateEnabled    *bool   `json:"ai_translate_enabled"`
 	AITargetLanguage      *string `json:"ai_target_language"` // nil 不修改；可传 "" 清空
 }
 
@@ -205,6 +241,24 @@ func (s *FeedService) Update(userID uint, id uint, req UpdateFeedRequest) (*mode
 		}
 	}
 	updates := map[string]interface{}{"update_interval_minutes": req.UpdateIntervalMinutes}
+	if req.URL != nil {
+		nextURL, err := normalizeFeedURL(*req.URL)
+		if err != nil {
+			return nil, err
+		}
+		if nextURL != feed.URL {
+			var count int64
+			if err := s.db.Model(&models.Feed{}).
+				Where("user_id = ? AND url = ? AND id <> ?", userID, nextURL, feed.ID).
+				Count(&count).Error; err != nil {
+				return nil, err
+			}
+			if count > 0 {
+				return nil, errors.New("订阅已存在")
+			}
+			updates["url"] = nextURL
+		}
+	}
 	if req.ProxyID != nil {
 		updates["proxy_id"] = *req.ProxyID
 	}

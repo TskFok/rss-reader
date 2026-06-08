@@ -3,11 +3,34 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { AuthProvider } from '../contexts/AuthContext';
 import Feeds from './Feeds';
-import { articlesApi } from '../api/client';
+import { articlesApi, feedsApi } from '../api/client';
+
+const { feedForRefresh } = vi.hoisted(() => ({
+  feedForRefresh: {
+    id: 1,
+    user_id: 1,
+    category_id: null,
+    proxy_id: null,
+    ai_model_id: null,
+    ai_classify_enabled: false,
+    ai_translate_enabled: false,
+    ai_target_language: 'zh-CN',
+    url: 'http://example.com/feed.xml',
+    title: '测试订阅',
+    update_interval_minutes: 60,
+    expire_days: 90,
+    last_fetched_at: null,
+    created_at: '',
+  },
+}));
 
 vi.mock('../api/client', async () => {
   return {
-    feedsApi: { list: vi.fn().mockResolvedValue({ data: [] }) },
+    feedsApi: {
+      list: vi.fn().mockResolvedValue({ data: [feedForRefresh] }),
+      refresh: vi.fn().mockResolvedValue({ data: feedForRefresh }),
+      update: vi.fn().mockResolvedValue({ data: feedForRefresh }),
+    },
     categoriesApi: { list: vi.fn().mockResolvedValue({ data: [] }) },
     proxiesApi: { list: vi.fn().mockResolvedValue({ data: [] }) },
     aiModelsApi: { list: vi.fn().mockResolvedValue({ data: [{ id: 1, name: 'm', base_url: 'u', user_id: 1, created_at: '', updated_at: '' }] }) },
@@ -28,6 +51,87 @@ vi.mock('../api/client', async () => {
       delete: vi.fn().mockResolvedValue({}),
     },
   };
+});
+
+test('订阅列表行内可以立即刷新订阅', async () => {
+  const user = userEvent.setup();
+  const store = new Map<string, string>();
+  // @ts-expect-error test polyfill
+  globalThis.localStorage = {
+    getItem: (k: string) => (store.has(k) ? store.get(k)! : null),
+    setItem: (k: string, v: string) => { store.set(k, String(v)); },
+    removeItem: (k: string) => { store.delete(k); },
+  };
+  globalThis.localStorage.setItem(
+    'user',
+    JSON.stringify({ id: 1, username: 'u', status: 'active', is_super_admin: false, created_at: '' })
+  );
+
+  render(
+    <MemoryRouter initialEntries={['/feeds?tab=feeds']}>
+      <AuthProvider>
+        <Routes>
+          <Route path="/feeds" element={<Feeds />} />
+        </Routes>
+      </AuthProvider>
+    </MemoryRouter>
+  );
+
+  await screen.findByText('测试订阅');
+  await user.click(screen.getByRole('button', { name: '刷新' }));
+
+  await waitFor(() => expect(feedsApi.refresh).toHaveBeenCalledWith(1));
+});
+
+test('编辑订阅时可以修改 RSS 地址', async () => {
+  const user = userEvent.setup();
+  const store = new Map<string, string>();
+  // @ts-expect-error test polyfill
+  globalThis.localStorage = {
+    getItem: (k: string) => (store.has(k) ? store.get(k)! : null),
+    setItem: (k: string, v: string) => { store.set(k, String(v)); },
+    removeItem: (k: string) => { store.delete(k); },
+  };
+  globalThis.localStorage.setItem(
+    'user',
+    JSON.stringify({ id: 1, username: 'u', status: 'active', is_super_admin: false, created_at: '' })
+  );
+
+  render(
+    <MemoryRouter initialEntries={['/feeds?tab=feeds']}>
+      <AuthProvider>
+        <Routes>
+          <Route path="/feeds" element={<Feeds />} />
+        </Routes>
+      </AuthProvider>
+    </MemoryRouter>
+  );
+
+  await screen.findByText('测试订阅');
+  await user.click(screen.getByRole('button', { name: '编辑' }));
+
+  const urlInput = screen.getByLabelText('RSS 地址');
+  expect(urlInput).toHaveValue('http://example.com/feed.xml');
+  await user.clear(urlInput);
+  await user.type(urlInput, 'https://example.com/changed.xml');
+  await user.click(screen.getByRole('button', { name: '保存' }));
+
+  await waitFor(() =>
+    expect(feedsApi.update).toHaveBeenCalledWith(
+      1,
+      'https://example.com/changed.xml',
+      60,
+      null,
+      90,
+      0,
+      {
+        ai_model_id: 0,
+        ai_classify_enabled: false,
+        ai_translate_enabled: false,
+        ai_target_language: 'zh-CN',
+      }
+    )
+  );
 });
 
 test('点击“总结下一页”会把页码 +1 并用新页码生成总结', async () => {
@@ -139,4 +243,3 @@ test('生成总结完成后点击保存会创建历史记录（生成中不可�
   const mod = await import('../api/client');
   await waitFor(() => expect(mod.summaryHistoriesApi.create).toHaveBeenCalledTimes(1));
 });
-

@@ -36,6 +36,9 @@ export default function Home() {
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [selected, setSelected] = useState<Article | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
+  const [refreshingFeedId, setRefreshingFeedId] = useState<number | null>(null);
+  const [refreshError, setRefreshError] = useState('');
   const [collapsedCategories, setCollapsedCategories] = useState<Set<number>>(initialCollapsed);
   const [articleDisplayLang, setArticleDisplayLang] = useState<ArticleDisplayLang>(() =>
     getStoredArticleLang()
@@ -99,7 +102,7 @@ export default function Home() {
     return () => {
       cancelled = true;
     };
-  }, [filterFeed, filterRead, page]);
+  }, [filterFeed, filterRead, page, reloadKey]);
 
   // URL 变化时同步 filterFeed、collapsedCategories（如浏览器前进/后退）
   useEffect(() => {
@@ -181,6 +184,26 @@ export default function Home() {
         setSelected((prev) => (prev ? { ...prev, favorite: data.favorite } : null));
       }
     } catch {}
+  };
+
+  const refreshCurrentFeed = async () => {
+    if (!filterFeed || refreshingFeedId !== null) return;
+    setRefreshError('');
+    setRefreshingFeedId(filterFeed);
+    try {
+      const { data } = await feedsApi.refresh(filterFeed);
+      setFeeds((prev) => prev.map((f) => (f.id === data.id ? data : f)));
+      if (page === 1) {
+        setReloadKey((v) => v + 1);
+      } else {
+        setPage(1);
+      }
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      setRefreshError(msg || '刷新失败');
+    } finally {
+      setRefreshingFeedId(null);
+    }
   };
 
   const formatDate = (s: string | null) => {
@@ -376,6 +399,19 @@ export default function Home() {
           <div className="home-current-feed">
             {currentFeed ? `当前订阅：${currentFeed.title || currentFeed.url}` : '当前订阅：全部订阅'}
           </div>
+          {currentFeed && (
+            <button
+              type="button"
+              className="home-refresh-btn"
+              onClick={refreshCurrentFeed}
+              disabled={refreshingFeedId === currentFeed.id}
+              aria-label="立即刷新当前订阅"
+              title="立即刷新当前订阅"
+            >
+              {refreshingFeedId === currentFeed.id ? '刷新中...' : '立即刷新'}
+            </button>
+          )}
+          {refreshError && <span className="home-refresh-error">{refreshError}</span>}
           {showArticleLangToggle && (
             <label className="home-lang-toggle">
               显示

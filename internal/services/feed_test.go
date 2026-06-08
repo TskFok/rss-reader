@@ -6,10 +6,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/ushopal/rss-reader/internal/models"
-	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
 )
 
@@ -92,6 +92,53 @@ func TestFeedService_GetByID_NotFound(t *testing.T) {
 	svc := NewFeedService(db, rss)
 
 	_, err := svc.GetByID(1, 999)
+	assert.ErrorIs(t, err, ErrFeedNotFound)
+}
+
+func TestFeedService_Refresh_FetchesArticlesForOwnedFeed(t *testing.T) {
+	db := setupFeedDB(t)
+	rss := NewRSSService(db)
+	svc := NewFeedService(db, rss)
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/xml; charset=utf-8")
+		_, _ = fmt.Fprint(w, `<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Manual Refresh Feed</title>
+    <link>http://example.com/</link>
+    <description>test</description>
+    <item>
+      <title>Manual Refresh Article</title>
+      <link>http://example.com/manual-refresh</link>
+      <guid>manual-refresh-guid</guid>
+    </item>
+  </channel>
+</rss>`)
+	}))
+	defer ts.Close()
+
+	feed := models.Feed{UserID: 1, URL: ts.URL, Title: "Manual", UpdateIntervalMinutes: 60}
+	require.NoError(t, db.Create(&feed).Error)
+
+	refreshed, err := svc.Refresh(1, feed.ID)
+	require.NoError(t, err)
+	require.NotNil(t, refreshed.LastFetchedAt)
+
+	var article models.Article
+	require.NoError(t, db.Where("feed_id = ? AND guid_raw = ?", feed.ID, "manual-refresh-guid").First(&article).Error)
+	assert.Equal(t, "Manual Refresh Article", article.Title)
+}
+
+func TestFeedService_Refresh_RejectsOtherUsersFeed(t *testing.T) {
+	db := setupFeedDB(t)
+	rss := NewRSSService(db)
+	svc := NewFeedService(db, rss)
+
+	feed := models.Feed{UserID: 2, URL: "http://example.com/feed.xml", Title: "Other", UpdateIntervalMinutes: 60}
+	require.NoError(t, db.Create(&feed).Error)
+
+	_, err := svc.Refresh(1, feed.ID)
 	assert.ErrorIs(t, err, ErrFeedNotFound)
 }
 
@@ -183,6 +230,27 @@ func TestFeedService_Update_Category(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.Nil(t, updated2.CategoryID)
+}
+
+func TestFeedService_Update_URL(t *testing.T) {
+	db := setupFeedDB(t)
+	rss := NewRSSService(db)
+	svc := NewFeedService(db, rss)
+
+	feed := models.Feed{UserID: 1, URL: "http://example.com/feed.xml", Title: "F", UpdateIntervalMinutes: 60}
+	require.NoError(t, db.Create(&feed).Error)
+
+	nextURL := "https://example.com/changed.xml"
+	updated, err := svc.Update(1, feed.ID, UpdateFeedRequest{
+		URL:                   &nextURL,
+		UpdateIntervalMinutes: 60,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, nextURL, updated.URL)
+
+	var stored models.Feed
+	require.NoError(t, db.First(&stored, feed.ID).Error)
+	assert.Equal(t, nextURL, stored.URL)
 }
 
 func TestFeedService_Create_AIValidation(t *testing.T) {

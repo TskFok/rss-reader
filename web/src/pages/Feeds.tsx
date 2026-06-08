@@ -29,9 +29,13 @@ export default function Feeds() {
   const [expireDays, setExpireDays] = useState(90);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [feedRefreshMsg, setFeedRefreshMsg] = useState('');
+  const [feedRefreshError, setFeedRefreshError] = useState('');
+  const [refreshingFeedId, setRefreshingFeedId] = useState<number | null>(null);
   const [feedAddOpen, setFeedAddOpen] = useState(false);
   const [editing, setEditing] = useState<number | null>(null);
   const [editError, setEditError] = useState('');
+  const [editUrl, setEditUrl] = useState('');
   const [editInterval, setEditInterval] = useState(60);
   const [editExpireDays, setEditExpireDays] = useState(90);
   const [editCategoryId, setEditCategoryId] = useState<number | ''>('');
@@ -672,6 +676,11 @@ export default function Feeds() {
   const handleUpdate = async (id: number) => {
     setEditError('');
     try {
+      const nextUrl = editUrl.trim();
+      if (!nextUrl) {
+        setEditError('请填写 RSS 地址');
+        return;
+      }
       if ((editAiClassify || editAiTranslate) && editAiModelId === '') {
         setEditError('开启 AI 时需选择模型');
         return;
@@ -688,6 +697,7 @@ export default function Feeds() {
       };
       await feedsApi.update(
         id,
+        nextUrl,
         editInterval,
         editProxyId === '' ? null : editProxyId,
         editExpireDays,
@@ -708,6 +718,23 @@ export default function Feeds() {
       await feedsApi.delete(id);
       loadFeeds();
     } catch {}
+  };
+
+  const handleRefreshFeed = async (id: number) => {
+    if (refreshingFeedId !== null) return;
+    setFeedRefreshMsg('');
+    setFeedRefreshError('');
+    setRefreshingFeedId(id);
+    try {
+      const { data } = await feedsApi.refresh(id);
+      setFeeds((prev) => prev.map((f) => (f.id === data.id ? data : f)));
+      setFeedRefreshMsg('刷新完成');
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      setFeedRefreshError(msg || '刷新失败');
+    } finally {
+      setRefreshingFeedId(null);
+    }
   };
 
   const handleAddProxy = async (e: React.FormEvent) => {
@@ -1336,6 +1363,17 @@ export default function Feeds() {
               <form onSubmit={(e) => { e.preventDefault(); if (editing !== null) handleUpdate(editing); }} className="feeds-modal-form">
                 {editError && <p className="error">{editError}</p>}
                 <div className="feeds-modal-row">
+                  <label>RSS 地址</label>
+                  <input
+                    type="url"
+                    aria-label="RSS 地址"
+                    placeholder="https://example.com/feed"
+                    value={editUrl}
+                    onChange={(e) => setEditUrl(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="feeds-modal-row">
                   <label>分类</label>
                   <select
                     value={editCategoryId}
@@ -1463,6 +1501,8 @@ export default function Feeds() {
               </div>
             </div>
             {opmlMsg && <p className="feeds-opml-message">{opmlMsg}</p>}
+            {feedRefreshMsg && <p className="feeds-opml-message">{feedRefreshMsg}</p>}
+            {feedRefreshError && <p className="error">{feedRefreshError}</p>}
 
             {feeds.length === 0 ? (
               <div className="feeds-empty-card">暂无订阅，请先添加订阅。</div>
@@ -1480,7 +1520,7 @@ export default function Feeds() {
                         <th>内容保留</th>
                         <th>AI</th>
                         <th>上次更新</th>
-                        <th style={{ width: '160px' }}>操作</th>
+                        <th style={{ width: '220px' }}>操作</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1511,8 +1551,16 @@ export default function Feeds() {
                             <div className="feeds-row-actions">
                               <button
                                 type="button"
+                                onClick={() => handleRefreshFeed(f.id)}
+                                disabled={refreshingFeedId === f.id}
+                              >
+                                {refreshingFeedId === f.id ? '刷新中...' : '刷新'}
+                              </button>
+                              <button
+                                type="button"
                                 onClick={() => {
                                   setEditing(f.id);
+                                  setEditUrl(f.url);
                                   setEditInterval(f.update_interval_minutes);
                                   setEditExpireDays(f.expire_days ?? 90);
                                   setEditProxyId(f.proxy_id ?? '');

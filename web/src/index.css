@@ -3146,8 +3146,37 @@ html[data-ui-style="eink"] .ui-style-floating-wrap {
 
 .filters {
   display: flex;
+  align-items: center;
   gap: 12px;
   margin-bottom: 20px;
+}
+
+.home-refresh-btn {
+  padding: 8px 12px;
+  min-height: 38px;
+  border: 1px solid var(--nice-admin-input-border);
+  border-radius: 8px;
+  background: var(--nice-admin-input-bg);
+  color: var(--nice-admin-text);
+  font-size: 0.9rem;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.home-refresh-btn:hover:not(:disabled) {
+  background: var(--nice-admin-hover-bg);
+  border-color: var(--nice-admin-primary);
+}
+
+.home-refresh-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.home-refresh-error {
+  color: var(--nice-admin-danger);
+  font-size: 0.85rem;
+  white-space: nowrap;
 }
 
 .filters select {
@@ -4555,6 +4584,11 @@ label.feeds-summary-feed-check input {
 
 .feeds-row-actions button:hover {
   background: var(--nice-admin-subtle-bg);
+}
+
+.feeds-row-actions button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .feeds-opml-row {

@@ -4,7 +4,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { ThemeProvider } from '../contexts/ThemeContext';
 import { ToastProvider } from '../contexts/ToastContext';
 import type { Article, Feed } from '../api/client';
-import { articlesApi } from '../api/client';
+import { articlesApi, feedsApi } from '../api/client';
 import Home from './Home';
 
 const { feedOne, feedTwo, sharedArticle, articleTwo } = vi.hoisted(() => {
@@ -60,6 +60,7 @@ vi.mock('../api/client', async (importOriginal) => {
     feedsApi: {
       ...actual.feedsApi,
       list: vi.fn().mockResolvedValue({ data: [feedOne, feedTwo] }),
+      refresh: vi.fn().mockResolvedValue({ data: feedOne }),
     },
     categoriesApi: {
       ...actual.categoriesApi,
@@ -72,6 +73,40 @@ vi.mock('../api/client', async (importOriginal) => {
       toggleFavorite: vi.fn().mockResolvedValue({ data: { favorite: true } }),
     },
   };
+});
+
+test('阅读页选中订阅时可以立即刷新当前订阅', async () => {
+  const user = userEvent.setup();
+  const store = new Map<string, string>();
+  // @ts-expect-error test polyfill
+  globalThis.localStorage = {
+    getItem: (k: string) => (store.has(k) ? store.get(k)! : null),
+    setItem: (k: string, v: string) => {
+      store.set(k, String(v));
+    },
+    removeItem: (k: string) => {
+      store.delete(k);
+    },
+  };
+  const listCallsBefore = vi.mocked(articlesApi.list).mock.calls.length;
+
+  render(
+    <MemoryRouter initialEntries={['/?feed=1']}>
+      <ThemeProvider>
+        <ToastProvider>
+          <Home />
+        </ToastProvider>
+      </ThemeProvider>
+    </MemoryRouter>
+  );
+
+  const refreshBtn = await screen.findByRole('button', { name: '立即刷新当前订阅' });
+  await user.click(refreshBtn);
+
+  await waitFor(() => expect(feedsApi.refresh).toHaveBeenCalledWith(1));
+  await waitFor(() => {
+    expect(vi.mocked(articlesApi.list).mock.calls.length).toBeGreaterThan(listCallsBefore + 1);
+  });
 });
 
 test('切换侧栏订阅筛选时重置文章详情面板滚动位置', async () => {

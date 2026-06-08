@@ -3,6 +3,7 @@ package com.rssreader.api
 import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.GET
+import retrofit2.http.Path
 import retrofit2.http.POST
 import retrofit2.http.Query
 
@@ -24,6 +25,9 @@ interface RssReaderApi {
 
     @GET("feeds")
     suspend fun listFeeds(): List<FeedJson>
+
+    @POST("feeds/{id}/refresh")
+    suspend fun refreshFeed(@Path("id") id: Long): FeedJson
 
     /**
      * 文章列表；点击某一订阅时传入 [feedId]。

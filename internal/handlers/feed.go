@@ -86,6 +86,14 @@ func (h *FeedHandler) Update(c *gin.Context) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "订阅不存在"})
 			return
 		}
+		if err == services.ErrInvalidFeedURL {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "无效的 RSS 地址"})
+			return
+		}
+		if err.Error() == "订阅已存在" {
+			c.JSON(http.StatusConflict, gin.H{"error": "订阅已存在"})
+			return
+		}
 		if err.Error() == "分类不存在" {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "分类不存在"})
 			return
@@ -101,6 +109,27 @@ func (h *FeedHandler) Update(c *gin.Context) {
 			return
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新失败"})
+		return
+	}
+	c.JSON(http.StatusOK, feed)
+}
+
+// Refresh 立即刷新订阅
+// POST /api/feeds/:id/refresh
+func (h *FeedHandler) Refresh(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的 ID"})
+		return
+	}
+	feed, err := h.feedSvc.Refresh(userID, uint(id))
+	if err != nil {
+		if err == services.ErrFeedNotFound {
+			c.JSON(http.StatusNotFound, gin.H{"error": "订阅不存在"})
+			return
+		}
+		c.JSON(http.StatusBadGateway, gin.H{"error": "刷新订阅失败"})
 		return
 	}
 	c.JSON(http.StatusOK, feed)

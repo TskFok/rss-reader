@@ -150,6 +150,32 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
+  /feeds/{id}/refresh:
+    post:
+      tags: [feeds]
+      summary: 立即刷新订阅
+      description: 立即抓取当前用户拥有的单个订阅源，并返回刷新后的订阅信息。
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 刷新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Feed'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/Error'
+        '502':
+          $ref: '#/components/responses/Error'
+
   /categories:
     get:
       tags: [categories]

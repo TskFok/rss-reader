@@ -133,6 +133,15 @@ JWT 在登录成功响应的 `token` 字段中取得；失效时接口返回 `40
 - `ai_model_id`, `ai_classify_enabled`, `ai_translate_enabled`, `ai_target_language`
 - `category`（嵌套）、`last_fetched_at`, `created_at` 等
 
+### 4.1 立即刷新订阅
+
+| 项目 | 说明 |
+|------|------|
+| 方法 / 路径 | `POST /api/feeds/{id}/refresh` |
+| 认证 | 需要 Bearer |
+
+**成功 `200`**：返回刷新后的订阅对象。若订阅不存在返回 `404`，抓取失败返回 `502`。
+
 ---
 
 ## 5. 订阅分类

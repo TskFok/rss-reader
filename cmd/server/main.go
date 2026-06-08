@@ -115,6 +115,7 @@ func main() {
 
 			auth.GET("/feeds", handlers.NewFeedHandler(feedSvc).List)
 			auth.POST("/feeds", handlers.NewFeedHandler(feedSvc).Create)
+			auth.POST("/feeds/:id/refresh", handlers.NewFeedHandler(feedSvc).Refresh)
 			auth.PUT("/feeds/:id", handlers.NewFeedHandler(feedSvc).Update)
 			auth.DELETE("/feeds/:id", handlers.NewFeedHandler(feedSvc).Delete)
 			auth.GET("/articles", articleHandler.List)
