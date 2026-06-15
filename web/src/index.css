@@ -2437,6 +2437,21 @@ a:hover {
   background: var(--nice-admin-sidebar-hover);
 }
 
+.nice-admin-mobile-menu-btn {
+  display: none;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid var(--nice-admin-input-border);
+  border-radius: 8px;
+  background: var(--nice-admin-card-bg);
+  color: var(--nice-admin-text);
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 500;
+  box-shadow: var(--nice-admin-shadow);
+}
+
 .nice-admin-main-wrap {
   flex: 1;
   min-width: 0;
@@ -2585,6 +2600,85 @@ html[data-ui-style="eink"] .ui-style-floating-wrap {
   max-width: 6.5rem;
 }
 
+.me-page {
+  width: 100%;
+}
+
+.me-panel {
+  width: min(720px, 100%);
+  border: 1px solid var(--nice-admin-card-border);
+  border-radius: 8px;
+  background: var(--nice-admin-card-bg);
+  box-shadow: var(--nice-admin-shadow);
+  overflow: hidden;
+}
+
+.me-panel-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 22px 24px;
+  border-bottom: 1px solid var(--nice-admin-card-border);
+}
+
+.me-panel-header h1,
+.me-setting-row h2 {
+  margin: 0;
+  color: var(--nice-admin-text);
+  letter-spacing: 0;
+}
+
+.me-panel-header h1 {
+  font-size: 1.35rem;
+  line-height: 1.25;
+}
+
+.me-panel-header p,
+.me-setting-row p {
+  margin: 6px 0 0;
+  color: var(--nice-admin-text-muted);
+  line-height: 1.5;
+}
+
+.me-user-name {
+  max-width: 18rem;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--nice-admin-subtle-bg);
+  color: var(--nice-admin-text);
+  font-size: 0.9rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.me-settings-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.me-setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 18px 24px;
+  border-bottom: 1px solid var(--nice-admin-card-border);
+}
+
+.me-setting-row:last-child {
+  border-bottom: none;
+}
+
+.me-setting-row h2 {
+  font-size: 1rem;
+  line-height: 1.35;
+}
+
+.me-setting-row .ui-style-select {
+  max-width: 14rem;
+}
+
 .nice-admin-content {
   flex: 1;
   min-height: 0;
@@ -2605,6 +2699,7 @@ html[data-ui-style="eink"] .ui-style-floating-wrap {
 .article-detail-dock,
 .feeds-header-card,
 .feeds-card,
+.me-panel,
 .settings-sidebar,
 .feeds-modal,
 .bind-feishu-modal,
@@ -2881,7 +2976,39 @@ html[data-ui-style="eink"] .ui-style-floating-wrap {
   }
 
   .nice-admin-header-menu-btn {
+    display: none;
+  }
+
+  .nice-admin-mobile-menu-btn {
+    position: fixed;
+    top: 14px;
+    left: 14px;
+    z-index: 90;
     display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .nice-admin-sidebar:not(.collapsed) + .nice-admin-mobile-menu-btn {
+    display: none;
+  }
+
+  .nice-admin-content {
+    padding-top: 68px;
+  }
+
+  .me-panel-header,
+  .me-setting-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .me-user-name,
+  .me-setting-row .ui-style-select,
+  .me-setting-row .nice-admin-header-theme,
+  .me-setting-row .nice-admin-header-logout {
+    width: 100%;
+    max-width: none;
   }
 }
 

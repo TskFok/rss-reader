@@ -1,18 +1,18 @@
 import { useEffect, useState } from 'react';
-import { Outlet, Link, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
+import { Outlet, Link, useLocation, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { useTheme } from '../contexts/ThemeContext';
 import {
   getInitialSidebarCollapsed,
   setStoredSidebarCollapsed,
 } from '../utils/sidebarCollapsed';
-import UiStyleControl from './UiStyleControl';
+import { navLinkIsActive } from '../utils/navLinkActive';
 
 const mainNavItems: { to: string; label: string }[] = [
   { to: '/', label: '首页' },
   { to: '/favorites', label: '收藏' },
   { to: '/summary-history', label: '总结历史' },
   { to: '/feeds?tab=ai-summary', label: 'AI 总结' },
+  { to: '/me', label: '我的' },
 ];
 
 const feedsTabItems: { tab: string; label: string; icon: string; superAdminOnly?: boolean }[] = [
@@ -27,9 +27,7 @@ const feedsTabItems: { tab: string; label: string; icon: string; superAdminOnly?
 ];
 
 export default function Layout() {
-  const { user, logout } = useAuth();
-  const { theme, toggleTheme } = useTheme();
-  const navigate = useNavigate();
+  const { user } = useAuth();
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const feedsTab = location.pathname === '/feeds' ? searchParams.get('tab') || 'feeds' : null;
@@ -38,11 +36,6 @@ export default function Layout() {
   useEffect(() => {
     setStoredSidebarCollapsed(sidebarCollapsed);
   }, [sidebarCollapsed]);
-
-  const handleLogout = () => {
-    logout();
-    navigate('/login');
-  };
 
   const feedsNavItems = feedsTabItems.filter((item) => !item.superAdminOnly || user?.is_super_admin);
 
@@ -58,7 +51,7 @@ export default function Layout() {
             <Link
               key={to}
               to={to}
-              className={`nice-admin-sidebar-link ${location.pathname === to || (to !== '/' && location.pathname.startsWith(to)) ? 'active' : ''}`}
+              className={`nice-admin-sidebar-link ${navLinkIsActive(to, location.pathname, location.search) ? 'active' : ''}`}
             >
               <span className="nice-admin-sidebar-icon">{label.slice(0, 1)}</span>
               {!sidebarCollapsed && <span>{label}</span>}
@@ -94,42 +87,15 @@ export default function Layout() {
           {sidebarCollapsed ? '›' : '‹'}
         </button>
       </aside>
+      <button
+        type="button"
+        className="nice-admin-mobile-menu-btn"
+        onClick={() => setSidebarCollapsed((c) => !c)}
+        aria-label="打开或关闭侧边导航"
+      >
+        菜单
+      </button>
       <div className="nice-admin-main-wrap">
-        <header className="nice-admin-header">
-          <div className="nice-admin-header-left">
-            <button
-              type="button"
-              className="nice-admin-header-menu-btn"
-              onClick={() => setSidebarCollapsed((c) => !c)}
-              aria-label="打开或关闭侧边导航"
-            >
-              菜单
-            </button>
-            <span className="nice-admin-header-breadcrumb">
-              {location.pathname === '/feeds' && feedsTab
-                ? (feedsTab === 'ai-summary'
-                  ? 'AI 总结'
-                  : (feedsNavItems.find((i) => i.tab === feedsTab)?.label ?? '系统设置'))
-                : mainNavItems.find((i) => i.to === location.pathname || (i.to !== '/' && location.pathname.startsWith(i.to)))?.label ?? '首页'}
-            </span>
-          </div>
-          <div className="nice-admin-header-right">
-            <UiStyleControl variant="header" />
-            <button
-              type="button"
-              className="nice-admin-header-theme"
-              onClick={toggleTheme}
-              aria-label={theme === 'dark' ? '切换到浅色模式' : '切换到深色模式'}
-              title={theme === 'dark' ? '切换到浅色模式' : '切换到深色模式'}
-            >
-              {theme === 'dark' ? '浅色' : '深色'}
-            </button>
-            <span className="nice-admin-header-user">{user?.username}</span>
-            <button type="button" onClick={handleLogout} className="nice-admin-header-logout">
-              退出
-            </button>
-          </div>
-        </header>
         <main className="nice-admin-content">
           <Outlet />
         </main>
