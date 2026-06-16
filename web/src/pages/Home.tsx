@@ -467,7 +467,7 @@ export default function Home() {
         </div>
 
         {selected && (
-          <div ref={detailDockScrollRef} className="article-detail-dock">
+          <div className="article-detail-dock">
             <div className="article-detail-header">
               <a
                 className="article-detail-title"
@@ -508,16 +508,18 @@ export default function Home() {
                 </button>
               </div>
             </div>
-            <div className="article-detail-meta">
-              {articleCategoryForDisplay(selected, articleDisplayLang) && (
-                <span className="article-detail-ai-cat">
-                  {articleCategoryForDisplay(selected, articleDisplayLang)}
-                </span>
-              )}
-              {selected.feed_title && <span className="feed">{selected.feed_title}</span>}
-              <span className="date">{formatDate(selected.published_at || selected.created_at)}</span>
+            <div ref={detailDockScrollRef} className="article-detail-scroll">
+              <div className="article-detail-meta">
+                {articleCategoryForDisplay(selected, articleDisplayLang) && (
+                  <span className="article-detail-ai-cat">
+                    {articleCategoryForDisplay(selected, articleDisplayLang)}
+                  </span>
+                )}
+                {selected.feed_title && <span className="feed">{selected.feed_title}</span>}
+                <span className="date">{formatDate(selected.published_at || selected.created_at)}</span>
+              </div>
+              <ArticleDetailContent article={selected} displayLang={articleDisplayLang} />
             </div>
-            <ArticleDetailContent article={selected} displayLang={articleDisplayLang} />
           </div>
         )}
       </section>

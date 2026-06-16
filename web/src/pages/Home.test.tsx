@@ -135,7 +135,7 @@ test('切换侧栏订阅筛选时重置文章详情面板滚动位置', async ()
 
   await user.click(await screen.findByRole('button', { name: /长文/ }));
 
-  const dock = container.querySelector('.article-detail-dock') as HTMLDivElement;
+  const dock = container.querySelector('.article-detail-scroll') as HTMLDivElement;
   expect(dock).not.toBeNull();
   dock.scrollTop = 420;
   expect(dock.scrollTop).toBeGreaterThan(0);
@@ -173,7 +173,7 @@ test('在文章列表中切换另一篇文章时重置文章详情面板滚动�
 
   await user.click(await screen.findByRole('button', { name: /长文/ }));
 
-  const dock = container.querySelector('.article-detail-dock') as HTMLDivElement;
+  const dock = container.querySelector('.article-detail-scroll') as HTMLDivElement;
   expect(dock).not.toBeNull();
   dock.scrollTop = 420;
   expect(dock.scrollTop).toBeGreaterThan(0);
@@ -183,6 +183,39 @@ test('在文章列表中切换另一篇文章时重置文章详情面板滚动�
   await waitFor(() => {
     expect(dock.scrollTop).toBe(0);
   });
+});
+
+test('文章详情标题不放在正文滚动容器内', async () => {
+  const user = userEvent.setup();
+  const store = new Map<string, string>();
+  // @ts-expect-error test polyfill
+  globalThis.localStorage = {
+    getItem: (k: string) => (store.has(k) ? store.get(k)! : null),
+    setItem: (k: string, v: string) => {
+      store.set(k, String(v));
+    },
+    removeItem: (k: string) => {
+      store.delete(k);
+    },
+  };
+
+  const { container } = render(
+    <MemoryRouter initialEntries={['/']}>
+      <ThemeProvider>
+        <ToastProvider>
+          <Home />
+        </ToastProvider>
+      </ThemeProvider>
+    </MemoryRouter>
+  );
+
+  await user.click(await screen.findByRole('button', { name: /长文/ }));
+
+  const scroll = container.querySelector('.article-detail-scroll') as HTMLDivElement;
+  const title = container.querySelector('.article-detail-title') as HTMLAnchorElement;
+  expect(scroll).not.toBeNull();
+  expect(title).not.toBeNull();
+  expect(scroll.contains(title)).toBe(false);
 });
 
 test('刷新后首屏文章加载完成时重置文章列表滚动位置', async () => {

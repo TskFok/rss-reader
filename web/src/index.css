@@ -3463,12 +3463,21 @@ html[data-ui-style="eink"] .ui-style-floating-wrap {
 
 .article-detail-dock {
   flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
   border: 1px solid var(--nice-admin-card-border);
   border-radius: 12px;
   background: var(--nice-admin-card-bg);
   box-shadow: var(--nice-admin-shadow);
   padding: 18px;
-  height: 40vh;
+  height: 50vh;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.article-detail-scroll {
+  flex: 1;
+  min-height: 0;
   overflow: auto;
 }
 
