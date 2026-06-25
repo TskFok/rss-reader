@@ -1,6 +1,7 @@
 package logger
 
 import (
+	"io"
 	"log"
 	"os"
 	"strings"
@@ -49,6 +50,16 @@ func shouldLog(l Level) bool {
 	mu.RLock()
 	defer mu.RUnlock()
 	return l >= level
+}
+
+// Writer 返回当前日志输出目标（主要用于测试）
+func Writer() io.Writer {
+	return stdLog.Writer()
+}
+
+// SetOutput 重定向日志输出（主要用于测试）
+func SetOutput(w io.Writer) {
+	stdLog.SetOutput(w)
 }
 
 // Debug 输出 debug 日志

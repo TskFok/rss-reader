@@ -90,6 +90,19 @@ func TestError_RespectsLevel(t *testing.T) {
 	}
 }
 
+func TestSetOutput_RedirectsLog(t *testing.T) {
+	var buf bytes.Buffer
+	old := Writer()
+	SetOutput(&buf)
+	defer SetOutput(old)
+
+	Init("info")
+	Info("redirect %s", "ok")
+	if got := buf.String(); !strings.Contains(got, "redirect ok") {
+		t.Errorf("SetOutput should redirect logs, got %q", got)
+	}
+}
+
 func TestFatal_AlwaysOutputs(t *testing.T) {
 	// Fatalf exits, so we can't easily test it. Just verify it doesn't panic.
 	// Use a custom logger that doesn't exit for testing.

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/mmcdole/gofeed"
+	"github.com/ushopal/rss-reader/internal/logger"
 	"github.com/ushopal/rss-reader/internal/models"
 	"golang.org/x/net/proxy"
 	"gorm.io/gorm"
@@ -18,6 +19,8 @@ import (
 var (
 	ErrInvalidFeedURL = errors.New("无效的 RSS 地址")
 )
+
+const articleInsertBatchSize = 100
 
 // RSSService RSS 抓取服务
 type RSSService struct {
@@ -117,8 +120,42 @@ func (s *RSSService) existingArticleGUIDs(feedID uint, guids []string) (map[stri
 	return existing, nil
 }
 
+func articleFromCandidate(feedID uint, c feedItemCandidate) models.Article {
+	var pubAt *time.Time
+	if c.item.PublishedParsed != nil {
+		pubAt = c.item.PublishedParsed
+	}
+	content := ""
+	if c.item.Content != "" {
+		content = c.item.Content
+	} else if c.item.Description != "" {
+		content = c.item.Description
+	}
+	return models.Article{
+		FeedID:      feedID,
+		GUID:        c.guid,
+		GUIDRaw:     c.raw,
+		Title:       c.item.Title,
+		Link:        c.item.Link,
+		Content:     content,
+		PublishedAt: pubAt,
+	}
+}
+
+// insertArticles 批量插入文章；tx 为 nil 时使用默认连接。GORM 会回填每条记录的自增 ID。
+func (s *RSSService) insertArticles(tx *gorm.DB, articles []models.Article) error {
+	if len(articles) == 0 {
+		return nil
+	}
+	if tx == nil {
+		tx = s.db
+	}
+	return tx.CreateInBatches(&articles, articleInsertBatchSize).Error
+}
+
 // FetchFeed 抓取 feed 并更新文章；若 feed.Proxy 不为空则通过代理抓取
 func (s *RSSService) FetchFeed(feed *models.Feed) error {
+	start := time.Now()
 	proxyURL := ""
 	if feed.Proxy != nil {
 		proxyURL = feed.Proxy.URL
@@ -157,36 +194,37 @@ func (s *RSSService) FetchFeed(feed *models.Feed) error {
 		return err
 	}
 
+	newArticles := make([]models.Article, 0, len(candidates))
 	for _, c := range candidates {
 		if _, ok := existing[c.guid]; ok {
 			continue
 		}
-		var pubAt *time.Time
-		if c.item.PublishedParsed != nil {
-			pubAt = c.item.PublishedParsed
-		}
-		content := ""
-		if c.item.Content != "" {
-			content = c.item.Content
-		} else if c.item.Description != "" {
-			content = c.item.Description
-		}
-		article := models.Article{
-			FeedID:      feed.ID,
-			GUID:        c.guid,
-			GUIDRaw:     c.raw,
-			Title:       c.item.Title,
-			Link:        c.item.Link,
-			Content:     content,
-			PublishedAt: pubAt,
-		}
-		if err := s.db.Create(&article).Error; err != nil {
+		existing[c.guid] = struct{}{}
+		newArticles = append(newArticles, articleFromCandidate(feed.ID, c))
+	}
+	skipped := len(candidates) - len(newArticles)
+	if err := s.db.Transaction(func(tx *gorm.DB) error {
+		if err := s.insertArticles(tx, newArticles); err != nil {
 			return err
 		}
-		existing[c.guid] = struct{}{}
-		if s.articleAI != nil {
-			s.articleAI.Enqueue(feed, article.ID)
-		}
+		return tx.Model(feed).Update("last_fetched_at", now).Error
+	}); err != nil {
+		return err
 	}
-	return s.db.Model(feed).Update("last_fetched_at", now).Error
+	if s.articleAI != nil && len(newArticles) > 0 {
+		articleIDs := make([]uint, len(newArticles))
+		for i := range newArticles {
+			articleIDs[i] = newArticles[i].ID
+		}
+		s.articleAI.EnqueueBatch(feed, articleIDs)
+	}
+	duration := time.Since(start)
+	if len(newArticles) > 0 {
+		logger.Info("rss: fetch feed=%d url=%s items=%d inserted=%d skipped=%d duration=%s",
+			feed.ID, feed.URL, len(candidates), len(newArticles), skipped, duration)
+	} else {
+		logger.Debug("rss: fetch feed=%d url=%s items=%d inserted=0 skipped=%d duration=%s",
+			feed.ID, feed.URL, len(candidates), skipped, duration)
+	}
+	return nil
 }

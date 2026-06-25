@@ -151,7 +151,21 @@ func (p *ArticleAIProcessor) Enqueue(feed *models.Feed, articleID uint) {
 	if p == nil || feed == nil || !FeedNeedsAIProcessing(feed) {
 		return
 	}
+	p.enqueueOne(*feed, articleID)
+}
+
+// EnqueueBatch 批量入队；共享一次订阅校验与 feed 拷贝，减少重复开销。
+func (p *ArticleAIProcessor) EnqueueBatch(feed *models.Feed, articleIDs []uint) {
+	if p == nil || feed == nil || !FeedNeedsAIProcessing(feed) || len(articleIDs) == 0 {
+		return
+	}
 	fd := *feed
+	for _, articleID := range articleIDs {
+		p.enqueueOne(fd, articleID)
+	}
+}
+
+func (p *ArticleAIProcessor) enqueueOne(fd models.Feed, articleID uint) {
 	job := articleAIJob{userID: fd.UserID, feed: fd, articleID: articleID}
 	if p.queue == nil {
 		go p.run(job.userID, job.feed, job.articleID)

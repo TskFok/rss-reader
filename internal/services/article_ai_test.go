@@ -406,6 +406,70 @@ func TestArticleAIProcessor_EnqueueRateLimitsAutomaticJobs(t *testing.T) {
 	assert.GreaterOrEqual(t, gap, 500*time.Millisecond)
 }
 
+func TestArticleAIProcessor_EnqueueBatch(t *testing.T) {
+	db := setupArticleAIDB(t)
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"choices": []map[string]any{
+				{"message": map[string]string{"content": `{"title_translated":"T","content_translated":"B"}`}},
+			},
+		})
+	}))
+	defer ts.Close()
+
+	user := models.User{Username: "auto-batch", PasswordHash: "x"}
+	require.NoError(t, db.Create(&user).Error)
+	m := models.AIModel{UserID: user.ID, Name: "m", BaseURL: ts.URL + "/v1"}
+	require.NoError(t, db.Create(&m).Error)
+	feed := models.Feed{
+		UserID: user.ID, URL: "http://example.com/auto-batch", Title: "F", UpdateIntervalMinutes: 60,
+		AIModelID: &m.ID, AITranslateEnabled: true, AITargetLanguage: "en",
+	}
+	require.NoError(t, db.Create(&feed).Error)
+	ids := make([]uint, 0, 3)
+	for i := 0; i < 3; i++ {
+		art := models.Article{
+			FeedID: feed.ID, GUID: models.ArticleGUIDHash("auto-batch-" + strconv.Itoa(i)),
+			GUIDRaw: "auto-batch-" + strconv.Itoa(i), Title: "标题", Content: "正文",
+		}
+		require.NoError(t, db.Create(&art).Error)
+		ids = append(ids, art.ID)
+	}
+
+	p := NewArticleAIProcessor(db, NewAIModelService(db))
+	defer p.Stop()
+	p.EnqueueBatch(&feed, ids)
+
+	require.Eventually(t, func() bool {
+		var n int64
+		require.NoError(t, db.Model(&models.Article{}).
+			Where("feed_id = ? AND content_translated <> ''", feed.ID).
+			Count(&n).Error)
+		return n == int64(len(ids))
+	}, 5*time.Second, 20*time.Millisecond)
+}
+
+func TestArticleAIProcessor_EnqueueBatch_SkipsWhenAINotConfigured(t *testing.T) {
+	db := setupArticleAIDB(t)
+	user := models.User{Username: "auto-batch-skip", PasswordHash: "x"}
+	require.NoError(t, db.Create(&user).Error)
+	feed := models.Feed{UserID: user.ID, URL: "http://example.com/auto-batch-skip", Title: "F", UpdateIntervalMinutes: 60}
+	require.NoError(t, db.Create(&feed).Error)
+	art := models.Article{
+		FeedID: feed.ID, GUID: models.ArticleGUIDHash("auto-batch-skip"), GUIDRaw: "auto-batch-skip", Title: "标题",
+	}
+	require.NoError(t, db.Create(&art).Error)
+
+	p := NewArticleAIProcessor(db, NewAIModelService(db))
+	defer p.Stop()
+	p.EnqueueBatch(&feed, []uint{art.ID})
+	p.EnqueueBatch(&feed, nil)
+
+	var out models.Article
+	require.NoError(t, db.First(&out, art.ID).Error)
+	assert.Equal(t, "", out.AIProcessStatus)
+}
+
 func TestArticleAIProcessor_EnqueueClassifyThenTranslateUsesOneModelCall(t *testing.T) {
 	db := setupArticleAIDB(t)
 	var mu sync.Mutex
