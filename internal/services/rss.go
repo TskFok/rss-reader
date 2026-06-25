@@ -93,6 +93,30 @@ func (s *RSSService) FetchAndParse(feedURL string, proxyURL string) (title strin
 	return feedURL, nil
 }
 
+type feedItemCandidate struct {
+	item *gofeed.Item
+	raw  string
+	guid string
+}
+
+// existingArticleGUIDs 批量查询指定 feed 下已存在的文章 guid。
+func (s *RSSService) existingArticleGUIDs(feedID uint, guids []string) (map[string]struct{}, error) {
+	existing := make(map[string]struct{})
+	if len(guids) == 0 {
+		return existing, nil
+	}
+	var rows []string
+	if err := s.db.Model(&models.Article{}).
+		Where("feed_id = ? AND guid IN ?", feedID, guids).
+		Pluck("guid", &rows).Error; err != nil {
+		return nil, err
+	}
+	for _, g := range rows {
+		existing[g] = struct{}{}
+	}
+	return existing, nil
+}
+
 // FetchFeed 抓取 feed 并更新文章；若 feed.Proxy 不为空则通过代理抓取
 func (s *RSSService) FetchFeed(feed *models.Feed) error {
 	proxyURL := ""
@@ -105,6 +129,10 @@ func (s *RSSService) FetchFeed(feed *models.Feed) error {
 		return err
 	}
 	now := time.Now()
+
+	candidates := make([]feedItemCandidate, 0, len(parsed.Items))
+	uniqueGUIDs := make([]string, 0, len(parsed.Items))
+	seenGUID := make(map[string]struct{})
 	for _, item := range parsed.Items {
 		raw := strings.TrimSpace(item.GUID)
 		if raw == "" {
@@ -117,33 +145,45 @@ func (s *RSSService) FetchFeed(feed *models.Feed) error {
 		if guid == "" {
 			continue
 		}
-		var exists int64
-		s.db.Model(&models.Article{}).Where("feed_id = ? AND guid = ?", feed.ID, guid).Count(&exists)
-		if exists > 0 {
+		candidates = append(candidates, feedItemCandidate{item: item, raw: raw, guid: guid})
+		if _, ok := seenGUID[guid]; !ok {
+			seenGUID[guid] = struct{}{}
+			uniqueGUIDs = append(uniqueGUIDs, guid)
+		}
+	}
+
+	existing, err := s.existingArticleGUIDs(feed.ID, uniqueGUIDs)
+	if err != nil {
+		return err
+	}
+
+	for _, c := range candidates {
+		if _, ok := existing[c.guid]; ok {
 			continue
 		}
 		var pubAt *time.Time
-		if item.PublishedParsed != nil {
-			pubAt = item.PublishedParsed
+		if c.item.PublishedParsed != nil {
+			pubAt = c.item.PublishedParsed
 		}
 		content := ""
-		if item.Content != "" {
-			content = item.Content
-		} else if item.Description != "" {
-			content = item.Description
+		if c.item.Content != "" {
+			content = c.item.Content
+		} else if c.item.Description != "" {
+			content = c.item.Description
 		}
 		article := models.Article{
 			FeedID:      feed.ID,
-			GUID:        guid,
-			GUIDRaw:     raw,
-			Title:       item.Title,
-			Link:        item.Link,
+			GUID:        c.guid,
+			GUIDRaw:     c.raw,
+			Title:       c.item.Title,
+			Link:        c.item.Link,
 			Content:     content,
 			PublishedAt: pubAt,
 		}
 		if err := s.db.Create(&article).Error; err != nil {
 			return err
 		}
+		existing[c.guid] = struct{}{}
 		if s.articleAI != nil {
 			s.articleAI.Enqueue(feed, article.ID)
 		}
