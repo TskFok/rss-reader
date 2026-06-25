@@ -809,7 +809,7 @@ export default function Feeds() {
         editAiModelName,
         editAiModelBaseUrl,
         editAiModelApiKey === '' ? undefined : editAiModelApiKey,
-        editAiModelBackupId === '' ? undefined : editAiModelBackupId
+        editAiModelBackupId === '' ? null : editAiModelBackupId
       );
       setEditingAiModel(null);
       setEditAiModelApiKey('');

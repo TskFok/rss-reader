@@ -115,6 +115,39 @@ func TestAIModelService_EmptyBaseURL(t *testing.T) {
 	assert.Error(t, err)
 }
 
+func TestAIModelService_Update_ClearBackupModel(t *testing.T) {
+	db := setupAIModelDB(t)
+	svc := NewAIModelService(db)
+
+	backup, err := svc.Create(1, CreateAIModelRequest{
+		Name:    "backup",
+		BaseURL: "https://backup.example/v1",
+	})
+	require.NoError(t, err)
+
+	primary, err := svc.Create(1, CreateAIModelRequest{
+		Name:          "primary",
+		BaseURL:       "https://primary.example/v1",
+		BackupModelID: &backup.ID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, primary.BackupModelID)
+	assert.Equal(t, backup.ID, *primary.BackupModelID)
+
+	zero := uint(0)
+	updated, err := svc.Update(1, primary.ID, UpdateAIModelRequest{
+		Name:          "primary",
+		BaseURL:       "https://primary.example/v1",
+		BackupModelID: &zero,
+	})
+	require.NoError(t, err)
+	assert.Nil(t, updated.BackupModelID)
+
+	reloaded, err := svc.GetByID(1, primary.ID)
+	require.NoError(t, err)
+	assert.Nil(t, reloaded.BackupModelID)
+}
+
 func TestAIModelService_Test(t *testing.T) {
 	db := setupAIModelDB(t)
 	svc := NewAIModelService(db)
