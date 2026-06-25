@@ -206,7 +206,7 @@ make build
 - `server.port`：服务端口
 - `server.debug`：是否开启 Gin debug 模式
 - `log.level`：日志等级
-- `database.dsn`：MySQL 连接串
+- `database.dsn`：MySQL 连接串（建议包含 `parseTime=True&loc=Asia%2FShanghai`；未写 `loc` 时应用启动会自动补齐）
 - `jwt.secret`：JWT 签名密钥
 - `jwt.expire_hours`：JWT 有效期小时数
 - `super_admin.username`：可选，指定超级管理员用户名
@@ -216,3 +216,17 @@ make build
 - `ai_backfill.classify_batch`：每轮最多补分类条数
 - `ai_backfill.translate_batch`：每轮最多补翻译条数
 - `ai_backfill.delay_ms_between_calls`：AI 补漏调用间隔毫秒数
+
+### 时区
+
+应用统一使用 **Asia/Shanghai（UTC+8）**：
+
+- 进程启动时设置 `time.Local` 与 `TZ=Asia/Shanghai`
+- MySQL DSN 使用 `loc=Asia%2FShanghai`，连接后执行 `SET time_zone = '+08:00'`
+- Docker Compose 中 app 与 mysql 均设置 `TZ`，MySQL 默认 `--default-time-zone=+08:00`
+
+非 Docker 部署时，请确保 MySQL 服务器时区亦为 `+08:00`，例如：
+
+```sql
+SET GLOBAL time_zone = '+08:00';
+```

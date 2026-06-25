@@ -20,7 +20,8 @@ RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -o rss-reader .
 
 # Stage 3: 运行
 FROM alpine:latest
-RUN apk --no-cache add ca-certificates
+RUN apk --no-cache add ca-certificates tzdata
+ENV TZ=Asia/Shanghai
 COPY --from=backend /app/rss-reader /rss-reader
 COPY config.example.yaml /config.yaml
 WORKDIR /

@@ -15,6 +15,7 @@ import (
 	"github.com/ushopal/rss-reader/internal/middleware"
 	"github.com/ushopal/rss-reader/internal/scheduler"
 	"github.com/ushopal/rss-reader/internal/services"
+	"github.com/ushopal/rss-reader/internal/timeutil"
 )
 
 func main() {
@@ -25,11 +26,16 @@ func main() {
 	if _, err := os.Stat(cfgPath); os.IsNotExist(err) && cfgPath == "config.yaml" {
 		cfgPath = "config.example.yaml"
 	}
+	if err := timeutil.Init(); err != nil {
+		fmt.Fprintf(os.Stderr, "init timezone: %v\n", err)
+		os.Exit(1)
+	}
 	cfg, err := config.Load(cfgPath)
 	if err != nil {
 		logger.Fatalf("load config: %v", err)
 	}
 	logger.Init(cfg.Log.Level)
+	logger.Info("timezone: %s (mysql %s)", timeutil.LocationName, timeutil.MySQLTimeZone)
 	db, err := database.Init(cfg.Database.DSN)
 	if err != nil {
 		logger.Fatalf("init db: %v", err)

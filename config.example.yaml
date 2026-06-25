@@ -6,7 +6,7 @@ server:
 log:
   level: info
 database:
-  dsn: "rss_user:rss_pass@tcp(localhost:3306)/rss_reader?charset=utf8mb4&parseTime=True"
+  dsn: "rss_user:rss_pass@tcp(localhost:3306)/rss_reader?charset=utf8mb4&parseTime=True&loc=Asia%2FShanghai"
 jwt:
   secret: "your-secret-key-change-in-production"
   expire_hours: 168  # 7 天

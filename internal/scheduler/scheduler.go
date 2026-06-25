@@ -11,6 +11,7 @@ import (
 	"github.com/ushopal/rss-reader/internal/logger"
 	"github.com/ushopal/rss-reader/internal/models"
 	"github.com/ushopal/rss-reader/internal/services"
+	"github.com/ushopal/rss-reader/internal/timeutil"
 	"gorm.io/gorm"
 )
 
@@ -167,11 +168,7 @@ func (s *Scheduler) runSummarySchedules() {
 	if s.aiModelSvc == nil || s.articleSvc == nil || s.historySvc == nil || s.db == nil {
 		return
 	}
-	loc, _ := time.LoadLocation("Asia/Shanghai")
 	now := time.Now()
-	if loc != nil {
-		now = now.In(loc)
-	}
 	hhmm := now.Format("15:04")
 
 	var schedules []models.AISummarySchedule
@@ -192,11 +189,7 @@ func (s *Scheduler) runSummarySchedules() {
 		}
 		// 今天已执行过则跳过
 		if sc.LastRunAt != nil {
-			last := *sc.LastRunAt
-			if loc != nil {
-				last = last.In(loc)
-			}
-			if sameDate(last, now) {
+			if sameDate(*sc.LastRunAt, now) {
 				continue
 			}
 		}
@@ -232,7 +225,7 @@ func (s *Scheduler) runSummarySchedules() {
 				schedule.PageSize,
 				schedule.Order,
 				now,
-				loc,
+				timeutil.Location,
 				s.feishuBot,
 				s.db,
 				prompt,
