@@ -149,10 +149,11 @@ func (s *AIModelService) Reorder(userID uint, idList []uint) error {
 
 // chatCompletionsRequest OpenAI 兼容的聊天请求
 type chatCompletionsRequest struct {
-	Model     string        `json:"model"`
-	Messages  []chatMessage `json:"messages"`
-	MaxTokens int           `json:"max_tokens,omitempty"`
-	Stream    bool          `json:"stream,omitempty"`
+	Model     string         `json:"model"`
+	Messages  []chatMessage  `json:"messages"`
+	MaxTokens int            `json:"max_tokens,omitempty"`
+	Stream    bool           `json:"stream,omitempty"`
+	Thinking  *thinkingParam `json:"thinking,omitempty"`
 }
 
 type chatMessage struct {
@@ -208,12 +209,7 @@ func (s *AIModelService) ChatCompletionText(userID uint, modelID uint, maxTokens
 
 func (s *AIModelService) chatCompletionTextWithModel(m *models.AIModel, maxTokens int, messages []chatMessage) (string, error) {
 	chatURL := chatCompletionsURL(m.BaseURL)
-	body := chatCompletionsRequest{
-		Model:     m.Name,
-		MaxTokens: maxTokens,
-		Stream:    false,
-		Messages:  messages,
-	}
+	body := buildChatCompletionsRequest(m.Name, maxTokens, false, messages)
 	bodyBytes, err := json.Marshal(body)
 	if err != nil {
 		return "", err
@@ -267,7 +263,8 @@ func (s *AIModelService) Summarize(userID uint, modelID uint, articles []Article
 type streamChunk struct {
 	Choices []struct {
 		Delta struct {
-			Content string `json:"content"`
+			Content          string `json:"content"`
+			ReasoningContent string `json:"reasoning_content"`
 		} `json:"delta"`
 		FinishReason *string `json:"finish_reason"`
 	} `json:"choices"`
@@ -314,12 +311,7 @@ func (s *AIModelService) ChatCompletionStream(userID uint, modelID uint, maxToke
 
 func (s *AIModelService) chatCompletionStreamWithModel(m *models.AIModel, maxTokens int, messages []chatMessage, onChunk func(string) error) error {
 	chatURL := chatCompletionsURL(m.BaseURL)
-	body := chatCompletionsRequest{
-		Model:     m.Name,
-		MaxTokens: maxTokens,
-		Stream:    true,
-		Messages:  messages,
-	}
+	body := buildChatCompletionsRequest(m.Name, maxTokens, true, messages)
 	bodyBytes, err := json.Marshal(body)
 	if err != nil {
 		return err
@@ -374,11 +366,7 @@ func (s *AIModelService) Test(userID uint, id uint) error {
 		return err
 	}
 	chatURL := chatCompletionsURL(m.BaseURL)
-	body := chatCompletionsRequest{
-		Model:     m.Name,
-		MaxTokens: 5,
-		Messages:  []chatMessage{{Role: "user", Content: "hi"}},
-	}
+	body := buildChatCompletionsRequest(m.Name, 5, false, []chatMessage{{Role: "user", Content: "hi"}})
 	bodyBytes, err := json.Marshal(body)
 	if err != nil {
 		return err
