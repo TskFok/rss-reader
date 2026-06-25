@@ -26,21 +26,52 @@ func NewAIModelService(db *gorm.DB) *AIModelService {
 }
 
 type CreateAIModelRequest struct {
-	Name          string `json:"name" binding:"required,min=1,max=128"`
-	BaseURL       string `json:"base_url" binding:"required,min=1,max=512"`
-	APIKey        string `json:"api_key"`
-	BackupModelID *uint  `json:"backup_model_id"`
+	Name             string   `json:"name" binding:"required,min=1,max=128"`
+	BaseURL          string   `json:"base_url" binding:"required,min=1,max=512"`
+	APIKey           string   `json:"api_key"`
+	BackupModelID    *uint    `json:"backup_model_id"`
+	TopP             *float64 `json:"top_p"`
+	N                *int     `json:"n"`
+	PresencePenalty  *float64 `json:"presence_penalty"`
+	FrequencyPenalty *float64 `json:"frequency_penalty"`
 }
 
 type UpdateAIModelRequest struct {
-	Name          string  `json:"name" binding:"required,min=1,max=128"`
-	BaseURL       string  `json:"base_url" binding:"required,min=1,max=512"`
-	APIKey        *string `json:"api_key"` // nil 表示不修改，空字符串表示清空
-	BackupModelID *uint   `json:"backup_model_id"`
+	Name             string   `json:"name" binding:"required,min=1,max=128"`
+	BaseURL          string   `json:"base_url" binding:"required,min=1,max=512"`
+	APIKey           *string  `json:"api_key"` // nil 表示不修改，空字符串表示清空
+	BackupModelID    *uint    `json:"backup_model_id"`
+	TopP             *float64 `json:"top_p"`
+	N                *int     `json:"n"`
+	PresencePenalty  *float64 `json:"presence_penalty"`
+	FrequencyPenalty *float64 `json:"frequency_penalty"`
 }
 
 func normalizeURL(s string) string {
 	return strings.TrimSpace(s)
+}
+
+func validateAIModelSamplingParams(topP *float64, n *int, presencePenalty, frequencyPenalty *float64) error {
+	if topP != nil && (*topP < 0 || *topP > 1) {
+		return errors.New("top_p 须在 0～1 之间")
+	}
+	if n != nil && *n < 1 {
+		return errors.New("n 须大于等于 1")
+	}
+	if presencePenalty != nil && (*presencePenalty < -2 || *presencePenalty > 2) {
+		return errors.New("presence_penalty 须在 -2～2 之间")
+	}
+	if frequencyPenalty != nil && (*frequencyPenalty < -2 || *frequencyPenalty > 2) {
+		return errors.New("frequency_penalty 须在 -2～2 之间")
+	}
+	return nil
+}
+
+func applyAIModelSamplingFields(m *models.AIModel, topP *float64, n *int, presencePenalty, frequencyPenalty *float64) {
+	m.TopP = topP
+	m.N = n
+	m.PresencePenalty = presencePenalty
+	m.FrequencyPenalty = frequencyPenalty
 }
 
 func (s *AIModelService) List(userID uint) ([]models.AIModel, error) {
@@ -53,6 +84,9 @@ func (s *AIModelService) Create(userID uint, req CreateAIModelRequest) (*models.
 	baseURL := normalizeURL(req.BaseURL)
 	if baseURL == "" {
 		return nil, errors.New("调用地址不能为空")
+	}
+	if err := validateAIModelSamplingParams(req.TopP, req.N, req.PresencePenalty, req.FrequencyPenalty); err != nil {
+		return nil, err
 	}
 	var backupID *uint
 	if req.BackupModelID != nil && *req.BackupModelID != 0 {
@@ -75,6 +109,7 @@ func (s *AIModelService) Create(userID uint, req CreateAIModelRequest) (*models.
 		BackupModelID: backupID,
 		SortOrder:     maxOrder + 1,
 	}
+	applyAIModelSamplingFields(m, req.TopP, req.N, req.PresencePenalty, req.FrequencyPenalty)
 	if err := s.db.Create(m).Error; err != nil {
 		return nil, err
 	}
@@ -95,6 +130,9 @@ func (s *AIModelService) GetByID(userID uint, id uint) (*models.AIModel, error) 
 func (s *AIModelService) Update(userID uint, id uint, req UpdateAIModelRequest) (*models.AIModel, error) {
 	m, err := s.GetByID(userID, id)
 	if err != nil {
+		return nil, err
+	}
+	if err := validateAIModelSamplingParams(req.TopP, req.N, req.PresencePenalty, req.FrequencyPenalty); err != nil {
 		return nil, err
 	}
 	if req.BackupModelID != nil {
@@ -121,6 +159,18 @@ func (s *AIModelService) Update(userID uint, id uint, req UpdateAIModelRequest) 
 	m.BaseURL = baseURL
 	if req.APIKey != nil {
 		m.APIKey = strings.TrimSpace(*req.APIKey)
+	}
+	if req.TopP != nil {
+		m.TopP = req.TopP
+	}
+	if req.N != nil {
+		m.N = req.N
+	}
+	if req.PresencePenalty != nil {
+		m.PresencePenalty = req.PresencePenalty
+	}
+	if req.FrequencyPenalty != nil {
+		m.FrequencyPenalty = req.FrequencyPenalty
 	}
 	if err := s.db.Save(m).Error; err != nil {
 		return nil, err
@@ -149,11 +199,15 @@ func (s *AIModelService) Reorder(userID uint, idList []uint) error {
 
 // chatCompletionsRequest OpenAI 兼容的聊天请求
 type chatCompletionsRequest struct {
-	Model     string         `json:"model"`
-	Messages  []chatMessage  `json:"messages"`
-	MaxTokens int            `json:"max_tokens,omitempty"`
-	Stream    bool           `json:"stream,omitempty"`
-	Thinking  *thinkingParam `json:"thinking,omitempty"`
+	Model            string         `json:"model"`
+	Messages         []chatMessage  `json:"messages"`
+	MaxTokens        int            `json:"max_tokens,omitempty"`
+	Stream           bool           `json:"stream,omitempty"`
+	Thinking         *thinkingParam `json:"thinking,omitempty"`
+	TopP             *float64       `json:"top_p,omitempty"`
+	N                *int           `json:"n,omitempty"`
+	PresencePenalty  *float64       `json:"presence_penalty,omitempty"`
+	FrequencyPenalty *float64       `json:"frequency_penalty,omitempty"`
 }
 
 type chatMessage struct {
@@ -209,7 +263,7 @@ func (s *AIModelService) ChatCompletionText(userID uint, modelID uint, maxTokens
 
 func (s *AIModelService) chatCompletionTextWithModel(m *models.AIModel, maxTokens int, messages []chatMessage) (string, error) {
 	chatURL := chatCompletionsURL(m.BaseURL)
-	body := buildChatCompletionsRequest(m.Name, maxTokens, false, messages)
+	body := buildChatCompletionsRequest(m, maxTokens, false, messages)
 	bodyBytes, err := json.Marshal(body)
 	if err != nil {
 		return "", err
@@ -311,7 +365,7 @@ func (s *AIModelService) ChatCompletionStream(userID uint, modelID uint, maxToke
 
 func (s *AIModelService) chatCompletionStreamWithModel(m *models.AIModel, maxTokens int, messages []chatMessage, onChunk func(string) error) error {
 	chatURL := chatCompletionsURL(m.BaseURL)
-	body := buildChatCompletionsRequest(m.Name, maxTokens, true, messages)
+	body := buildChatCompletionsRequest(m, maxTokens, true, messages)
 	bodyBytes, err := json.Marshal(body)
 	if err != nil {
 		return err
@@ -366,7 +420,7 @@ func (s *AIModelService) Test(userID uint, id uint) error {
 		return err
 	}
 	chatURL := chatCompletionsURL(m.BaseURL)
-	body := buildChatCompletionsRequest(m.Name, 5, false, []chatMessage{{Role: "user", Content: "hi"}})
+	body := buildChatCompletionsRequest(m, 5, false, []chatMessage{{Role: "user", Content: "hi"}})
 	bodyBytes, err := json.Marshal(body)
 	if err != nil {
 		return err

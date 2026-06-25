@@ -84,9 +84,27 @@ export interface AIModel {
   base_url: string;
   backup_model_id?: number | null;
   sort_order?: number;
+  top_p?: number | null;
+  n?: number | null;
+  presence_penalty?: number | null;
+  frequency_penalty?: number | null;
   created_at: string;
   updated_at: string;
 }
+
+export const KIMI_DEFAULT_SAMPLING = {
+  top_p: 0.95,
+  n: 1,
+  presence_penalty: 0,
+  frequency_penalty: 0,
+} as const;
+
+export type AIModelSamplingParams = {
+  top_p?: number | null;
+  n?: number | null;
+  presence_penalty?: number | null;
+  frequency_penalty?: number | null;
+};
 
 export interface Article {
   id: number;
@@ -269,19 +287,40 @@ export const proxiesApi = {
 
 export const aiModelsApi = {
   list: () => client.get<AIModel[]>('/ai-models'),
-  create: (name: string, base_url: string, api_key?: string, backup_model_id?: number | null) =>
+  create: (
+    name: string,
+    base_url: string,
+    api_key?: string,
+    backup_model_id?: number | null,
+    sampling?: AIModelSamplingParams
+  ) =>
     client.post<AIModel>('/ai-models', {
       name,
       base_url,
       api_key: api_key ?? '',
       ...(backup_model_id !== undefined && { backup_model_id: backup_model_id ?? 0 }),
+      ...(sampling?.top_p !== undefined && { top_p: sampling.top_p }),
+      ...(sampling?.n !== undefined && { n: sampling.n }),
+      ...(sampling?.presence_penalty !== undefined && { presence_penalty: sampling.presence_penalty }),
+      ...(sampling?.frequency_penalty !== undefined && { frequency_penalty: sampling.frequency_penalty }),
     }),
-  update: (id: number, name: string, base_url: string, api_key?: string | null, backup_model_id?: number | null) =>
+  update: (
+    id: number,
+    name: string,
+    base_url: string,
+    api_key?: string | null,
+    backup_model_id?: number | null,
+    sampling?: AIModelSamplingParams
+  ) =>
     client.put<AIModel>(`/ai-models/${id}`, {
       name,
       base_url,
       ...(api_key !== undefined && { api_key: api_key ?? '' }),
       ...(backup_model_id !== undefined && { backup_model_id: backup_model_id ?? 0 }),
+      ...(sampling?.top_p !== undefined && { top_p: sampling.top_p }),
+      ...(sampling?.n !== undefined && { n: sampling.n }),
+      ...(sampling?.presence_penalty !== undefined && { presence_penalty: sampling.presence_penalty }),
+      ...(sampling?.frequency_penalty !== undefined && { frequency_penalty: sampling.frequency_penalty }),
     }),
   delete: (id: number) => client.delete(`/ai-models/${id}`),
   test: (id: number) =>

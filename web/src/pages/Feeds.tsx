@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { feedsApi, categoriesApi, opmlApi, proxiesApi, aiModelsApi, articlesApi, summarySchedulesApi, summaryHistoriesApi, summaryTemplatesApi, userSettingsApi } from '../api/client';
 import type { Feed, FeedCategory, Proxy, AIModel, SummarySchedule, SummaryTemplate } from '../api/client';
+import { KIMI_DEFAULT_SAMPLING } from '../api/client';
 import { useAuth } from '../contexts/AuthContext';
 import Modal from '../components/Modal';
 import Admin from './Admin';
@@ -15,6 +16,97 @@ type TabType = (typeof TAB_OPTIONS)[number];
 /** 上海时区当日的 YYYY-MM-DD */
 function getTodayShanghai(): string {
   return new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Shanghai' });
+}
+
+function resetAiModelSamplingForm(
+  setTopP: (v: string) => void,
+  setN: (v: string) => void,
+  setPresence: (v: string) => void,
+  setFrequency: (v: string) => void
+) {
+  setTopP(String(KIMI_DEFAULT_SAMPLING.top_p));
+  setN(String(KIMI_DEFAULT_SAMPLING.n));
+  setPresence(String(KIMI_DEFAULT_SAMPLING.presence_penalty));
+  setFrequency(String(KIMI_DEFAULT_SAMPLING.frequency_penalty));
+}
+
+function loadAiModelSamplingForm(
+  model: AIModel,
+  setTopP: (v: string) => void,
+  setN: (v: string) => void,
+  setPresence: (v: string) => void,
+  setFrequency: (v: string) => void
+) {
+  setTopP(String(model.top_p ?? KIMI_DEFAULT_SAMPLING.top_p));
+  setN(String(model.n ?? KIMI_DEFAULT_SAMPLING.n));
+  setPresence(String(model.presence_penalty ?? KIMI_DEFAULT_SAMPLING.presence_penalty));
+  setFrequency(String(model.frequency_penalty ?? KIMI_DEFAULT_SAMPLING.frequency_penalty));
+}
+
+type ParseAiModelSamplingResult =
+  | { ok: true; sampling: { top_p: number; n: number; presence_penalty: number; frequency_penalty: number } }
+  | { ok: false; error: string };
+
+function parseAiModelSamplingFields(topP: string, n: string, presence: string, frequency: string): ParseAiModelSamplingResult {
+  const parsedTopP = Number(topP);
+  const parsedN = Number.parseInt(n, 10);
+  const parsedPresence = Number(presence);
+  const parsedFrequency = Number(frequency);
+  if (
+    Number.isNaN(parsedTopP) ||
+    Number.isNaN(parsedN) ||
+    Number.isNaN(parsedPresence) ||
+    Number.isNaN(parsedFrequency)
+  ) {
+    return { ok: false, error: '采样参数须为有效数字' };
+  }
+  return {
+    ok: true,
+    sampling: {
+      top_p: parsedTopP,
+      n: parsedN,
+      presence_penalty: parsedPresence,
+      frequency_penalty: parsedFrequency,
+    },
+  };
+}
+
+function renderAiModelSamplingFields(
+  topP: string,
+  setTopP: (v: string) => void,
+  n: string,
+  setN: (v: string) => void,
+  presence: string,
+  setPresence: (v: string) => void,
+  frequency: string,
+  setFrequency: (v: string) => void
+) {
+  return (
+    <>
+      <div className="feeds-modal-row">
+        <label>扩展采样参数（Kimi K2.6 / K2.7 Code）</label>
+        <span className="feeds-card-sub">temperature 由 Kimi 服务端固定。以下参数在调用该系列模型时生效。</span>
+      </div>
+      <div className="feeds-modal-row feeds-modal-row-inline">
+        <label>
+          top_p
+          <input type="number" min={0} max={1} step={0.01} value={topP} onChange={(e) => setTopP(e.target.value)} required />
+        </label>
+        <label>
+          n
+          <input type="number" min={1} step={1} value={n} onChange={(e) => setN(e.target.value)} required />
+        </label>
+        <label>
+          presence_penalty
+          <input type="number" min={-2} max={2} step={0.1} value={presence} onChange={(e) => setPresence(e.target.value)} required />
+        </label>
+        <label>
+          frequency_penalty
+          <input type="number" min={-2} max={2} step={0.1} value={frequency} onChange={(e) => setFrequency(e.target.value)} required />
+        </label>
+      </div>
+    </>
+  );
 }
 
 export default function Feeds() {
@@ -106,6 +198,10 @@ export default function Feeds() {
   const [aiModelBaseUrl, setAiModelBaseUrl] = useState('');
   const [aiModelApiKey, setAiModelApiKey] = useState('');
   const [aiModelBackupId, setAiModelBackupId] = useState<number | ''>('');
+  const [aiModelTopP, setAiModelTopP] = useState(String(KIMI_DEFAULT_SAMPLING.top_p));
+  const [aiModelN, setAiModelN] = useState(String(KIMI_DEFAULT_SAMPLING.n));
+  const [aiModelPresencePenalty, setAiModelPresencePenalty] = useState(String(KIMI_DEFAULT_SAMPLING.presence_penalty));
+  const [aiModelFrequencyPenalty, setAiModelFrequencyPenalty] = useState(String(KIMI_DEFAULT_SAMPLING.frequency_penalty));
   const [aiModelError, setAiModelError] = useState('');
   const [aiModelSuccess, setAiModelSuccess] = useState('');
   const [aiModelLoading, setAiModelLoading] = useState(false);
@@ -115,6 +211,10 @@ export default function Feeds() {
   const [editAiModelBaseUrl, setEditAiModelBaseUrl] = useState('');
   const [editAiModelApiKey, setEditAiModelApiKey] = useState('');
   const [editAiModelBackupId, setEditAiModelBackupId] = useState<number | ''>('');
+  const [editAiModelTopP, setEditAiModelTopP] = useState(String(KIMI_DEFAULT_SAMPLING.top_p));
+  const [editAiModelN, setEditAiModelN] = useState(String(KIMI_DEFAULT_SAMPLING.n));
+  const [editAiModelPresencePenalty, setEditAiModelPresencePenalty] = useState(String(KIMI_DEFAULT_SAMPLING.presence_penalty));
+  const [editAiModelFrequencyPenalty, setEditAiModelFrequencyPenalty] = useState(String(KIMI_DEFAULT_SAMPLING.frequency_penalty));
   const [testingAiModel, setTestingAiModel] = useState<number | null>(null);
   const [draggedAiModelId, setDraggedAiModelId] = useState<number | null>(null);
   const [dragOverAiModelId, setDragOverAiModelId] = useState<number | null>(null);
@@ -778,18 +878,30 @@ export default function Feeds() {
     e.preventDefault();
     setAiModelError('');
     setAiModelSuccess('');
+    const parsed = parseAiModelSamplingFields(
+      aiModelTopP,
+      aiModelN,
+      aiModelPresencePenalty,
+      aiModelFrequencyPenalty
+    );
+    if (!parsed.ok) {
+      setAiModelError(parsed.error);
+      return;
+    }
     setAiModelLoading(true);
     try {
       await aiModelsApi.create(
         aiModelName,
         aiModelBaseUrl,
         aiModelApiKey || undefined,
-        aiModelBackupId === '' ? undefined : aiModelBackupId
+        aiModelBackupId === '' ? undefined : aiModelBackupId,
+        parsed.sampling
       );
       setAiModelName('');
       setAiModelBaseUrl('');
       setAiModelApiKey('');
       setAiModelBackupId('');
+      resetAiModelSamplingForm(setAiModelTopP, setAiModelN, setAiModelPresencePenalty, setAiModelFrequencyPenalty);
       setAiModelAddOpen(false);
       loadAiModels();
     } catch (err: unknown) {
@@ -803,13 +915,24 @@ export default function Feeds() {
   const handleUpdateAiModel = async (id: number) => {
     setAiModelError('');
     setAiModelSuccess('');
+    const parsed = parseAiModelSamplingFields(
+      editAiModelTopP,
+      editAiModelN,
+      editAiModelPresencePenalty,
+      editAiModelFrequencyPenalty
+    );
+    if (!parsed.ok) {
+      setAiModelError(parsed.error);
+      return;
+    }
     try {
       await aiModelsApi.update(
         id,
         editAiModelName,
         editAiModelBaseUrl,
         editAiModelApiKey === '' ? undefined : editAiModelApiKey,
-        editAiModelBackupId === '' ? null : editAiModelBackupId
+        editAiModelBackupId === '' ? null : editAiModelBackupId,
+        parsed.sampling
       );
       setEditingAiModel(null);
       setEditAiModelApiKey('');
@@ -1746,7 +1869,12 @@ export default function Feeds() {
               </div>
               <div className="feeds-card-header-right">
                 <span className="feeds-card-sub">{aiModels.length} 个模型</span>
-                <button type="button" className="feeds-primary-btn" onClick={() => { setAiModelAddOpen(true); setAiModelError(''); setAiModelSuccess(''); }}>
+                <button type="button" className="feeds-primary-btn" onClick={() => {
+                  setAiModelAddOpen(true);
+                  setAiModelError('');
+                  setAiModelSuccess('');
+                  resetAiModelSamplingForm(setAiModelTopP, setAiModelN, setAiModelPresencePenalty, setAiModelFrequencyPenalty);
+                }}>
                   添加模型
                 </button>
               </div>
@@ -1802,6 +1930,16 @@ export default function Feeds() {
                     ))}
                   </select>
                 </div>
+                {renderAiModelSamplingFields(
+                  aiModelTopP,
+                  setAiModelTopP,
+                  aiModelN,
+                  setAiModelN,
+                  aiModelPresencePenalty,
+                  setAiModelPresencePenalty,
+                  aiModelFrequencyPenalty,
+                  setAiModelFrequencyPenalty
+                )}
                 <div className="feeds-modal-actions">
                   <button type="button" onClick={() => { setAiModelAddOpen(false); setAiModelError(''); setAiModelSuccess(''); }}>取消</button>
                   <button type="submit" disabled={aiModelLoading}>{aiModelLoading ? '添加中...' : '确定'}</button>
@@ -1861,6 +1999,16 @@ export default function Feeds() {
                       ))}
                   </select>
                 </div>
+                {renderAiModelSamplingFields(
+                  editAiModelTopP,
+                  setEditAiModelTopP,
+                  editAiModelN,
+                  setEditAiModelN,
+                  editAiModelPresencePenalty,
+                  setEditAiModelPresencePenalty,
+                  editAiModelFrequencyPenalty,
+                  setEditAiModelFrequencyPenalty
+                )}
                 <div className="feeds-modal-actions">
                   <button type="button" onClick={() => { setEditingAiModel(null); setEditAiModelApiKey(''); setAiModelError(''); setAiModelSuccess(''); }}>取消</button>
                   <button type="submit">保存</button>
@@ -1915,6 +2063,13 @@ export default function Feeds() {
                             setEditAiModelBaseUrl(m.base_url);
                             setEditAiModelApiKey('');
                             setEditAiModelBackupId(m.backup_model_id ?? '');
+                            loadAiModelSamplingForm(
+                              m,
+                              setEditAiModelTopP,
+                              setEditAiModelN,
+                              setEditAiModelPresencePenalty,
+                              setEditAiModelFrequencyPenalty
+                            );
                             setAiModelError('');
                             setAiModelSuccess('');
                           }}

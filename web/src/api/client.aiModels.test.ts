@@ -35,4 +35,23 @@ describe('aiModelsApi.update backup_model_id', () => {
       base_url: 'https://api.example/v1',
     });
   });
+
+  it('更新时发送采样扩展参数', async () => {
+    putMock.mockClear();
+    const { aiModelsApi } = await import('./client');
+    await aiModelsApi.update(1, 'kimi-k2.6', 'https://api.example/v1', undefined, undefined, {
+      top_p: 0.8,
+      n: 2,
+      presence_penalty: 0.1,
+      frequency_penalty: -0.1,
+    });
+    expect(putMock).toHaveBeenCalledWith('/ai-models/1', {
+      name: 'kimi-k2.6',
+      base_url: 'https://api.example/v1',
+      top_p: 0.8,
+      n: 2,
+      presence_penalty: 0.1,
+      frequency_penalty: -0.1,
+    });
+  });
 });
