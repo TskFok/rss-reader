@@ -286,3 +286,107 @@ func TestBackfillClassifyBatch_recoversStalePending(t *testing.T) {
 	assert.Equal(t, "恢复", out.AICategory)
 	assert.Equal(t, models.AIProcessDone, out.AIProcessStatus)
 }
+
+func TestClassifyBackfillFeedIDs(t *testing.T) {
+	db := setupArticleAIDB(t)
+	user := models.User{Username: "feed-cls", PasswordHash: "x"}
+	require.NoError(t, db.Create(&user).Error)
+	m := models.AIModel{UserID: user.ID, Name: "m", BaseURL: "http://x/v1"}
+	require.NoError(t, db.Create(&m).Error)
+	enabled := models.Feed{
+		UserID: user.ID, URL: "http://feed-cls.example/enabled", Title: "E",
+		UpdateIntervalMinutes: 60, AIModelID: &m.ID, AIClassifyEnabled: true,
+	}
+	disabled := models.Feed{
+		UserID: user.ID, URL: "http://feed-cls.example/disabled", Title: "D",
+		UpdateIntervalMinutes: 60, AIModelID: &m.ID, AIClassifyEnabled: false,
+	}
+	noModel := models.Feed{
+		UserID: user.ID, URL: "http://feed-cls.example/no-model", Title: "N",
+		UpdateIntervalMinutes: 60, AIClassifyEnabled: true,
+	}
+	require.NoError(t, db.Create(&enabled).Error)
+	require.NoError(t, db.Create(&disabled).Error)
+	require.NoError(t, db.Create(&noModel).Error)
+
+	ids, err := classifyBackfillFeedIDs(db)
+	require.NoError(t, err)
+	assert.Equal(t, []uint{enabled.ID}, ids)
+}
+
+func TestTranslateBackfillFeedIDs(t *testing.T) {
+	db := setupArticleAIDB(t)
+	user := models.User{Username: "feed-tr", PasswordHash: "x"}
+	require.NoError(t, db.Create(&user).Error)
+	m := models.AIModel{UserID: user.ID, Name: "m", BaseURL: "http://x/v1"}
+	require.NoError(t, db.Create(&m).Error)
+	translateOnly := models.Feed{
+		UserID: user.ID, URL: "http://feed-tr.example/only", Title: "O",
+		UpdateIntervalMinutes: 60, AIModelID: &m.ID,
+		AITranslateEnabled: true, AITargetLanguage: "en",
+	}
+	translateAndClassify := models.Feed{
+		UserID: user.ID, URL: "http://feed-tr.example/both", Title: "B",
+		UpdateIntervalMinutes: 60, AIModelID: &m.ID,
+		AITranslateEnabled: true, AITargetLanguage: "en", AIClassifyEnabled: true,
+	}
+	noLang := models.Feed{
+		UserID: user.ID, URL: "http://feed-tr.example/no-lang", Title: "L",
+		UpdateIntervalMinutes: 60, AIModelID: &m.ID, AITranslateEnabled: true,
+	}
+	require.NoError(t, db.Create(&translateOnly).Error)
+	require.NoError(t, db.Create(&translateAndClassify).Error)
+	require.NoError(t, db.Create(&noLang).Error)
+
+	feedIDs, classifyFeedIDs, err := translateBackfillFeedIDs(db)
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []uint{translateOnly.ID, translateAndClassify.ID}, feedIDs)
+	assert.Equal(t, []uint{translateAndClassify.ID}, classifyFeedIDs)
+}
+
+func TestBackfillClassifyBatch_skipsWhitespaceCategory(t *testing.T) {
+	db := setupArticleAIDB(t)
+	user := models.User{Username: "ws-cat", PasswordHash: "x"}
+	require.NoError(t, db.Create(&user).Error)
+	m := models.AIModel{UserID: user.ID, Name: "m", BaseURL: "http://x/v1"}
+	require.NoError(t, db.Create(&m).Error)
+	feed := models.Feed{
+		UserID: user.ID, URL: "http://ws.example/f", Title: "F", UpdateIntervalMinutes: 60,
+		AIModelID: &m.ID, AIClassifyEnabled: true,
+	}
+	require.NoError(t, db.Create(&feed).Error)
+	art := models.Article{
+		FeedID: feed.ID, GUID: models.ArticleGUIDHash("ws-cat"), GUIDRaw: "ws-cat",
+		Title: "t", Content: "c", AICategory: "   ",
+		AIProcessStatus: models.AIProcessFailed,
+	}
+	require.NoError(t, db.Create(&art).Error)
+
+	p := NewArticleAIProcessor(db, NewAIModelService(db))
+	ok, fail := p.BackfillClassifyBatch(5, 0)
+	assert.Equal(t, 0, ok)
+	assert.Equal(t, 0, fail)
+}
+
+func TestBackfillTranslateBatch_requiresCategoryWhenClassifyEnabled(t *testing.T) {
+	db := setupArticleAIDB(t)
+	user := models.User{Username: "tr-cls", PasswordHash: "x"}
+	require.NoError(t, db.Create(&user).Error)
+	m := models.AIModel{UserID: user.ID, Name: "m", BaseURL: "http://x/v1"}
+	require.NoError(t, db.Create(&m).Error)
+	feed := models.Feed{
+		UserID: user.ID, URL: "http://tr-cls.example/f", Title: "F", UpdateIntervalMinutes: 60,
+		AIModelID: &m.ID, AITranslateEnabled: true, AITargetLanguage: "en", AIClassifyEnabled: true,
+	}
+	require.NoError(t, db.Create(&feed).Error)
+	art := models.Article{
+		FeedID: feed.ID, GUID: models.ArticleGUIDHash("tr-cls"), GUIDRaw: "tr-cls",
+		Title: "t", Content: "c", AICategory: "",
+	}
+	require.NoError(t, db.Create(&art).Error)
+
+	p := NewArticleAIProcessor(db, NewAIModelService(db))
+	ok, fail := p.BackfillTranslateBatch(5, 0)
+	assert.Equal(t, 0, ok)
+	assert.Equal(t, 0, fail)
+}

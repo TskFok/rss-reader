@@ -6,7 +6,71 @@ import (
 
 	"github.com/ushopal/rss-reader/internal/logger"
 	"github.com/ushopal/rss-reader/internal/models"
+	"gorm.io/gorm"
 )
+
+// 补漏批处理仅读取处理所需列，避免拉取 guid_raw、content_translated 全文等大字段（content 除外）。
+var (
+	articleBackfillClassifySelect = []string{
+		"id", "feed_id", "title", "content",
+		"title_translated", "content_translated", "ai_process_status",
+	}
+	articleBackfillTranslateSelect = []string{
+		"id", "feed_id", "title", "content", "ai_category",
+		"title_translated", "content_translated", "ai_process_status",
+	}
+)
+
+func classifyBackfillFeedIDs(db *gorm.DB) ([]uint, error) {
+	var feedIDs []uint
+	err := db.Model(&models.Feed{}).
+		Where("ai_classify_enabled = ?", true).
+		Where("ai_model_id IS NOT NULL AND ai_model_id > ?", 0).
+		Pluck("id", &feedIDs).Error
+	return feedIDs, err
+}
+
+func translateBackfillFeedIDs(db *gorm.DB) (feedIDs, classifyFeedIDs []uint, err error) {
+	type feedRow struct {
+		ID                uint
+		AIClassifyEnabled bool
+	}
+	var rows []feedRow
+	err = db.Model(&models.Feed{}).
+		Select("id", "ai_classify_enabled").
+		Where("ai_translate_enabled = ?", true).
+		Where("ai_target_language <> ''").
+		Where("ai_model_id IS NOT NULL AND ai_model_id > ?", 0).
+		Find(&rows).Error
+	if err != nil {
+		return nil, nil, err
+	}
+	for _, r := range rows {
+		feedIDs = append(feedIDs, r.ID)
+		if r.AIClassifyEnabled {
+			classifyFeedIDs = append(classifyFeedIDs, r.ID)
+		}
+	}
+	return feedIDs, classifyFeedIDs, nil
+}
+
+func applyBackfillStalePendingFilter(q *gorm.DB, stalePendingCutoff time.Time) *gorm.DB {
+	return q.Where("NOT (ai_process_status = ? AND updated_at > ?)", models.AIProcessPending, stalePendingCutoff)
+}
+
+func applyTranslateBackfillArticleFilters(q *gorm.DB, classifyFeedIDs []uint) *gorm.DB {
+	q = q.Where(
+		"(content_translated = '' OR content_translated IS NULL OR ai_process_status IN ?)",
+		[]string{models.AIProcessFailed, models.AIProcessPending},
+	)
+	if len(classifyFeedIDs) > 0 {
+		q = q.Where(
+			"(feed_id NOT IN ? OR (ai_category <> '' AND ai_category IS NOT NULL))",
+			classifyFeedIDs,
+		)
+	}
+	return q
+}
 
 // BackfillClassifyBatch 对「开启 AI 分类且仍无领域标签」的文章分批补跑分类（跳过仍活跃的 pending）。
 // delayBetween 为每条之间的休眠，降低模型接口压力。
@@ -14,16 +78,25 @@ func (p *ArticleAIProcessor) BackfillClassifyBatch(limit int, delayBetween time.
 	if p == nil || p.db == nil || p.ai == nil || limit <= 0 {
 		return 0, 0
 	}
+	feedIDs, err := classifyBackfillFeedIDs(p.db)
+	if err != nil {
+		logger.Error("ai backfill classify feed query: %v", err)
+		return 0, 0
+	}
+	if len(feedIDs) == 0 {
+		return 0, 0
+	}
 	stalePendingCutoff := time.Now().Add(-aiProcessPendingMaxAge)
 	var arts []models.Article
-	err := p.db.Model(&models.Article{}).
-		Preload("Feed").
-		Joins("INNER JOIN feeds ON feeds.id = articles.feed_id AND feeds.deleted_at IS NULL").
-		Where("feeds.ai_classify_enabled = ?", true).
-		Where("feeds.ai_model_id IS NOT NULL AND feeds.ai_model_id > ?", 0).
-		Where("LENGTH(TRIM(COALESCE(articles.ai_category, ''))) = 0").
-		Where("(COALESCE(articles.ai_process_status, '') <> ? OR articles.updated_at <= ?)", models.AIProcessPending, stalePendingCutoff).
-		Order("articles.created_at ASC").
+	err = applyBackfillStalePendingFilter(
+		p.db.Model(&models.Article{}).
+			Select(articleBackfillClassifySelect).
+			Preload("Feed").
+			Where("feed_id IN ?", feedIDs).
+			Where("(ai_category = '' OR ai_category IS NULL)"),
+		stalePendingCutoff,
+	).
+		Order("created_at ASC").
 		Limit(limit).
 		Find(&arts).Error
 	if err != nil {
@@ -74,18 +147,27 @@ func (p *ArticleAIProcessor) BackfillTranslateBatch(limit int, delayBetween time
 	if p == nil || p.db == nil || p.ai == nil || limit <= 0 {
 		return 0, 0
 	}
+	feedIDs, classifyFeedIDs, err := translateBackfillFeedIDs(p.db)
+	if err != nil {
+		logger.Error("ai backfill translate feed query: %v", err)
+		return 0, 0
+	}
+	if len(feedIDs) == 0 {
+		return 0, 0
+	}
 	stalePendingCutoff := time.Now().Add(-aiProcessPendingMaxAge)
 	var arts []models.Article
-	err := p.db.Model(&models.Article{}).
-		Preload("Feed").
-		Joins("INNER JOIN feeds ON feeds.id = articles.feed_id AND feeds.deleted_at IS NULL").
-		Where("feeds.ai_translate_enabled = ?", true).
-		Where("LENGTH(TRIM(COALESCE(feeds.ai_target_language, ''))) > 0").
-		Where("feeds.ai_model_id IS NOT NULL AND feeds.ai_model_id > ?", 0).
-		Where("(LENGTH(TRIM(COALESCE(articles.content_translated, ''))) = 0 OR COALESCE(articles.ai_process_status, '') IN ?)", []string{models.AIProcessFailed, models.AIProcessPending}).
-		Where("(NOT feeds.ai_classify_enabled OR LENGTH(TRIM(COALESCE(articles.ai_category, ''))) > 0)").
-		Where("(COALESCE(articles.ai_process_status, '') <> ? OR articles.updated_at <= ?)", models.AIProcessPending, stalePendingCutoff).
-		Order("articles.created_at ASC").
+	err = applyBackfillStalePendingFilter(
+		applyTranslateBackfillArticleFilters(
+			p.db.Model(&models.Article{}).
+				Select(articleBackfillTranslateSelect).
+				Preload("Feed").
+				Where("feed_id IN ?", feedIDs),
+			classifyFeedIDs,
+		),
+		stalePendingCutoff,
+	).
+		Order("created_at ASC").
 		Limit(limit).
 		Find(&arts).Error
 	if err != nil {
