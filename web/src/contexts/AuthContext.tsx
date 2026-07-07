@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, type ReactNode } from 'react';
 import type { User } from '../api/client';
+import { clearArticleDetailCache } from '../hooks/useArticleDetail';
 
 interface AuthContextType {
   user: User | null;
@@ -22,6 +23,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = () => {
+    clearArticleDetailCache();
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     setUserState(null);

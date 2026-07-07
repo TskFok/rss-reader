@@ -106,22 +106,18 @@ export type AIModelSamplingParams = {
   frequency_penalty?: number | null;
 };
 
-export interface Article {
+export interface ArticleListItem {
   id: number;
   feed_id: number;
-  /** SHA256 十六进制 64 字符，对应 RSS 原始标识见 guid_raw */
+  /** SHA256 十六进制 64 字符 */
   guid: string;
-  /** RSS 条目的原始 guid 或用于去重的 link */
-  guid_raw?: string;
   title: string;
   link: string;
-  content: string;
   ai_process_status?: string;
   ai_last_error?: string;
   ai_category?: string;
   ai_category_translated?: string;
   title_translated?: string;
-  content_translated?: string;
   published_at: string | null;
   created_at: string;
   updated_at?: string;
@@ -133,6 +129,13 @@ export interface Article {
   /** 订阅上配置的模型，用于手动 AI */
   feed_ai_model_id?: number | null;
   feed_ai_target_language?: string;
+}
+
+export interface Article extends ArticleListItem {
+  /** RSS 条目的原始 guid 或用于去重的 link */
+  guid_raw?: string;
+  content: string;
+  content_translated?: string;
 }
 
 export interface SummaryHistoryItem {
@@ -336,7 +339,9 @@ export const articlesApi = {
     favorite?: boolean;
     page?: number;
     page_size?: number;
-  }) => client.get<{ items: Article[]; total: number }>('/articles', { params }),
+  }) => client.get<{ items: ArticleListItem[]; total: number }>('/articles', { params }),
+  get: (id: number, config?: { signal?: AbortSignal }) =>
+    client.get<{ article: Article }>(`/articles/${id}`, config),
   markRead: (id: number) => client.put(`/articles/${id}/read`),
   toggleFavorite: (id: number) =>
     client.put<{ favorite: boolean }>(`/articles/${id}/favorite`),

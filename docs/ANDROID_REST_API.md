@@ -251,12 +251,31 @@ JWT 在登录成功响应的 `token` 字段中取得；失效时接口返回 `40
 
 ```json
 {
-  "items": [ /* Article 对象列表 */ ],
+  "items": [ /* ArticleListItem 对象列表 */ ],
   "total": 100
 }
 ```
 
-单篇文章常见字段：`id`, `feed_id`, `title`, `link`, `content`, `published_at`, `read`, `favorite`, `feed_title`，以及 AI 相关 `ai_category`, `title_translated`, `content_translated` 等（与 Web 一致）。其中 `content_translated` 新生成的译文会尽量保留原始 HTML 结构与媒体/嵌入节点，历史数据也可能仍是纯文本。
+列表项（`ArticleListItem`）**不包含** `content`、`content_translated`、`guid_raw` 等大字段。常见字段：`id`, `feed_id`, `guid`, `title`, `link`, `published_at`, `read`, `favorite`, `feed_title`，以及 AI 相关 `ai_category`, `title_translated`, `ai_process_status` 等。
+
+> **Breaking change（2026-07）**：列表接口不再返回正文；客户端需在用户打开文章时调用 `GET /api/articles/:id` 获取 `content` / `content_translated` / `guid_raw`。
+
+### 6.1 文章详情
+
+| 项目 | 说明 |
+|------|------|
+| 方法 / 路径 | `GET /api/articles/:id` |
+| 认证 | 需要 Bearer |
+
+**成功 `200`**：
+
+```json
+{
+  "article": { /* ArticleWithRead，含 content、content_translated、guid_raw */ }
+}
+```
+
+**错误**：未认证 `401`；文章不存在或订阅不属于当前用户 `404`（`{ "error": "文章不存在" }`）。
 
 **其它**（按需）：`PUT /api/articles/:id/read` 标记已读，`PUT /api/articles/:id/favorite` 收藏。
 

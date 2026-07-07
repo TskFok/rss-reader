@@ -47,8 +47,69 @@ type ArticleWithRead struct {
 	FeedAITargetLanguage   string `json:"feed_ai_target_language"`
 }
 
+// ArticleListItem 文章列表项（不含 content、content_translated、guid_raw）
+type ArticleListItem struct {
+	ID                     uint       `json:"id" gorm:"column:id"`
+	FeedID                 uint       `json:"feed_id" gorm:"column:feed_id"`
+	GUID                   string     `json:"guid" gorm:"column:guid"`
+	Title                  string     `json:"title" gorm:"column:title"`
+	Link                   string     `json:"link" gorm:"column:link"`
+	AIProcessStatus        string     `json:"ai_process_status" gorm:"column:ai_process_status"`
+	AILastError            string     `json:"ai_last_error" gorm:"column:ai_last_error"`
+	AICategory             string     `json:"ai_category" gorm:"column:ai_category"`
+	AICategoryTranslated   string     `json:"ai_category_translated" gorm:"column:ai_category_translated"`
+	TitleTranslated        string     `json:"title_translated" gorm:"column:title_translated"`
+	PublishedAt            *time.Time `json:"published_at" gorm:"column:published_at"`
+	CreatedAt              time.Time  `json:"created_at" gorm:"column:created_at"`
+	UpdatedAt              time.Time  `json:"updated_at" gorm:"column:updated_at"`
+	Read                   bool       `json:"read" gorm:"column:read"`
+	Favorite               bool       `json:"favorite" gorm:"column:favorite"`
+	FeedTitle              string     `json:"feed_title" gorm:"column:feed_title"`
+	FeedAITranslateEnabled bool       `json:"feed_ai_translate_enabled" gorm:"column:feed_ai_translate_enabled"`
+	FeedAIClassifyEnabled  bool       `json:"feed_ai_classify_enabled" gorm:"column:feed_ai_classify_enabled"`
+	FeedAIModelID          *uint      `json:"feed_ai_model_id" gorm:"column:feed_ai_model_id"`
+	FeedAITargetLanguage   string     `json:"feed_ai_target_language" gorm:"column:feed_ai_target_language"`
+}
+
+var (
+	articleListArticleColumns = []string{
+		"articles.id",
+		"articles.feed_id",
+		"articles.guid",
+		"articles.title",
+		"articles.link",
+		"articles.ai_process_status",
+		"articles.ai_last_error",
+		"articles.ai_category",
+		"articles.ai_category_translated",
+		"articles.title_translated",
+		"articles.published_at",
+		"articles.created_at",
+		"articles.updated_at",
+	}
+	articleListFeedColumns = []string{
+		"feeds.title AS feed_title",
+		"feeds.ai_translate_enabled AS feed_ai_translate_enabled",
+		"feeds.ai_classify_enabled AS feed_ai_classify_enabled",
+		"feeds.ai_model_id AS feed_ai_model_id",
+		"feeds.ai_target_language AS feed_ai_target_language",
+	}
+	articleListUAColumns = []string{
+		"COALESCE(ua.read_status, 0) AS read",
+		"COALESCE(ua.favorite, 0) AS favorite",
+	}
+)
+
+func articleListSelectColumns() []string {
+	cols := make([]string, 0, len(articleListArticleColumns)+len(articleListFeedColumns)+len(articleListUAColumns))
+	cols = append(cols, articleListArticleColumns...)
+	cols = append(cols, articleListFeedColumns...)
+	cols = append(cols, articleListUAColumns...)
+	return cols
+}
+
 // List 获取用户可见的文章列表（通过 feed 归属）
-func (s *ArticleService) List(userID uint, req ListArticlesRequest) ([]ArticleWithRead, int64, error) {
+func (s *ArticleService) List(userID uint, req ListArticlesRequest) ([]ArticleListItem, int64, error) {
 	page := req.Page
 	if page < 1 {
 		page = 1
@@ -59,76 +120,39 @@ func (s *ArticleService) List(userID uint, req ListArticlesRequest) ([]ArticleWi
 	}
 	q := s.db.Model(&models.Article{}).
 		Joins("JOIN feeds ON feeds.id = articles.feed_id AND feeds.deleted_at IS NULL").
+		Joins("LEFT JOIN user_articles ua ON ua.article_id = articles.id AND ua.user_id = ?", userID).
 		Where("feeds.user_id = ?", userID)
 	if req.FeedID != nil {
 		q = q.Where("articles.feed_id = ?", *req.FeedID)
 	}
 	if req.Read != nil {
 		if *req.Read {
-			q = q.Joins("JOIN user_articles ua_read ON ua_read.article_id = articles.id AND ua_read.user_id = ? AND ua_read.read_status = 1", userID)
+			q = q.Where("ua.read_status = ?", true)
 		} else {
-			q = q.Joins("LEFT JOIN user_articles ua_read ON ua_read.article_id = articles.id AND ua_read.user_id = ?", userID).
-				Where("ua_read.id IS NULL OR ua_read.read_status = 0")
+			q = q.Where("ua.id IS NULL OR ua.read_status = ?", false)
 		}
 	}
 	if req.Favorite != nil && *req.Favorite {
-		q = q.Joins("JOIN user_articles ua_fav ON ua_fav.article_id = articles.id AND ua_fav.user_id = ? AND ua_fav.favorite = 1", userID)
-	}
-	// 未筛选读/未读时，需按未读优先排序，需 LEFT JOIN 获取阅读状态
-	if req.Read == nil {
-		q = q.Joins("LEFT JOIN user_articles ua_sort ON ua_sort.article_id = articles.id AND ua_sort.user_id = ?", userID)
+		q = q.Where("ua.favorite = ?", true)
 	}
 	var total int64
 	if err := q.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
-	var articles []models.Article
 	offset := (page - 1) * pageSize
 	orderClause := "articles.published_at DESC, articles.created_at DESC"
 	if req.Read == nil {
-		orderClause = "COALESCE(ua_sort.read_status, 0) ASC, " + orderClause
+		orderClause = "COALESCE(ua.read_status, 0) ASC, " + orderClause
 	}
-	if err := q.Order(orderClause).
+	var result []ArticleListItem
+	if err := q.Select(articleListSelectColumns()).
+		Order(orderClause).
 		Offset(offset).Limit(pageSize).
-		Preload("Feed").
-		Find(&articles).Error; err != nil {
+		Scan(&result).Error; err != nil {
 		return nil, 0, err
 	}
-	if len(articles) == 0 {
-		return []ArticleWithRead{}, total, nil
-	}
-	ids := make([]uint, len(articles))
-	for i := range articles {
-		ids[i] = articles[i].ID
-	}
-	var uas []models.UserArticle
-	s.db.Where("user_id = ? AND article_id IN ?", userID, ids).Find(&uas)
-	readMap := make(map[uint]bool)
-	favMap := make(map[uint]bool)
-	for _, ua := range uas {
-		if ua.ReadStatus {
-			readMap[ua.ArticleID] = true
-		}
-		if ua.Favorite {
-			favMap[ua.ArticleID] = true
-		}
-	}
-	result := make([]ArticleWithRead, len(articles))
-	for i, a := range articles {
-		feedTitle := ""
-		if a.Feed.ID != 0 {
-			feedTitle = a.Feed.Title
-		}
-		result[i] = ArticleWithRead{
-			Article:                a,
-			Read:                   readMap[a.ID],
-			Favorite:               favMap[a.ID],
-			FeedTitle:              feedTitle,
-			FeedAITranslateEnabled: a.Feed.AITranslateEnabled,
-			FeedAIClassifyEnabled:  a.Feed.AIClassifyEnabled,
-			FeedAIModelID:          a.Feed.AIModelID,
-			FeedAITargetLanguage:   a.Feed.AITargetLanguage,
-		}
+	if result == nil {
+		return []ArticleListItem{}, total, nil
 	}
 	return result, total, nil
 }

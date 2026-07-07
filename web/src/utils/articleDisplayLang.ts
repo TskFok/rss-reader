@@ -1,4 +1,4 @@
-import type { Article } from '../api/client';
+import type { ArticleListItem } from '../api/client';
 
 const KEY = 'rss_article_display_lang';
 
@@ -13,14 +13,14 @@ export function setStoredArticleLang(l: ArticleDisplayLang) {
   localStorage.setItem(KEY, l);
 }
 
-export function articleTitleForDisplay(a: Article, lang: ArticleDisplayLang): string {
+export function articleTitleForDisplay(a: ArticleListItem, lang: ArticleDisplayLang): string {
   if (lang === 'translated' && a.title_translated?.trim()) {
     return a.title_translated.trim();
   }
   return a.title || '(无标题)';
 }
 
-export function articleCategoryForDisplay(a: Article, lang: ArticleDisplayLang): string | null {
+export function articleCategoryForDisplay(a: ArticleListItem, lang: ArticleDisplayLang): string | null {
   if (!a.feed_ai_classify_enabled) return null;
   if (lang === 'translated' && a.ai_category_translated?.trim()) {
     return a.ai_category_translated.trim();

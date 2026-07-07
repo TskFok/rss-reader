@@ -153,7 +153,8 @@ make build
 | POST | /api/feeds/:id/refresh | 立即刷新订阅 |
 | PUT | /api/feeds/:id | 更新订阅设置 |
 | DELETE | /api/feeds/:id | 删除订阅 |
-| GET | /api/articles | 文章列表 |
+| GET | /api/articles | 文章列表（不含正文大字段） |
+| GET | /api/articles/:id | 文章详情（含完整正文） |
 | PUT | /api/articles/:id/read | 标记已读 |
 | PUT | /api/articles/:id/favorite | 收藏或取消收藏 |
 | POST | /api/articles/:id/ai/classify | 手动 AI 分类 |

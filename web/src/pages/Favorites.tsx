@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { articlesApi } from '../api/client';
-import type { Article } from '../api/client';
+import type { ArticleListItem } from '../api/client';
 import ArticleList from '../components/ArticleList';
 import ArticleManualAI from '../components/ArticleManualAI';
 import ArticleDetailContent from '../components/ArticleDetailContent';
+import { useArticleDetail } from '../hooks/useArticleDetail';
 import { nextIndex } from '../utils/arrowNav';
 import {
   articleCategoryForDisplay,
@@ -16,12 +17,23 @@ import {
 const PAGE_SIZE = 20;
 
 export default function Favorites() {
-  const [articles, setArticles] = useState<Article[]>([]);
+  const [articles, setArticles] = useState<ArticleListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
-  const [selected, setSelected] = useState<Article | null>(null);
+  const {
+    selectedId,
+    selectedListItem,
+    selectedDetail,
+    detailLoading,
+    detailError,
+    selectArticle,
+    patchArticle,
+    patchListItem,
+    removeFromCache,
+    retryDetail,
+  } = useArticleDetail();
   const [articleDisplayLang, setArticleDisplayLang] = useState<ArticleDisplayLang>(() =>
     getStoredArticleLang()
   );
@@ -64,11 +76,11 @@ export default function Favorites() {
   }, [page]);
 
   useEffect(() => {
-    if (!selected) return;
-    if (!articles.some((a) => a.id === selected.id)) {
-      setSelected(null);
+    if (!selectedListItem) return;
+    if (!articles.some((a) => a.id === selectedListItem.id)) {
+      selectArticle(null);
     }
-  }, [articles, selected]);
+  }, [articles, selectedListItem, selectArticle]);
 
   const markRead = async (id: number) => {
     try {
@@ -76,6 +88,7 @@ export default function Favorites() {
       setArticles((prev) =>
         prev.map((a) => (a.id === id ? { ...a, read: true } : a))
       );
+      patchListItem(id, { read: true });
     } catch {}
   };
 
@@ -84,11 +97,13 @@ export default function Favorites() {
       const { data } = await articlesApi.toggleFavorite(id);
       if (!data.favorite) {
         setArticles((prev) => prev.filter((a) => a.id !== id));
-        if (selected?.id === id) setSelected(null);
+        removeFromCache(id);
+        if (selectedListItem?.id === id) selectArticle(null);
       } else {
         setArticles((prev) =>
           prev.map((a) => (a.id === id ? { ...a, favorite: true } : a))
         );
+        patchListItem(id, { favorite: true });
       }
     } catch {}
   };
@@ -107,7 +122,7 @@ export default function Favorites() {
 
   const showArticleLangToggle =
     articles.some((a) => a.feed_ai_translate_enabled) ||
-    articles.some((a) => !!(a.title_translated?.trim() || a.content_translated?.trim()));
+    articles.some((a) => !!a.title_translated?.trim());
 
   const hasMore = articles.length < total;
   const loadMore = useCallback(() => {
@@ -145,14 +160,16 @@ export default function Favorites() {
       if (articles.length === 0) return;
 
       e.preventDefault();
-      const currentIdx = selected ? articles.findIndex((a) => a.id === selected.id) : null;
+      const currentIdx = selectedListItem
+        ? articles.findIndex((a) => a.id === selectedListItem.id)
+        : null;
       const delta = e.key === 'ArrowDown' ? 1 : -1;
       const nextIdx = nextIndex(currentIdx !== null && currentIdx >= 0 ? currentIdx : null, delta as -1 | 1, articles.length);
       if (nextIdx === null) return;
       if (currentIdx !== null && currentIdx === nextIdx) return;
 
       const nextArticle = articles[nextIdx];
-      setSelected(nextArticle);
+      selectArticle(nextArticle);
       markRead(nextArticle.id);
 
       const el = document.querySelector(`[data-article-id="${nextArticle.id}"]`);
@@ -162,7 +179,12 @@ export default function Favorites() {
     };
     window.addEventListener('keydown', onKeyDown, { passive: false });
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [articles, selected]);
+  }, [articles, selectedListItem, selectArticle]);
+
+  const openArticle = (a: ArticleListItem) => {
+    selectArticle(a);
+    markRead(a.id);
+  };
 
   return (
     <div className="home-layout favorites-layout">
@@ -196,12 +218,9 @@ export default function Favorites() {
             <>
               <ArticleList
                 articles={articles}
-                selectedId={selected?.id ?? null}
+                selectedId={selectedId}
                 displayLang={articleDisplayLang}
-                onOpen={(a) => {
-                  setSelected(a);
-                  markRead(a.id);
-                }}
+                onOpen={openArticle}
               />
               {loadingMore && (
                 <p className="loading" style={{ padding: '16px', margin: 0 }}>
@@ -212,58 +231,70 @@ export default function Favorites() {
           )}
         </div>
 
-        {selected && (
+        {selectedListItem && (
           <div className="article-detail-dock">
             <div className="article-detail-header">
               <a
                 className="article-detail-title"
-                href={selected.link}
+                href={selectedListItem.link}
                 target="_blank"
                 rel="noopener noreferrer"
                 title="打开原文"
               >
-                {articleTitleForDisplay(selected, articleDisplayLang)}
+                {articleTitleForDisplay(selectedListItem, articleDisplayLang)}
               </a>
               <div className="article-detail-actions">
-                <ArticleManualAI
-                  article={selected}
-                  onTranslateStart={() => {
-                    setStoredArticleLang('translated');
-                    setArticleDisplayLang('translated');
-                  }}
-                  onArticlePatched={(next) => {
-                    setArticles((prev) =>
-                      prev.map((x) => (x.id === next.id ? { ...x, ...next } : x))
-                    );
-                    setSelected((prev) =>
-                      prev?.id === next.id ? { ...prev, ...next } : prev
-                    );
-                  }}
-                />
+                {selectedDetail && (
+                  <ArticleManualAI
+                    article={selectedDetail}
+                    onTranslateStart={() => {
+                      setStoredArticleLang('translated');
+                      setArticleDisplayLang('translated');
+                    }}
+                    onArticlePatched={(next) => {
+                      if (next.id !== selectedId) return;
+                      setArticles((prev) =>
+                        prev.map((x) => (x.id === next.id ? { ...x, ...next } : x))
+                      );
+                      patchArticle(next);
+                    }}
+                  />
+                )}
                 <button
                   type="button"
-                  className={`article-detail-favorite ${selected.favorite ? 'active' : ''}`}
-                  onClick={() => toggleFavorite(selected.id)}
-                  title={selected.favorite ? '取消收藏' : '收藏'}
-                  aria-label={selected.favorite ? '取消收藏' : '收藏'}
+                  className={`article-detail-favorite ${selectedListItem.favorite ? 'active' : ''}`}
+                  onClick={() => toggleFavorite(selectedListItem.id)}
+                  title={selectedListItem.favorite ? '取消收藏' : '收藏'}
+                  aria-label={selectedListItem.favorite ? '取消收藏' : '收藏'}
                 >
                   ★
                 </button>
-                <button type="button" className="article-detail-close" onClick={() => setSelected(null)}>
+                <button type="button" className="article-detail-close" onClick={() => selectArticle(null)}>
                   关闭
                 </button>
               </div>
             </div>
             <div className="article-detail-meta">
-              {articleCategoryForDisplay(selected, articleDisplayLang) && (
+              {articleCategoryForDisplay(selectedListItem, articleDisplayLang) && (
                 <span className="article-detail-ai-cat">
-                  {articleCategoryForDisplay(selected, articleDisplayLang)}
+                  {articleCategoryForDisplay(selectedListItem, articleDisplayLang)}
                 </span>
               )}
-              {selected.feed_title && <span className="feed">{selected.feed_title}</span>}
-              <span className="date">{formatDate(selected.published_at || selected.created_at)}</span>
+              {selectedListItem.feed_title && <span className="feed">{selectedListItem.feed_title}</span>}
+              <span className="date">{formatDate(selectedListItem.published_at || selectedListItem.created_at)}</span>
             </div>
-            <ArticleDetailContent article={selected} displayLang={articleDisplayLang} />
+            {detailError ? (
+              <div className="article-detail-error">
+                <p>{detailError}</p>
+                <button type="button" onClick={retryDetail}>
+                  重试
+                </button>
+              </div>
+            ) : detailLoading ? (
+              <p className="loading article-detail-skeleton">加载正文中...</p>
+            ) : selectedDetail ? (
+              <ArticleDetailContent article={selectedDetail} displayLang={articleDisplayLang} />
+            ) : null}
           </div>
         )}
       </section>

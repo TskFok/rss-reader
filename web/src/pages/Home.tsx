@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { articlesApi, feedsApi, categoriesApi } from '../api/client';
-import type { Article, Feed, FeedCategory } from '../api/client';
+import type { ArticleListItem, Feed, FeedCategory } from '../api/client';
 import ArticleList from '../components/ArticleList';
 import ArticleManualAI from '../components/ArticleManualAI';
 import ArticleDetailContent from '../components/ArticleDetailContent';
+import { useArticleDetail } from '../hooks/useArticleDetail';
 import { nextIndex } from '../utils/arrowNav';
 import {
   articleCategoryForDisplay,
@@ -25,7 +26,7 @@ export default function Home() {
     collapsedParam.split(',').map((s) => s.trim()).filter(Boolean).map(Number).filter((n) => !Number.isNaN(n))
   );
 
-  const [articles, setArticles] = useState<Article[]>([]);
+  const [articles, setArticles] = useState<ArticleListItem[]>([]);
   const [feeds, setFeeds] = useState<Feed[]>([]);
   const [categories, setCategories] = useState<FeedCategory[]>([]);
   const [sidebarLoading, setSidebarLoading] = useState(true);
@@ -35,8 +36,19 @@ export default function Home() {
   const [filterRead, setFilterRead] = useState<'' | 'read' | 'unread'>('');
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
-  const [selected, setSelected] = useState<Article | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  const {
+    selectedId,
+    selectedListItem,
+    selectedDetail,
+    detailLoading,
+    detailError,
+    selectArticle,
+    patchArticle,
+    patchListItem,
+    clearCache,
+    retryDetail,
+  } = useArticleDetail();
   const [refreshingFeedId, setRefreshingFeedId] = useState<number | null>(null);
   const [refreshError, setRefreshError] = useState('');
   const [collapsedCategories, setCollapsedCategories] = useState<Set<number>>(initialCollapsed);
@@ -47,7 +59,11 @@ export default function Home() {
   const listScrollRef = useRef<HTMLDivElement>(null);
   const detailDockScrollRef = useRef<HTMLDivElement>(null);
 
-  // 串行请求：feeds -> categories -> articles，避免同时请求导致数据库 unexpected EOF
+  useEffect(() => {
+    if (reloadKey === 0) return;
+    clearCache({ refetch: true });
+  }, [reloadKey, clearCache]);
+
   useEffect(() => {
     let cancelled = false;
     const isFirstPage = page === 1;
@@ -104,7 +120,6 @@ export default function Home() {
     };
   }, [filterFeed, filterRead, page, reloadKey]);
 
-  // URL 变化时同步 filterFeed、collapsedCategories（如浏览器前进/后退）
   useEffect(() => {
     const p = searchParams.get('feed');
     const next = p ? (Number.isNaN(Number(p)) ? '' : Number(p)) : '';
@@ -116,25 +131,22 @@ export default function Home() {
     setCollapsedCategories((prev) => (prev.size !== nextCollapsed.size || [...prev].some((id) => !nextCollapsed.has(id)) ? nextCollapsed : prev));
   }, [searchParams]);
 
-  // 切换当前订阅筛选时，重置文章详情区域的滚动位置
   useEffect(() => {
     const el = detailDockScrollRef.current;
     if (el) el.scrollTop = 0;
   }, [filterFeed]);
 
-  // 刷新或切换筛选后，浏览器可能恢复文章列表滚动位置；首屏加载完成后主动回到顶部
   useEffect(() => {
     if (page !== 1 || loading) return;
     const el = listScrollRef.current;
     if (el) el.scrollTop = 0;
   }, [filterFeed, filterRead, loading, page]);
 
-  // 在列表中切换选中的文章时，重置文章详情区域的滚动位置
   useEffect(() => {
     const el = detailDockScrollRef.current;
-    if (!el || !selected) return;
+    if (!el || !selectedListItem) return;
     el.scrollTop = 0;
-  }, [selected?.id]);
+  }, [selectedListItem?.id]);
 
   const toggleCategoryCollapsed = useCallback((categoryId: number) => {
     setCollapsedCategories((prev) => {
@@ -157,13 +169,12 @@ export default function Home() {
     });
   }, [setSearchParams]);
 
-  // 当文章列表变化时，如果当前选中的文章不在列表中，清空选择
   useEffect(() => {
-    if (!selected) return;
-    if (!articles.some((a) => a.id === selected.id)) {
-      setSelected(null);
+    if (!selectedListItem) return;
+    if (!articles.some((a) => a.id === selectedListItem.id)) {
+      selectArticle(null);
     }
-  }, [articles, selected]);
+  }, [articles, selectedListItem, selectArticle]);
 
   const markRead = async (id: number) => {
     try {
@@ -171,6 +182,7 @@ export default function Home() {
       setArticles((prev) =>
         prev.map((a) => (a.id === id ? { ...a, read: true } : a))
       );
+      patchListItem(id, { read: true });
     } catch {}
   };
 
@@ -180,9 +192,7 @@ export default function Home() {
       setArticles((prev) =>
         prev.map((a) => (a.id === id ? { ...a, favorite: data.favorite } : a))
       );
-      if (selected?.id === id) {
-        setSelected((prev) => (prev ? { ...prev, favorite: data.favorite } : null));
-      }
+      patchListItem(id, { favorite: data.favorite });
     } catch {}
   };
 
@@ -221,9 +231,7 @@ export default function Home() {
   const currentFeed = filterFeed ? feeds.find((f) => f.id === filterFeed) : undefined;
   const showArticleLangToggle =
     feeds.some((f) => f.ai_translate_enabled) ||
-    articles.some(
-      (a) => !!(a.title_translated?.trim() || a.content_translated?.trim())
-    );
+    articles.some((a) => !!a.title_translated?.trim());
 
   const feedsByCategory = categories.map((c) => ({
     category: c,
@@ -237,7 +245,6 @@ export default function Home() {
     setPage((p) => p + 1);
   }, [loading, loadingMore, hasMore]);
 
-  // 滚动到底部时加载下一页
   useEffect(() => {
     const el = listScrollRef.current;
     if (!el) return;
@@ -252,7 +259,6 @@ export default function Home() {
     return () => el.removeEventListener('scroll', onScroll);
   }, [loadMore]);
 
-  // 键盘上下键切换文章详情
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
@@ -269,14 +275,16 @@ export default function Home() {
       if (articles.length === 0) return;
 
       e.preventDefault();
-      const currentIdx = selected ? articles.findIndex((a) => a.id === selected.id) : null;
+      const currentIdx = selectedListItem
+        ? articles.findIndex((a) => a.id === selectedListItem.id)
+        : null;
       const delta = e.key === 'ArrowDown' ? 1 : -1;
       const nextIdx = nextIndex(currentIdx !== null && currentIdx >= 0 ? currentIdx : null, delta as -1 | 1, articles.length);
       if (nextIdx === null) return;
       if (currentIdx !== null && currentIdx === nextIdx) return;
 
       const nextArticle = articles[nextIdx];
-      setSelected(nextArticle);
+      selectArticle(nextArticle);
       markRead(nextArticle.id);
 
       const el = document.querySelector(`[data-article-id="${nextArticle.id}"]`);
@@ -286,7 +294,12 @@ export default function Home() {
     };
     window.addEventListener('keydown', onKeyDown, { passive: false });
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [articles, selected]);
+  }, [articles, selectedListItem, selectArticle]);
+
+  const openArticle = (a: ArticleListItem) => {
+    selectArticle(a);
+    markRead(a.id);
+  };
 
   return (
     <div className="home-layout">
@@ -450,12 +463,9 @@ export default function Home() {
             <>
               <ArticleList
                 articles={articles}
-                selectedId={selected?.id ?? null}
+                selectedId={selectedId}
                 displayLang={articleDisplayLang}
-                onOpen={(a) => {
-                  setSelected(a);
-                  markRead(a.id);
-                }}
+                onOpen={openArticle}
               />
               {loadingMore && (
                 <p className="loading" style={{ padding: '16px', margin: 0 }}>
@@ -466,59 +476,71 @@ export default function Home() {
           )}
         </div>
 
-        {selected && (
+        {selectedListItem && (
           <div className="article-detail-dock">
             <div className="article-detail-header">
               <a
                 className="article-detail-title"
-                href={selected.link}
+                href={selectedListItem.link}
                 target="_blank"
                 rel="noopener noreferrer"
                 title="打开原文"
               >
-                {articleTitleForDisplay(selected, articleDisplayLang)}
+                {articleTitleForDisplay(selectedListItem, articleDisplayLang)}
               </a>
               <div className="article-detail-actions">
-                <ArticleManualAI
-                  article={selected}
-                  onTranslateStart={() => {
-                    setStoredArticleLang('translated');
-                    setArticleDisplayLang('translated');
-                  }}
-                  onArticlePatched={(next) => {
-                    setArticles((prev) =>
-                      prev.map((x) => (x.id === next.id ? { ...x, ...next } : x))
-                    );
-                    setSelected((prev) =>
-                      prev?.id === next.id ? { ...prev, ...next } : prev
-                    );
-                  }}
-                />
+                {selectedDetail && (
+                  <ArticleManualAI
+                    article={selectedDetail}
+                    onTranslateStart={() => {
+                      setStoredArticleLang('translated');
+                      setArticleDisplayLang('translated');
+                    }}
+                    onArticlePatched={(next) => {
+                      if (next.id !== selectedId) return;
+                      setArticles((prev) =>
+                        prev.map((x) => (x.id === next.id ? { ...x, ...next } : x))
+                      );
+                      patchArticle(next);
+                    }}
+                  />
+                )}
                 <button
                   type="button"
-                  className={`article-detail-favorite ${selected.favorite ? 'active' : ''}`}
-                  onClick={() => toggleFavorite(selected.id)}
-                  title={selected.favorite ? '取消收藏' : '收藏'}
-                  aria-label={selected.favorite ? '取消收藏' : '收藏'}
+                  className={`article-detail-favorite ${selectedListItem.favorite ? 'active' : ''}`}
+                  onClick={() => toggleFavorite(selectedListItem.id)}
+                  title={selectedListItem.favorite ? '取消收藏' : '收藏'}
+                  aria-label={selectedListItem.favorite ? '取消收藏' : '收藏'}
                 >
                   ★
                 </button>
-                <button type="button" className="article-detail-close" onClick={() => setSelected(null)}>
+                <button type="button" className="article-detail-close" onClick={() => selectArticle(null)}>
                   关闭
                 </button>
               </div>
             </div>
             <div ref={detailDockScrollRef} className="article-detail-scroll">
               <div className="article-detail-meta">
-                {articleCategoryForDisplay(selected, articleDisplayLang) && (
+                {articleCategoryForDisplay(selectedListItem, articleDisplayLang) && (
                   <span className="article-detail-ai-cat">
-                    {articleCategoryForDisplay(selected, articleDisplayLang)}
+                    {articleCategoryForDisplay(selectedListItem, articleDisplayLang)}
                   </span>
                 )}
-                {selected.feed_title && <span className="feed">{selected.feed_title}</span>}
-                <span className="date">{formatDate(selected.published_at || selected.created_at)}</span>
+                {selectedListItem.feed_title && <span className="feed">{selectedListItem.feed_title}</span>}
+                <span className="date">{formatDate(selectedListItem.published_at || selectedListItem.created_at)}</span>
               </div>
-              <ArticleDetailContent article={selected} displayLang={articleDisplayLang} />
+              {detailError ? (
+                <div className="article-detail-error">
+                  <p>{detailError}</p>
+                  <button type="button" onClick={retryDetail}>
+                    重试
+                  </button>
+                </div>
+              ) : detailLoading ? (
+                <p className="loading article-detail-skeleton">加载正文中...</p>
+              ) : selectedDetail ? (
+                <ArticleDetailContent article={selectedDetail} displayLang={articleDisplayLang} />
+              ) : null}
             </div>
           </div>
         )}

@@ -1,4 +1,4 @@
-import type { Article } from '../api/client';
+import type { ArticleListItem } from '../api/client';
 import {
   articleCategoryForDisplay,
   articleTitleForDisplay,
@@ -11,8 +11,8 @@ export default function ArticleList({
   selectedId,
   displayLang = 'original',
 }: {
-  articles: Article[];
-  onOpen: (a: Article) => void;
+  articles: ArticleListItem[];
+  onOpen: (a: ArticleListItem) => void;
   selectedId?: number | null;
   displayLang?: ArticleDisplayLang;
 }) {

@@ -91,6 +91,27 @@ func (h *ArticleHandler) List(c *gin.Context) {
 	})
 }
 
+// Get 文章详情
+// GET /api/articles/:id
+func (h *ArticleHandler) Get(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的 ID"})
+		return
+	}
+	ar, err := h.articleSvc.GetWithRead(userID, uint(id))
+	if err != nil {
+		if errors.Is(err, services.ErrArticleNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "文章不存在"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取文章失败"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"article": ar})
+}
+
 // MarkRead 标记已读
 // PUT /api/articles/:id/read
 func (h *ArticleHandler) MarkRead(c *gin.Context) {

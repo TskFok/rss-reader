@@ -24,27 +24,38 @@ const { feedForRefresh } = vi.hoisted(() => ({
   },
 }));
 
-vi.mock('../api/client', async () => {
+vi.mock('../api/client', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../api/client')>();
   return {
+    ...actual,
     feedsApi: {
+      ...actual.feedsApi,
       list: vi.fn().mockResolvedValue({ data: [feedForRefresh] }),
       refresh: vi.fn().mockResolvedValue({ data: feedForRefresh }),
       update: vi.fn().mockResolvedValue({ data: feedForRefresh }),
     },
-    categoriesApi: { list: vi.fn().mockResolvedValue({ data: [] }) },
-    proxiesApi: { list: vi.fn().mockResolvedValue({ data: [] }) },
-    aiModelsApi: { list: vi.fn().mockResolvedValue({ data: [{ id: 1, name: 'm', base_url: 'u', user_id: 1, created_at: '', updated_at: '' }] }) },
-    articlesApi: { summarizeStream: vi.fn().mockImplementation(async (_params: unknown, cb: { onMeta: (n: number) => void; onChunk: (s: string) => void; onMetaAll?: (m: { total?: number }) => void }) => {
-      cb.onMeta(2);
-      cb.onMetaAll?.({ total: 2 });
-      cb.onChunk('总结内容');
-    }) },
+    categoriesApi: { ...actual.categoriesApi, list: vi.fn().mockResolvedValue({ data: [] }) },
+    proxiesApi: { ...actual.proxiesApi, list: vi.fn().mockResolvedValue({ data: [] }) },
+    aiModelsApi: {
+      ...actual.aiModelsApi,
+      list: vi.fn().mockResolvedValue({ data: [{ id: 1, name: 'm', base_url: 'u', user_id: 1, created_at: '', updated_at: '' }] }),
+    },
+    articlesApi: {
+      ...actual.articlesApi,
+      summarizeStream: vi.fn().mockImplementation(async (_params: unknown, cb: { onMeta: (n: number) => void; onChunk: (s: string) => void; onMetaAll?: (m: { total?: number }) => void }) => {
+        cb.onMeta(2);
+        cb.onMetaAll?.({ total: 2 });
+        cb.onChunk('总结内容');
+      }),
+    },
     summaryHistoriesApi: {
+      ...actual.summaryHistoriesApi,
       list: vi.fn().mockResolvedValue({ data: { items: [], total: 0 } }),
       create: vi.fn().mockResolvedValue({ data: { id: 1 } }),
       delete: vi.fn().mockResolvedValue({}),
     },
     summarySchedulesApi: {
+      ...actual.summarySchedulesApi,
       list: vi.fn().mockResolvedValue({ data: [{ id: 1, user_id: 1, ai_model_id: 1, feed_ids_json: '[]', run_at: '08:30', page_size: 20, order: 'desc', enabled: true, last_run_at: null, created_at: '', updated_at: '' }] }),
       create: vi.fn().mockResolvedValue({}),
       update: vi.fn().mockResolvedValue({}),

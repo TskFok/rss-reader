@@ -30,7 +30,7 @@ interface RssReaderApi {
     suspend fun refreshFeed(@Path("id") id: Long): FeedJson
 
     /**
-     * 文章列表；点击某一订阅时传入 [feedId]。
+     * 文章列表（不含正文）；点击某一订阅时传入 [feedId]。
      */
     @GET("articles")
     suspend fun listArticles(
@@ -39,6 +39,10 @@ interface RssReaderApi {
         @Query("page") page: Int? = null,
         @Query("page_size") pageSize: Int? = null,
     ): ArticleListResponse
+
+    /** 文章详情（含 content、content_translated、guid_raw） */
+    @GET("articles/{id}")
+    suspend fun getArticle(@Path("id") id: Long): ArticleDetailResponse
 
     @GET("summary-histories")
     suspend fun listSummaryHistories(
@@ -96,27 +100,63 @@ data class FeedJson(
 )
 
 data class ArticleListResponse(
-    val items: List<ArticleJson>,
+    val items: List<ArticleListItemJson>,
     val total: Long,
 )
 
-data class ArticleJson(
+/** 列表项：不含 content / content_translated / guid_raw */
+data class ArticleListItemJson(
     val id: Long,
     val feed_id: Long,
     val guid: String,
     val title: String,
     val link: String,
-    val content: String,
     val published_at: String? = null,
     val created_at: String? = null,
+    val updated_at: String? = null,
     val read: Boolean = false,
     val favorite: Boolean = false,
     val feed_title: String? = null,
+    val ai_process_status: String? = null,
+    val ai_last_error: String? = null,
     val ai_category: String? = null,
+    val ai_category_translated: String? = null,
+    val title_translated: String? = null,
+    val feed_ai_translate_enabled: Boolean? = null,
+    val feed_ai_classify_enabled: Boolean? = null,
+    val feed_ai_model_id: Long? = null,
+    val feed_ai_target_language: String? = null,
+)
+
+data class ArticleDetailResponse(
+    val article: ArticleJson,
+)
+
+/** 详情：在列表项基础上增加正文大字段 */
+data class ArticleJson(
+    val id: Long,
+    val feed_id: Long,
+    val guid: String,
+    val guid_raw: String? = null,
+    val title: String,
+    val link: String,
+    val content: String,
+    val published_at: String? = null,
+    val created_at: String? = null,
+    val updated_at: String? = null,
+    val read: Boolean = false,
+    val favorite: Boolean = false,
+    val feed_title: String? = null,
+    val ai_process_status: String? = null,
+    val ai_last_error: String? = null,
+    val ai_category: String? = null,
+    val ai_category_translated: String? = null,
     val title_translated: String? = null,
     val content_translated: String? = null,
     val feed_ai_translate_enabled: Boolean? = null,
     val feed_ai_classify_enabled: Boolean? = null,
+    val feed_ai_model_id: Long? = null,
+    val feed_ai_target_language: String? = null,
 )
 
 data class SummaryHistoryListResponse(

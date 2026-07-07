@@ -1,6 +1,7 @@
 package services
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -268,4 +269,161 @@ func TestArticleService_GetWithRead(t *testing.T) {
 
 	_, err = svc.GetWithRead(999, a.ID)
 	assert.ErrorIs(t, err, ErrArticleNotFound)
+}
+
+func seedArticleListFixtures(t *testing.T, db *gorm.DB) (models.User, models.Feed, []models.Article) {
+	t.Helper()
+	user := models.User{Username: "list-user", PasswordHash: "h"}
+	require.NoError(t, db.Create(&user).Error)
+	mid := uint(3)
+	feed := models.Feed{
+		UserID: user.ID, URL: "http://example.com", Title: "Feed A",
+		UpdateIntervalMinutes: 60, ExpireDays: 0,
+		AIModelID: &mid, AITargetLanguage: "en",
+		AITranslateEnabled: true, AIClassifyEnabled: true,
+	}
+	require.NoError(t, db.Create(&feed).Error)
+
+	now := time.Now()
+	tOld := now.Add(-48 * time.Hour)
+	tNew := now.Add(-1 * time.Hour)
+	tMid := now.Add(-2 * time.Hour)
+	articles := []models.Article{
+		{
+			FeedID: feed.ID, GUID: models.ArticleGUIDHash("g-old-read"), GUIDRaw: "g-old-read",
+			Title: "old-read", Content: "LONGTEXT content old", ContentTranslated: "LONGTEXT translated old",
+			PublishedAt: &tOld,
+		},
+		{
+			FeedID: feed.ID, GUID: models.ArticleGUIDHash("g-new-unread"), GUIDRaw: "g-new-unread",
+			Title: "new-unread", Content: "LONGTEXT content new", ContentTranslated: "LONGTEXT translated new",
+			PublishedAt: &tNew,
+		},
+		{
+			FeedID: feed.ID, GUID: models.ArticleGUIDHash("g-fav-unread"), GUIDRaw: "g-fav-unread",
+			Title: "fav-unread", Content: "LONGTEXT content fav", ContentTranslated: "LONGTEXT translated fav",
+			PublishedAt: &tMid,
+		},
+	}
+	for i := range articles {
+		require.NoError(t, db.Create(&articles[i]).Error)
+	}
+	require.NoError(t, db.Create(&models.UserArticle{
+		UserID: user.ID, ArticleID: articles[0].ID, ReadStatus: true,
+	}).Error)
+	require.NoError(t, db.Create(&models.UserArticle{
+		UserID: user.ID, ArticleID: articles[2].ID, Favorite: true,
+	}).Error)
+	return user, feed, articles
+}
+
+func assertListItemNoLongtext(t *testing.T, item ArticleListItem) {
+	t.Helper()
+	b, err := json.Marshal(item)
+	require.NoError(t, err)
+	var m map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal(b, &m))
+	assert.NotContains(t, m, "content")
+	assert.NotContains(t, m, "content_translated")
+	assert.NotContains(t, m, "guid_raw")
+}
+
+func TestArticleService_List_ExcludesLongtextFields(t *testing.T) {
+	db := setupArticleDB(t)
+	svc := NewArticleService(db)
+	user, _, _ := seedArticleListFixtures(t, db)
+
+	items, total, err := svc.List(user.ID, ListArticlesRequest{Page: 1, PageSize: 20})
+	require.NoError(t, err)
+	assert.Equal(t, int64(3), total)
+	require.Len(t, items, 3)
+	for _, item := range items {
+		assertListItemNoLongtext(t, item)
+	}
+}
+
+func TestArticleService_List_UnreadFirstOrdering(t *testing.T) {
+	db := setupArticleDB(t)
+	svc := NewArticleService(db)
+	user, _, articles := seedArticleListFixtures(t, db)
+
+	items, _, err := svc.List(user.ID, ListArticlesRequest{Page: 1, PageSize: 20})
+	require.NoError(t, err)
+	require.Len(t, items, 3)
+	// 未读优先，同组内按 published_at DESC
+	assert.Equal(t, articles[1].ID, items[0].ID)
+	assert.Equal(t, articles[2].ID, items[1].ID)
+	assert.Equal(t, articles[0].ID, items[2].ID)
+	assert.False(t, items[0].Read)
+	assert.False(t, items[1].Read)
+	assert.True(t, items[2].Read)
+}
+
+func TestArticleService_List_ReadFavoriteFilters(t *testing.T) {
+	db := setupArticleDB(t)
+	svc := NewArticleService(db)
+	user, _, articles := seedArticleListFixtures(t, db)
+
+	readTrue := true
+	readFalse := false
+	favTrue := true
+
+	items, total, err := svc.List(user.ID, ListArticlesRequest{Page: 1, PageSize: 20, Read: &readTrue})
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), total)
+	require.Len(t, items, 1)
+	assert.Equal(t, articles[0].ID, items[0].ID)
+	assert.True(t, items[0].Read)
+
+	items, total, err = svc.List(user.ID, ListArticlesRequest{Page: 1, PageSize: 20, Read: &readFalse})
+	require.NoError(t, err)
+	assert.Equal(t, int64(2), total)
+	require.Len(t, items, 2)
+
+	items, total, err = svc.List(user.ID, ListArticlesRequest{Page: 1, PageSize: 20, Favorite: &favTrue})
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), total)
+	require.Len(t, items, 1)
+	assert.Equal(t, articles[2].ID, items[0].ID)
+	assert.True(t, items[0].Favorite)
+}
+
+func TestArticleService_List_ReadAndFavoriteCombined(t *testing.T) {
+	db := setupArticleDB(t)
+	svc := NewArticleService(db)
+	user, _, articles := seedArticleListFixtures(t, db)
+
+	readFalse := false
+	favTrue := true
+	items, total, err := svc.List(user.ID, ListArticlesRequest{
+		Page: 1, PageSize: 20, Read: &readFalse, Favorite: &favTrue,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), total)
+	require.Len(t, items, 1)
+	assert.Equal(t, articles[2].ID, items[0].ID)
+	assert.False(t, items[0].Read)
+	assert.True(t, items[0].Favorite)
+}
+
+func TestArticleService_List_JoinMapsFeedAndUserArticle(t *testing.T) {
+	db := setupArticleDB(t)
+	svc := NewArticleService(db)
+	user, feed, articles := seedArticleListFixtures(t, db)
+
+	items, _, err := svc.List(user.ID, ListArticlesRequest{Page: 1, PageSize: 20})
+	require.NoError(t, err)
+	byID := make(map[uint]ArticleListItem, len(items))
+	for _, item := range items {
+		byID[item.ID] = item
+	}
+	fav := byID[articles[2].ID]
+	assert.Equal(t, feed.Title, fav.FeedTitle)
+	assert.True(t, fav.FeedAITranslateEnabled)
+	assert.True(t, fav.FeedAIClassifyEnabled)
+	require.NotNil(t, fav.FeedAIModelID)
+	assert.Equal(t, uint(3), *fav.FeedAIModelID)
+	assert.Equal(t, "en", fav.FeedAITargetLanguage)
+	assert.True(t, fav.Favorite)
+	assert.False(t, fav.Read)
 }

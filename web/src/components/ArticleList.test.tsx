@@ -1,16 +1,15 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import ArticleList from './ArticleList';
-import type { Article } from '../api/client';
+import type { ArticleListItem } from '../api/client';
 
-function makeArticle(overrides: Partial<Article> = {}): Article {
+function makeArticle(overrides: Partial<ArticleListItem> = {}): ArticleListItem {
   return {
     id: 1,
     feed_id: 1,
     guid: 'g',
     title: '标题1',
     link: 'https://example.com/a',
-    content: '<p>内容</p>',
     published_at: null,
     created_at: '2026-01-01T00:00:00Z',
     read: false,
