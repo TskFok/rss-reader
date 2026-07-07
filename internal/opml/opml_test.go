@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/ushopal/rss-reader/internal/models"
+	"github.com/tskfok/rss-reader/internal/models"
 )
 
 func TestGenerateAndParse(t *testing.T) {

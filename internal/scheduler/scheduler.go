@@ -7,11 +7,11 @@ import (
 	"time"
 
 	"github.com/robfig/cron/v3"
-	"github.com/ushopal/rss-reader/internal/config"
-	"github.com/ushopal/rss-reader/internal/logger"
-	"github.com/ushopal/rss-reader/internal/models"
-	"github.com/ushopal/rss-reader/internal/services"
-	"github.com/ushopal/rss-reader/internal/timeutil"
+	"github.com/tskfok/rss-reader/internal/config"
+	"github.com/tskfok/rss-reader/internal/logger"
+	"github.com/tskfok/rss-reader/internal/models"
+	"github.com/tskfok/rss-reader/internal/services"
+	"github.com/tskfok/rss-reader/internal/timeutil"
 	"gorm.io/gorm"
 )
 

@@ -6,7 +6,7 @@
 
 ## 当前问题
 
-[web/src/pages/Home.tsx](/Users/ushopal/workspace/myself/rss-reader/web/src/pages/Home.tsx) 中 `.article-detail-dock` 同时承载标题、元信息和正文，并且该容器自身负责滚动。正文滚动时，标题区域也会被卷出视口。
+[web/src/pages/Home.tsx](/Users/tskfok/workspace/myself/rss-reader/web/src/pages/Home.tsx) 中 `.article-detail-dock` 同时承载标题、元信息和正文，并且该容器自身负责滚动。正文滚动时，标题区域也会被卷出视口。
 
 ## 方案
 

@@ -10,8 +10,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ushopal/rss-reader/internal/config"
-	"github.com/ushopal/rss-reader/internal/logger"
+	"github.com/tskfok/rss-reader/internal/config"
+	"github.com/tskfok/rss-reader/internal/logger"
 )
 
 const (

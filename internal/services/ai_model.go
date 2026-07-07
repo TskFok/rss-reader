@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ushopal/rss-reader/internal/models"
+	"github.com/tskfok/rss-reader/internal/models"
 	"gorm.io/gorm"
 )
 

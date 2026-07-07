@@ -4,7 +4,7 @@ import (
 	"encoding/xml"
 	"sort"
 
-	"github.com/ushopal/rss-reader/internal/models"
+	"github.com/tskfok/rss-reader/internal/models"
 )
 
 // Item 表示从 OPML 中解析出的订阅项

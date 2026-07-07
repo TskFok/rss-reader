@@ -5,10 +5,10 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/ushopal/rss-reader/internal/middleware"
-	"github.com/ushopal/rss-reader/internal/models"
-	"github.com/ushopal/rss-reader/internal/opml"
-	"github.com/ushopal/rss-reader/internal/services"
+	"github.com/tskfok/rss-reader/internal/middleware"
+	"github.com/tskfok/rss-reader/internal/models"
+	"github.com/tskfok/rss-reader/internal/opml"
+	"github.com/tskfok/rss-reader/internal/services"
 )
 
 type OPMLHandler struct {

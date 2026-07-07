@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/ushopal/rss-reader/internal/models"
+	"github.com/tskfok/rss-reader/internal/models"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )

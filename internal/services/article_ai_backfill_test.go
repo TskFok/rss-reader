@@ -10,7 +10,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/ushopal/rss-reader/internal/models"
+	"github.com/tskfok/rss-reader/internal/models"
 )
 
 func TestBackfillClassifyBatch(t *testing.T) {

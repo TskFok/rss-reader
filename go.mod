@@ -1,4 +1,4 @@
-module github.com/ushopal/rss-reader
+module github.com/tskfok/rss-reader
 
 go 1.25.0
 

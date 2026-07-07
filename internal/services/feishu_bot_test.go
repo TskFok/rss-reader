@@ -9,7 +9,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/ushopal/rss-reader/internal/config"
+	"github.com/tskfok/rss-reader/internal/config"
 )
 
 func TestFeishuBotService_SendText_Success(t *testing.T) {

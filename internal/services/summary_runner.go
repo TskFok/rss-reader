@@ -8,8 +8,8 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/ushopal/rss-reader/internal/logger"
-	"github.com/ushopal/rss-reader/internal/models"
+	"github.com/tskfok/rss-reader/internal/logger"
+	"github.com/tskfok/rss-reader/internal/models"
 	"gorm.io/gorm"
 )
 

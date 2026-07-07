@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/ushopal/rss-reader/internal/services"
+	"github.com/tskfok/rss-reader/internal/services"
 )
 
 const (

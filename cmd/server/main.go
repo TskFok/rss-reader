@@ -8,14 +8,14 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/ushopal/rss-reader/internal/config"
-	"github.com/ushopal/rss-reader/internal/database"
-	"github.com/ushopal/rss-reader/internal/handlers"
-	"github.com/ushopal/rss-reader/internal/logger"
-	"github.com/ushopal/rss-reader/internal/middleware"
-	"github.com/ushopal/rss-reader/internal/scheduler"
-	"github.com/ushopal/rss-reader/internal/services"
-	"github.com/ushopal/rss-reader/internal/timeutil"
+	"github.com/tskfok/rss-reader/internal/config"
+	"github.com/tskfok/rss-reader/internal/database"
+	"github.com/tskfok/rss-reader/internal/handlers"
+	"github.com/tskfok/rss-reader/internal/logger"
+	"github.com/tskfok/rss-reader/internal/middleware"
+	"github.com/tskfok/rss-reader/internal/scheduler"
+	"github.com/tskfok/rss-reader/internal/services"
+	"github.com/tskfok/rss-reader/internal/timeutil"
 )
 
 func main() {

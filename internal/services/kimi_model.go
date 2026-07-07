@@ -3,7 +3,7 @@ package services
 import (
 	"strings"
 
-	"github.com/ushopal/rss-reader/internal/models"
+	"github.com/tskfok/rss-reader/internal/models"
 )
 
 // thinkingParam Kimi thinking 模式参数，见 https://platform.kimi.com/docs/api/models-overview

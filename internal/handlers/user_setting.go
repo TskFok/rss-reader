@@ -4,8 +4,8 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/ushopal/rss-reader/internal/middleware"
-	"github.com/ushopal/rss-reader/internal/services"
+	"github.com/tskfok/rss-reader/internal/middleware"
+	"github.com/tskfok/rss-reader/internal/services"
 )
 
 // UserSettingHandler 用户设置处理器

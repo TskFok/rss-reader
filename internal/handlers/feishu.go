@@ -10,9 +10,9 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/ushopal/rss-reader/internal/config"
-	"github.com/ushopal/rss-reader/internal/models"
-	"github.com/ushopal/rss-reader/internal/services"
+	"github.com/tskfok/rss-reader/internal/config"
+	"github.com/tskfok/rss-reader/internal/models"
+	"github.com/tskfok/rss-reader/internal/services"
 )
 
 // FeishuHandler 处理飞书登录/绑定

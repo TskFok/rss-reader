@@ -3,8 +3,8 @@ package database
 import (
 	"fmt"
 
-	"github.com/ushopal/rss-reader/internal/models"
-	"github.com/ushopal/rss-reader/internal/timeutil"
+	"github.com/tskfok/rss-reader/internal/models"
+	"github.com/tskfok/rss-reader/internal/timeutil"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 )

@@ -13,8 +13,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/ushopal/rss-reader/internal/models"
-	"github.com/ushopal/rss-reader/internal/services"
+	"github.com/tskfok/rss-reader/internal/models"
+	"github.com/tskfok/rss-reader/internal/services"
 	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
 )
