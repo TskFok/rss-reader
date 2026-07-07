@@ -4,6 +4,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { AuthProvider } from '../contexts/AuthContext';
 import Feeds from './Feeds';
 import { articlesApi, feedsApi } from '../api/client';
+import { clearAiModelsCache } from '../hooks/useAiModels';
 
 const { feedForRefresh } = vi.hoisted(() => ({
   feedForRefresh: {
@@ -62,6 +63,10 @@ vi.mock('../api/client', async (importOriginal) => {
       delete: vi.fn().mockResolvedValue({}),
     },
   };
+});
+
+beforeEach(() => {
+  clearAiModelsCache();
 });
 
 test('订阅列表行内可以立即刷新订阅', async () => {

@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import type { Article, AIModel } from '../api/client';
-import { articlesApi, aiModelsApi } from '../api/client';
+import type { Article } from '../api/client';
+import { articlesApi } from '../api/client';
+import { useAiModels } from '../hooks/useAiModels';
 import { AI_TARGET_LANGUAGES, isKnownTargetLanguageCode } from '../constants/aiTargetLanguages';
 import { useToast } from '../contexts/ToastContext';
 import { articleNeedsClassifySlot, articleNeedsTranslateSlot } from '../utils/articleManualAi';
@@ -30,8 +31,7 @@ export default function ArticleManualAI({
 }) {
   const toast = useToast();
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [models, setModels] = useState<AIModel[]>([]);
-  const [modelsLoading, setModelsLoading] = useState(true);
+  const { models, loading: modelsLoading } = useAiModels();
 
   const feedHasModel = (article.feed_ai_model_id ?? 0) > 0;
   const feedHasLang = !!(article.feed_ai_target_language ?? '').trim();
@@ -48,25 +48,6 @@ export default function ArticleManualAI({
 
   const [uiErr, setUiErr] = useState<string | null>(null);
   const [lastAiErr, setLastAiErr] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    setModelsLoading(true);
-    aiModelsApi
-      .list()
-      .then((r) => {
-        if (!cancelled) setModels(r.data);
-      })
-      .catch(() => {
-        if (!cancelled) setModels([]);
-      })
-      .finally(() => {
-        if (!cancelled) setModelsLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   useEffect(() => {
     setUseFeedForClassify((article.feed_ai_model_id ?? 0) > 0);

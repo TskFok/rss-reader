@@ -5,6 +5,7 @@ import ArticleList from '../components/ArticleList';
 import ArticleManualAI from '../components/ArticleManualAI';
 import ArticleDetailContent from '../components/ArticleDetailContent';
 import { useArticleDetail } from '../hooks/useArticleDetail';
+import { ensureAiModelsLoaded } from '../hooks/useAiModels';
 import { nextIndex } from '../utils/arrowNav';
 import {
   articleCategoryForDisplay,
@@ -38,6 +39,10 @@ export default function Favorites() {
     getStoredArticleLang()
   );
   const listScrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    void ensureAiModelsLoaded();
+  }, []);
 
   useEffect(() => {
     let cancelled = false;

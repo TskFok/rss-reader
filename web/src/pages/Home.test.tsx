@@ -4,7 +4,8 @@ import { MemoryRouter } from 'react-router-dom';
 import { ThemeProvider } from '../contexts/ThemeContext';
 import { ToastProvider } from '../contexts/ToastContext';
 import type { Article, ArticleListItem, Feed } from '../api/client';
-import { articlesApi, feedsApi } from '../api/client';
+import { articlesApi, feedsApi, aiModelsApi } from '../api/client';
+import { clearAiModelsCache } from '../hooks/useAiModels';
 import Home from './Home';
 
 const { feedOne, feedTwo, sharedArticle, articleTwo, detailArticle, detailArticleTwo } = vi.hoisted(() => {
@@ -80,7 +81,18 @@ vi.mock('../api/client', async (importOriginal) => {
       markRead: vi.fn().mockResolvedValue({}),
       toggleFavorite: vi.fn().mockResolvedValue({ data: { favorite: true } }),
     },
+    aiModelsApi: {
+      ...actual.aiModelsApi,
+      list: vi.fn().mockResolvedValue({
+        data: [{ id: 1, name: 'm', base_url: 'u', user_id: 1, created_at: '', updated_at: '' }],
+      }),
+    },
   };
+});
+
+beforeEach(() => {
+  clearAiModelsCache();
+  vi.mocked(aiModelsApi.list).mockClear();
 });
 
 test('阅读页选中订阅时可以立即刷新当前订阅', async () => {
@@ -271,6 +283,43 @@ test('刷新后首屏文章加载完成时重置文章列表滚动位置', async
 
   await screen.findByRole('button', { name: /长文/ });
   expect(listScroll.scrollTop).toBe(0);
+});
+
+test('加载订阅列表时预取 AI 模型，点击文章详情不再重复请求', async () => {
+  const user = userEvent.setup();
+  const store = new Map<string, string>();
+  // @ts-expect-error test polyfill
+  globalThis.localStorage = {
+    getItem: (k: string) => (store.has(k) ? store.get(k)! : null),
+    setItem: (k: string, v: string) => {
+      store.set(k, String(v));
+    },
+    removeItem: (k: string) => {
+      store.delete(k);
+    },
+  };
+
+  render(
+    <MemoryRouter initialEntries={['/']}>
+      <ThemeProvider>
+        <ToastProvider>
+          <Home />
+        </ToastProvider>
+      </ThemeProvider>
+    </MemoryRouter>
+  );
+
+  await waitFor(() => expect(aiModelsApi.list).toHaveBeenCalledTimes(1));
+
+  await user.click(await screen.findByRole('button', { name: /长文/ }));
+  await waitFor(() => expect(articlesApi.get).toHaveBeenCalled());
+
+  expect(aiModelsApi.list).toHaveBeenCalledTimes(1);
+
+  await user.click(await screen.findByRole('button', { name: /另一篇/ }));
+  await waitFor(() => expect(articlesApi.get).toHaveBeenCalledTimes(2));
+
+  expect(aiModelsApi.list).toHaveBeenCalledTimes(1);
 });
 
 test('选中文章时请求详情接口', async () => {

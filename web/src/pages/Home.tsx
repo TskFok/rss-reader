@@ -6,6 +6,7 @@ import ArticleList from '../components/ArticleList';
 import ArticleManualAI from '../components/ArticleManualAI';
 import ArticleDetailContent from '../components/ArticleDetailContent';
 import { useArticleDetail } from '../hooks/useArticleDetail';
+import { ensureAiModelsLoaded } from '../hooks/useAiModels';
 import { nextIndex } from '../utils/arrowNav';
 import {
   articleCategoryForDisplay,
@@ -74,9 +75,12 @@ export default function Home() {
       if (!sidebarLoadedRef.current) {
         setSidebarLoading(true);
         try {
-          const fr = await feedsApi.list();
+          const [fr, cr] = await Promise.all([
+            feedsApi.list(),
+            categoriesApi.list(),
+            ensureAiModelsLoaded(),
+          ]);
           if (!cancelled) setFeeds(fr.data);
-          const cr = await categoriesApi.list();
           if (!cancelled) setCategories(cr.data);
         } catch (_) {
           if (!cancelled) {

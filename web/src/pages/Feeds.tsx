@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { feedsApi, categoriesApi, opmlApi, proxiesApi, aiModelsApi, articlesApi, summarySchedulesApi, summaryHistoriesApi, summaryTemplatesApi, userSettingsApi } from '../api/client';
+import { refreshAiModelsCache, setAiModelsCache } from '../hooks/useAiModels';
 import type { Feed, FeedCategory, Proxy, AIModel, SummarySchedule, SummaryTemplate } from '../api/client';
 import { KIMI_DEFAULT_SAMPLING } from '../api/client';
 import { useAuth } from '../contexts/AuthContext';
@@ -307,9 +308,15 @@ export default function Feeds() {
         }
         try {
           const mr = await aiModelsApi.list();
-          if (!cancelled) setAiModels(mr.data);
+          if (!cancelled) {
+            setAiModelsCache(mr.data);
+            setAiModels(mr.data);
+          }
         } catch {
-          if (!cancelled) setAiModels([]);
+          if (!cancelled) {
+            setAiModelsCache([]);
+            setAiModels([]);
+          }
         }
         try {
           const tr = await summaryTemplatesApi.list();
@@ -333,9 +340,15 @@ export default function Feeds() {
         }
         try {
           const mr = await aiModelsApi.list();
-          if (!cancelled) setAiModels(mr.data);
+          if (!cancelled) {
+            setAiModelsCache(mr.data);
+            setAiModels(mr.data);
+          }
         } catch {
-          if (!cancelled) setAiModels([]);
+          if (!cancelled) {
+            setAiModelsCache([]);
+            setAiModels([]);
+          }
         }
         try {
           const sr = await summarySchedulesApi.list();
@@ -416,9 +429,15 @@ export default function Feeds() {
         }
         try {
           const mr = await aiModelsApi.list();
-          if (!cancelled) setAiModels(mr.data);
+          if (!cancelled) {
+            setAiModelsCache(mr.data);
+            setAiModels(mr.data);
+          }
         } catch {
-          if (!cancelled) setAiModels([]);
+          if (!cancelled) {
+            setAiModelsCache([]);
+            setAiModels([]);
+          }
         }
       })();
       return () => {
@@ -647,7 +666,12 @@ export default function Feeds() {
   };
 
   const loadAiModels = () => {
-    aiModelsApi.list().then((r) => setAiModels(r.data)).catch(() => setAiModels([]));
+    refreshAiModelsCache()
+      .then((models) => setAiModels(models))
+      .catch(() => {
+        setAiModelsCache([]);
+        setAiModels([]);
+      });
   };
 
   const handleAdd = async (e: React.FormEvent) => {
