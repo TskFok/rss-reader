@@ -95,7 +95,7 @@ var (
 		"feeds.ai_target_language AS feed_ai_target_language",
 	}
 	articleListUAColumns = []string{
-		"COALESCE(ua.read_status, 0) AS read",
+		"COALESCE(ua.read_status, 0) AS `read`",
 		"COALESCE(ua.favorite, 0) AS favorite",
 	}
 )
