@@ -97,7 +97,7 @@
 | 选中文章，缓存未命中 | `detailLoading=true`，发起 `GET` | `useArticleDetail` |
 | 快速切换文章 | **AbortController 取消进行中的 GET**；仅最新 `selectedId` 可写回 state | `useArticleDetail` |
 | 手动 AI 流式/完成 `onArticlePatched` | 写缓存 + 更新 `selectedDetail`；回调内校验 `article.id === selectedId` | `Home` / `Favorites` |
-| `markRead` | 更新 list/detail 的 `read`，保留正文缓存 | 页面现有逻辑 |
+| `markRead` | 已合并至 `GET /articles/:id`（打开详情即标记已读） | 页面通过详情响应同步 `read` |
 | `toggleFavorite` | 更新 `favorite`；Favorites 取消收藏时删除该 id 缓存 + `setSelected(null)` | 页面现有逻辑 |
 | `reloadKey` 变化（订阅刷新） | `clearCache()` 清空全部 | `Home` |
 | 语言切换 | 不清缓存（展示字段本地切换） | `ArticleDetailContent` |

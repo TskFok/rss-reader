@@ -126,7 +126,6 @@ func main() {
 			auth.DELETE("/feeds/:id", handlers.NewFeedHandler(feedSvc).Delete)
 			auth.GET("/articles", articleHandler.List)
 			auth.GET("/articles/:id", articleHandler.Get)
-			auth.PUT("/articles/:id/read", articleHandler.MarkRead)
 			auth.PUT("/articles/:id/favorite", articleHandler.ToggleFavorite)
 			auth.POST("/articles/:id/ai/classify", articleHandler.ManualAIClassify)
 			auth.POST("/articles/:id/ai/translate", articleHandler.ManualAITranslate)

@@ -351,10 +351,11 @@ paths:
                     type: integer
                     format: int64
 
-  /articles/{id}/read:
-    put:
+  /articles/{id}:
+    get:
       tags: [articles]
-      summary: 标记文章为已读
+      summary: 文章详情（同时标记为已读）
+      description: 返回完整正文等大字段，并在服务端将文章标记为已读。
       security: [{ bearerAuth: [] }]
       parameters:
         - in: path
@@ -364,11 +365,14 @@ paths:
           description: 文章 ID
       responses:
         '200':
-          description: 标记成功
+          description: 获取成功
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/MessageResponse'
+                type: object
+                properties:
+                  article:
+                    $ref: '#/components/schemas/Article'
         '400':
           $ref: '#/components/responses/Error'
         '401':

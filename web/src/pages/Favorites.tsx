@@ -39,6 +39,7 @@ export default function Favorites() {
     getStoredArticleLang()
   );
   const listScrollRef = useRef<HTMLDivElement>(null);
+  const syncedReadIdRef = useRef<number | null>(null);
 
   useEffect(() => {
     void ensureAiModelsLoaded();
@@ -87,15 +88,15 @@ export default function Favorites() {
     }
   }, [articles, selectedListItem, selectArticle]);
 
-  const markRead = async (id: number) => {
-    try {
-      await articlesApi.markRead(id);
-      setArticles((prev) =>
-        prev.map((a) => (a.id === id ? { ...a, read: true } : a))
-      );
-      patchListItem(id, { read: true });
-    } catch {}
-  };
+  useEffect(() => {
+    if (!selectedDetail?.read) return;
+    if (syncedReadIdRef.current === selectedDetail.id) return;
+    syncedReadIdRef.current = selectedDetail.id;
+    setArticles((prev) =>
+      prev.map((a) => (a.id === selectedDetail.id ? { ...a, read: true } : a))
+    );
+    patchListItem(selectedDetail.id, { read: true });
+  }, [selectedDetail, patchListItem]);
 
   const toggleFavorite = async (id: number) => {
     try {
@@ -175,7 +176,6 @@ export default function Favorites() {
 
       const nextArticle = articles[nextIdx];
       selectArticle(nextArticle);
-      markRead(nextArticle.id);
 
       const el = document.querySelector(`[data-article-id="${nextArticle.id}"]`);
       if (el && 'scrollIntoView' in el) {
@@ -188,7 +188,6 @@ export default function Favorites() {
 
   const openArticle = (a: ArticleListItem) => {
     selectArticle(a);
-    markRead(a.id);
   };
 
   return (

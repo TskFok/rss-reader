@@ -58,7 +58,7 @@ export function useArticleDetail() {
     setDetailError(null);
 
     const cached = cache.get(item.id);
-    if (cached) {
+    if (cached && item.read) {
       setSelectedDetail(cached);
       setDetailLoading(false);
       return;

@@ -267,6 +267,8 @@ JWT 在登录成功响应的 `token` 字段中取得；失效时接口返回 `40
 | 方法 / 路径 | `GET /api/articles/:id` |
 | 认证 | 需要 Bearer |
 
+**说明**：获取详情时会**自动将文章标记为已读**，响应中 `article.read` 为 `true`。无需再单独调用已读接口。
+
 **成功 `200`**：
 
 ```json
@@ -277,7 +279,7 @@ JWT 在登录成功响应的 `token` 字段中取得；失效时接口返回 `40
 
 **错误**：未认证 `401`；文章不存在或订阅不属于当前用户 `404`（`{ "error": "文章不存在" }`）。
 
-**其它**（按需）：`PUT /api/articles/:id/read` 标记已读，`PUT /api/articles/:id/favorite` 收藏。
+**其它**（按需）：`PUT /api/articles/:id/favorite` 收藏。
 
 ---
 

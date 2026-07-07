@@ -29,46 +29,8 @@ func setupArticleHandler(t *testing.T) (*gin.Engine, *gorm.DB, *ArticleHandler) 
 		c.Set(middleware.UserIDKey, uint(1))
 		c.Next()
 	})
-	r.PUT("/api/articles/:id/read", h.MarkRead)
 	r.GET("/api/articles/:id", h.Get)
 	return r, db, h
-}
-
-func TestArticleHandler_MarkRead(t *testing.T) {
-	r, db, _ := setupArticleHandler(t)
-
-	user := models.User{ID: 1, Username: "alice", PasswordHash: "h"}
-	require.NoError(t, db.Create(&user).Error)
-	feed := models.Feed{UserID: user.ID, URL: "http://example.com", Title: "F", UpdateIntervalMinutes: 60, ExpireDays: 0}
-	require.NoError(t, db.Create(&feed).Error)
-	article := models.Article{FeedID: feed.ID, GUID: models.ArticleGUIDHash("g-handler"), GUIDRaw: "g-handler", Title: "a"}
-	require.NoError(t, db.Create(&article).Error)
-
-	req := httptest.NewRequest(http.MethodPut, "/api/articles/"+jsonUint(article.ID)+"/read", nil)
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
-
-	assert.Equal(t, http.StatusOK, w.Code)
-	var resp map[string]string
-	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
-	assert.Equal(t, "已标记为已读", resp["message"])
-
-	var ua models.UserArticle
-	require.NoError(t, db.Where("user_id = ? AND article_id = ?", user.ID, article.ID).First(&ua).Error)
-	assert.True(t, ua.ReadStatus)
-}
-
-func TestArticleHandler_MarkRead_NotFound(t *testing.T) {
-	r, _, _ := setupArticleHandler(t)
-
-	req := httptest.NewRequest(http.MethodPut, "/api/articles/999/read", nil)
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
-
-	assert.Equal(t, http.StatusNotFound, w.Code)
-	var resp map[string]string
-	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
-	assert.Equal(t, "文章不存在", resp["error"])
 }
 
 func jsonUint(v uint) string {
@@ -106,6 +68,34 @@ func TestArticleHandler_Get_OK(t *testing.T) {
 	assert.Equal(t, "full body", resp.Article.Content)
 	assert.Equal(t, "translated body", resp.Article.ContentTranslated)
 	assert.Equal(t, "raw-guid", resp.Article.GUIDRaw)
+}
+
+func TestArticleHandler_Get_MarksRead(t *testing.T) {
+	r, db, _ := setupArticleHandler(t)
+
+	user := models.User{ID: 1, Username: "alice", PasswordHash: "h"}
+	require.NoError(t, db.Create(&user).Error)
+	feed := models.Feed{UserID: user.ID, URL: "http://example.com", Title: "F", UpdateIntervalMinutes: 60, ExpireDays: 0}
+	require.NoError(t, db.Create(&feed).Error)
+	article := models.Article{FeedID: feed.ID, GUID: models.ArticleGUIDHash("g-handler"), GUIDRaw: "g-handler", Title: "a"}
+	require.NoError(t, db.Create(&article).Error)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/articles/"+jsonUint(article.ID), nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	var resp struct {
+		Article struct {
+			Read bool `json:"read"`
+		} `json:"article"`
+	}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+	assert.True(t, resp.Article.Read)
+
+	var ua models.UserArticle
+	require.NoError(t, db.Where("user_id = ? AND article_id = ?", user.ID, article.ID).First(&ua).Error)
+	assert.True(t, ua.ReadStatus)
 }
 
 func TestArticleHandler_Get_NotFound(t *testing.T) {

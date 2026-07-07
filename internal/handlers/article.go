@@ -91,13 +91,21 @@ func (h *ArticleHandler) List(c *gin.Context) {
 	})
 }
 
-// Get 文章详情
+// Get 文章详情（同时标记为已读）
 // GET /api/articles/:id
 func (h *ArticleHandler) Get(c *gin.Context) {
 	userID := middleware.GetUserID(c)
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的 ID"})
+		return
+	}
+	if err := h.articleSvc.MarkRead(userID, uint(id)); err != nil {
+		if errors.Is(err, services.ErrArticleNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "文章不存在"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取文章失败"})
 		return
 	}
 	ar, err := h.articleSvc.GetWithRead(userID, uint(id))
@@ -110,26 +118,6 @@ func (h *ArticleHandler) Get(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"article": ar})
-}
-
-// MarkRead 标记已读
-// PUT /api/articles/:id/read
-func (h *ArticleHandler) MarkRead(c *gin.Context) {
-	userID := middleware.GetUserID(c)
-	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的 ID"})
-		return
-	}
-	if err := h.articleSvc.MarkRead(userID, uint(id)); err != nil {
-		if err == services.ErrArticleNotFound {
-			c.JSON(http.StatusNotFound, gin.H{"error": "文章不存在"})
-			return
-		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "操作失败"})
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{"message": "已标记为已读"})
 }
 
 // ToggleFavorite 切换收藏

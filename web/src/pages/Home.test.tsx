@@ -6,6 +6,7 @@ import { ToastProvider } from '../contexts/ToastContext';
 import type { Article, ArticleListItem, Feed } from '../api/client';
 import { articlesApi, feedsApi, aiModelsApi } from '../api/client';
 import { clearAiModelsCache } from '../hooks/useAiModels';
+import { clearArticleDetailCache } from '../hooks/useArticleDetail';
 import Home from './Home';
 
 const { feedOne, feedTwo, sharedArticle, articleTwo, detailArticle, detailArticleTwo } = vi.hoisted(() => {
@@ -76,9 +77,8 @@ vi.mock('../api/client', async (importOriginal) => {
       list: vi.fn().mockResolvedValue({ data: { items: [sharedArticle, articleTwo], total: 2 } }),
       get: vi.fn().mockImplementation((id: number) => {
         const article = id === sharedArticle.id ? detailArticle : detailArticleTwo;
-        return Promise.resolve({ data: { article } });
+        return Promise.resolve({ data: { article: { ...article, read: true } } });
       }),
-      markRead: vi.fn().mockResolvedValue({}),
       toggleFavorite: vi.fn().mockResolvedValue({ data: { favorite: true } }),
     },
     aiModelsApi: {
@@ -92,7 +92,10 @@ vi.mock('../api/client', async (importOriginal) => {
 
 beforeEach(() => {
   clearAiModelsCache();
+  clearArticleDetailCache();
   vi.mocked(aiModelsApi.list).mockClear();
+  vi.mocked(articlesApi.get).mockClear();
+  vi.mocked(articlesApi.list).mockClear();
 });
 
 test('阅读页选中订阅时可以立即刷新当前订阅', async () => {

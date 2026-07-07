@@ -342,7 +342,6 @@ export const articlesApi = {
   }) => client.get<{ items: ArticleListItem[]; total: number }>('/articles', { params }),
   get: (id: number, config?: { signal?: AbortSignal }) =>
     client.get<{ article: Article }>(`/articles/${id}`, config),
-  markRead: (id: number) => client.put(`/articles/${id}/read`),
   toggleFavorite: (id: number) =>
     client.put<{ favorite: boolean }>(`/articles/${id}/favorite`),
   /** 手动 AI 分类（同步）；body 可传 { ai_model_id } 覆盖订阅默认模型 */

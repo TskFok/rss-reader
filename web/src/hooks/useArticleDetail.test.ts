@@ -126,6 +126,21 @@ test('详情 404 展示错误且重试会再次请求', async () => {
   expect(articlesApi.get).toHaveBeenCalledTimes(2);
 });
 
+test('未读文章不使用详情缓存，会重新请求', async () => {
+  vi.mocked(articlesApi.get).mockResolvedValue({ data: { article: { ...detail, read: true } } });
+
+  const { result } = renderHook(() => useArticleDetail());
+
+  getArticleDetailCacheForTest().set(1, detail);
+
+  act(() => {
+    result.current.selectArticle(listItem);
+  });
+
+  await waitFor(() => expect(result.current.selectedDetail?.read).toBe(true));
+  expect(articlesApi.get).toHaveBeenCalledTimes(1);
+});
+
 test('clearArticleDetailCache 清空模块级缓存', () => {
   getArticleDetailCacheForTest().set(1, detail);
   clearArticleDetailCache();
