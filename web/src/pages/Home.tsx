@@ -15,6 +15,11 @@ import {
   setStoredArticleLang,
   type ArticleDisplayLang,
 } from '../utils/articleDisplayLang';
+import {
+  applyReadFilterToSearchParams,
+  parseReadFilterParam,
+  type ReadFilter,
+} from '../utils/homeReadFilter';
 
 const PAGE_SIZE = 20;
 
@@ -26,6 +31,7 @@ export default function Home() {
   const initialCollapsed = new Set(
     collapsedParam.split(',').map((s) => s.trim()).filter(Boolean).map(Number).filter((n) => !Number.isNaN(n))
   );
+  const initialRead = parseReadFilterParam(searchParams.get('read'));
 
   const [articles, setArticles] = useState<ArticleListItem[]>([]);
   const [feeds, setFeeds] = useState<Feed[]>([]);
@@ -34,7 +40,7 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [filterFeed, setFilterFeed] = useState<number | ''>(initialFeed);
-  const [filterRead, setFilterRead] = useState<'' | 'read' | 'unread'>('');
+  const [filterRead, setFilterRead] = useState<ReadFilter>(initialRead);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [reloadKey, setReloadKey] = useState(0);
@@ -134,6 +140,8 @@ export default function Home() {
       cp.split(',').map((s) => s.trim()).filter(Boolean).map(Number).filter((n) => !Number.isNaN(n))
     );
     setCollapsedCategories((prev) => (prev.size !== nextCollapsed.size || [...prev].some((id) => !nextCollapsed.has(id)) ? nextCollapsed : prev));
+    const nextRead = parseReadFilterParam(searchParams.get('read'));
+    setFilterRead((prev) => (prev !== nextRead ? nextRead : prev));
   }, [searchParams]);
 
   useEffect(() => {
@@ -447,8 +455,10 @@ export default function Home() {
           <select
             value={filterRead}
             onChange={(e) => {
-              setFilterRead(e.target.value as '' | 'read' | 'unread');
+              const v = e.target.value as ReadFilter;
+              setFilterRead(v);
               setPage(1);
+              setSearchParams((prev) => applyReadFilterToSearchParams(prev, v));
             }}
           >
             <option value="">全部</option>

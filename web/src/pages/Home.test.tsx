@@ -1,6 +1,6 @@
 import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router-dom';
+import { createMemoryRouter, MemoryRouter, RouterProvider } from 'react-router-dom';
 import { ThemeProvider } from '../contexts/ThemeContext';
 import { ToastProvider } from '../contexts/ToastContext';
 import type { Article, ArticleListItem, Feed } from '../api/client';
@@ -96,6 +96,127 @@ beforeEach(() => {
   vi.mocked(aiModelsApi.list).mockClear();
   vi.mocked(articlesApi.get).mockClear();
   vi.mocked(articlesApi.list).mockClear();
+});
+
+test('状态筛选默认选中未读并请求未读文章', async () => {
+  const store = new Map<string, string>();
+  // @ts-expect-error test polyfill
+  globalThis.localStorage = {
+    getItem: (k: string) => (store.has(k) ? store.get(k)! : null),
+    setItem: (k: string, v: string) => {
+      store.set(k, String(v));
+    },
+    removeItem: (k: string) => {
+      store.delete(k);
+    },
+  };
+
+  render(
+    <MemoryRouter initialEntries={['/']}>
+      <ThemeProvider>
+        <ToastProvider>
+          <Home />
+        </ToastProvider>
+      </ThemeProvider>
+    </MemoryRouter>
+  );
+
+  await waitFor(() => {
+    expect(articlesApi.list).toHaveBeenCalledWith(
+      expect.objectContaining({ read: false, page: 1, page_size: 20 })
+    );
+  });
+
+  const statusSelect = screen.getByRole('combobox');
+  expect(statusSelect).toHaveValue('unread');
+});
+
+function mockLocalStorage() {
+  const store = new Map<string, string>();
+  // @ts-expect-error test polyfill
+  globalThis.localStorage = {
+    getItem: (k: string) => (store.has(k) ? store.get(k)! : null),
+    setItem: (k: string, v: string) => {
+      store.set(k, String(v));
+    },
+    removeItem: (k: string) => {
+      store.delete(k);
+    },
+  };
+}
+
+function renderHomeAt(path: string) {
+  return createMemoryRouter(
+    [
+      {
+        path: '/',
+        element: (
+          <ThemeProvider>
+            <ToastProvider>
+              <Home />
+            </ToastProvider>
+          </ThemeProvider>
+        ),
+      },
+    ],
+    { initialEntries: [path] }
+  );
+}
+
+test('URL read=all 时默认展示全部文章', async () => {
+  mockLocalStorage();
+  const router = renderHomeAt('/?read=all');
+  render(<RouterProvider router={router} />);
+
+  await waitFor(() => {
+    expect(articlesApi.list).toHaveBeenCalledWith(
+      expect.objectContaining({ page: 1, page_size: 20 })
+    );
+  });
+  const lastCall = vi.mocked(articlesApi.list).mock.calls.at(-1)?.[0];
+  expect(lastCall).not.toHaveProperty('read');
+
+  const statusSelect = screen.getByRole('combobox');
+  expect(statusSelect).toHaveValue('');
+});
+
+test('URL read=read 时展示已读文章', async () => {
+  mockLocalStorage();
+  const router = renderHomeAt('/?read=read');
+  render(<RouterProvider router={router} />);
+
+  await waitFor(() => {
+    expect(articlesApi.list).toHaveBeenCalledWith(
+      expect.objectContaining({ read: true, page: 1, page_size: 20 })
+    );
+  });
+
+  const statusSelect = screen.getByRole('combobox');
+  expect(statusSelect).toHaveValue('read');
+});
+
+test('切换状态筛选会更新 URL', async () => {
+  const user = userEvent.setup();
+  mockLocalStorage();
+  const router = renderHomeAt('/');
+  render(<RouterProvider router={router} />);
+
+  const statusSelect = await screen.findByRole('combobox');
+  await user.selectOptions(statusSelect, '');
+
+  await waitFor(() => {
+    expect(router.state.location.search).toBe('?read=all');
+  });
+
+  await user.selectOptions(statusSelect, 'read');
+  await waitFor(() => {
+    expect(router.state.location.search).toBe('?read=read');
+  });
+
+  await user.selectOptions(statusSelect, 'unread');
+  await waitFor(() => {
+    expect(router.state.location.search).toBe('');
+  });
 });
 
 test('阅读页选中订阅时可以立即刷新当前订阅', async () => {
