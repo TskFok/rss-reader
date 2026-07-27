@@ -20,6 +20,11 @@ import {
   parseReadFilterParam,
   type ReadFilter,
 } from '../utils/homeReadFilter';
+import {
+  getStoredHomeLayout,
+  setStoredHomeLayout,
+  type HomeLayout,
+} from '../utils/homeLayout';
 
 const PAGE_SIZE = 20;
 
@@ -62,6 +67,7 @@ export default function Home() {
   const [articleDisplayLang, setArticleDisplayLang] = useState<ArticleDisplayLang>(() =>
     getStoredArticleLang()
   );
+  const [homeLayout, setHomeLayout] = useState<HomeLayout>(() => getStoredHomeLayout());
   const sidebarLoadedRef = useRef(false);
   const syncedReadIdRef = useRef<number | null>(null);
   const listScrollRef = useRef<HTMLDivElement>(null);
@@ -313,7 +319,7 @@ export default function Home() {
   };
 
   return (
-    <div className="home-layout">
+    <div className={homeLayout === 'detail-centered' ? 'home-layout home-layout--detail-centered' : 'home-layout'}>
       <aside className="home-sidebar">
         <div className="sidebar-header">订阅</div>
         {sidebarLoading ? (
@@ -453,6 +459,18 @@ export default function Home() {
             </label>
           )}
           <select
+            aria-label="阅读布局"
+            value={homeLayout}
+            onChange={(event) => {
+              const next = event.target.value as HomeLayout;
+              setHomeLayout(next);
+              setStoredHomeLayout(next);
+            }}
+          >
+            <option value="default">默认布局</option>
+            <option value="detail-centered">详情居中</option>
+          </select>
+          <select
             aria-label="文章状态筛选"
             value={filterRead}
             onChange={(e) => {
@@ -468,6 +486,7 @@ export default function Home() {
           </select>
         </div>
 
+        <div className="home-reading-panels">
         <div ref={listScrollRef} className="article-list-scroll">
           {loading ? (
             <p className="loading">加载中...</p>
@@ -558,6 +577,7 @@ export default function Home() {
             </div>
           </div>
         )}
+        </div>
       </section>
     </div>
   );

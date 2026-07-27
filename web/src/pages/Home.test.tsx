@@ -127,7 +127,7 @@ test('状态筛选默认选中未读并请求未读文章', async () => {
     );
   });
 
-  const statusSelect = screen.getByRole('combobox');
+  const statusSelect = screen.getByRole('combobox', { name: '文章状态筛选' });
   expect(statusSelect).toHaveValue('unread');
 });
 
@@ -176,7 +176,7 @@ test('URL read=all 时默认展示全部文章', async () => {
   const lastCall = vi.mocked(articlesApi.list).mock.calls.at(-1)?.[0];
   expect(lastCall).not.toHaveProperty('read');
 
-  const statusSelect = screen.getByRole('combobox');
+  const statusSelect = screen.getByRole('combobox', { name: '文章状态筛选' });
   expect(statusSelect).toHaveValue('');
 });
 
@@ -191,7 +191,7 @@ test('URL read=read 时展示已读文章', async () => {
     );
   });
 
-  const statusSelect = screen.getByRole('combobox');
+  const statusSelect = screen.getByRole('combobox', { name: '文章状态筛选' });
   expect(statusSelect).toHaveValue('read');
 });
 
@@ -201,7 +201,7 @@ test('切换状态筛选会更新 URL', async () => {
   const router = renderHomeAt('/');
   render(<RouterProvider router={router} />);
 
-  const statusSelect = await screen.findByRole('combobox');
+  const statusSelect = await screen.findByRole('combobox', { name: '文章状态筛选' });
   await user.selectOptions(statusSelect, '');
 
   await waitFor(() => {
@@ -216,6 +216,51 @@ test('切换状态筛选会更新 URL', async () => {
   await user.selectOptions(statusSelect, 'unread');
   await waitFor(() => {
     expect(router.state.location.search).toBe('');
+  });
+});
+
+test('阅读布局默认保持当前布局，切换后持久化详情居中选择', async () => {
+  const user = userEvent.setup();
+  mockLocalStorage();
+  const router = renderHomeAt('/');
+  const { container } = render(<RouterProvider router={router} />);
+
+  const root = container.querySelector('.home-layout');
+  expect(root).not.toHaveClass('home-layout--detail-centered');
+
+  const layoutSelect = await screen.findByRole('combobox', { name: '阅读布局' });
+  expect(layoutSelect).toHaveValue('default');
+
+  await user.selectOptions(layoutSelect, 'detail-centered');
+
+  expect(root).toHaveClass('home-layout--detail-centered');
+  expect(window.localStorage.getItem('home.layout')).toBe('detail-centered');
+});
+
+test('重载首页时恢复已保存的详情居中布局', async () => {
+  mockLocalStorage();
+  window.localStorage.setItem('home.layout', 'detail-centered');
+  const router = renderHomeAt('/');
+  const { container } = render(<RouterProvider router={router} />);
+
+  await screen.findByRole('combobox', { name: '阅读布局' });
+
+  expect(container.querySelector('.home-layout')).toHaveClass('home-layout--detail-centered');
+});
+
+test('详情居中布局将文章列表与详情面板放入同一阅读区域', async () => {
+  const user = userEvent.setup();
+  mockLocalStorage();
+  const router = renderHomeAt('/');
+  const { container } = render(<RouterProvider router={router} />);
+
+  await user.selectOptions(await screen.findByRole('combobox', { name: '阅读布局' }), 'detail-centered');
+  await user.click(await screen.findByRole('button', { name: /长文/ }));
+
+  await waitFor(() => {
+    const panels = container.querySelector('.home-reading-panels');
+    expect(panels).toContainElement(container.querySelector('.article-detail-dock'));
+    expect(panels).toContainElement(container.querySelector('.article-list-scroll'));
   });
 });
 
