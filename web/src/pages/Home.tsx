@@ -1,4 +1,12 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import {
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+  type CSSProperties,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
+} from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { articlesApi, feedsApi, categoriesApi } from '../api/client';
 import type { ArticleListItem, Feed, FeedCategory } from '../api/client';
@@ -27,8 +35,20 @@ import {
   setStoredHomeLayout,
   type HomeLayout,
 } from '../utils/homeLayout';
+import {
+  clampArticleDetailSize,
+  getStoredArticleDetailSize,
+  setStoredArticleDetailSize,
+  type ArticleDetailSize,
+} from '../utils/articleDetailSize';
 
 const PAGE_SIZE = 20;
+const DETAIL_MIN_HEIGHT = 280;
+
+function getDetailMaxHeight() {
+  if (typeof window === 'undefined') return 520;
+  return Math.max(DETAIL_MIN_HEIGHT, window.innerHeight - 180);
+}
 
 export default function Home() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -71,10 +91,40 @@ export default function Home() {
   );
   const [showOriginalWebpage, setShowOriginalWebpage] = useState(false);
   const [homeLayout, setHomeLayout] = useState<HomeLayout>(() => getStoredHomeLayout());
+  const [articleDetailSize, setArticleDetailSize] = useState<ArticleDetailSize>(() =>
+    getStoredArticleDetailSize(getDetailMaxHeight())
+  );
+  const [isWideViewport, setIsWideViewport] = useState(() =>
+    typeof window === 'undefined' || window.innerWidth > 860
+  );
+  const [resizeAxis, setResizeAxis] = useState<'width' | 'height' | null>(null);
   const sidebarLoadedRef = useRef(false);
   const syncedReadIdRef = useRef<number | null>(null);
   const listScrollRef = useRef<HTMLDivElement>(null);
   const detailDockScrollRef = useRef<HTMLDivElement>(null);
+  const readingPanelsRef = useRef<HTMLDivElement>(null);
+  const articleDetailSizeRef = useRef(articleDetailSize);
+  const resizeAxisRef = useRef<'width' | 'height' | null>(null);
+
+  const updateArticleDetailSize = useCallback((nextSize: ArticleDetailSize) => {
+    articleDetailSizeRef.current = nextSize;
+    setArticleDetailSize(nextSize);
+  }, []);
+
+  useEffect(() => {
+    const updateViewport = () => {
+      setIsWideViewport(window.innerWidth > 860);
+      updateArticleDetailSize(
+        clampArticleDetailSize(articleDetailSizeRef.current, getDetailMaxHeight())
+      );
+    };
+    window.addEventListener('resize', updateViewport);
+    return () => window.removeEventListener('resize', updateViewport);
+  }, [updateArticleDetailSize]);
+
+  useEffect(() => () => {
+    document.body.classList.remove('article-detail-resizing');
+  }, []);
 
   useEffect(() => {
     if (reloadKey === 0) return;
@@ -325,6 +375,91 @@ export default function Home() {
     selectArticle(a);
   };
 
+  const beginDetailResize = (
+    axis: 'width' | 'height',
+    event: ReactPointerEvent<HTMLDivElement>
+  ) => {
+    if (homeLayout !== 'detail-centered' || !isWideViewport) return;
+    resizeAxisRef.current = axis;
+    setResizeAxis(axis);
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    document.body.classList.add('article-detail-resizing');
+  };
+
+  const resizeDetail = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const axis = resizeAxisRef.current;
+    const panels = readingPanelsRef.current;
+    if (!axis || !panels) return;
+
+    const bounds = panels.getBoundingClientRect();
+    if (bounds.width <= 0 || bounds.height <= 0) return;
+    const nextSize = clampArticleDetailSize(
+      axis === 'width'
+        ? {
+            ...articleDetailSizeRef.current,
+            widthPercent: ((event.clientX - bounds.left) / bounds.width) * 100,
+          }
+        : {
+            ...articleDetailSizeRef.current,
+            height: event.clientY - bounds.top,
+          },
+      getDetailMaxHeight()
+    );
+    updateArticleDetailSize(nextSize);
+  };
+
+  const finishDetailResize = () => {
+    if (!resizeAxisRef.current) return;
+    resizeAxisRef.current = null;
+    setResizeAxis(null);
+    document.body.classList.remove('article-detail-resizing');
+    setStoredArticleDetailSize(articleDetailSizeRef.current);
+  };
+
+  const adjustDetailSizeByKeyboard = (
+    axis: 'width' | 'height',
+    event: ReactKeyboardEvent<HTMLDivElement>
+  ) => {
+    const direction =
+      axis === 'width'
+        ? event.key === 'ArrowRight'
+          ? 1
+          : event.key === 'ArrowLeft'
+            ? -1
+            : 0
+        : event.key === 'ArrowDown'
+          ? 1
+          : event.key === 'ArrowUp'
+            ? -1
+            : 0;
+    if (!direction) return;
+
+    event.preventDefault();
+    const step = event.shiftKey ? (axis === 'width' ? 5 : 40) : axis === 'width' ? 2 : 20;
+    const nextSize = clampArticleDetailSize(
+      axis === 'width'
+        ? {
+            ...articleDetailSizeRef.current,
+            widthPercent: articleDetailSizeRef.current.widthPercent + direction * step,
+          }
+        : {
+            ...articleDetailSizeRef.current,
+            height: articleDetailSizeRef.current.height + direction * step,
+          },
+      getDetailMaxHeight()
+    );
+    updateArticleDetailSize(nextSize);
+    setStoredArticleDetailSize(nextSize);
+  };
+
+  const canResizeDetail = homeLayout === 'detail-centered' && isWideViewport;
+  const readingPanelsStyle = canResizeDetail
+    ? ({
+        '--article-detail-width': `${articleDetailSize.widthPercent}%`,
+        '--article-detail-height': `${articleDetailSize.height}px`,
+      } as CSSProperties)
+    : undefined;
+
   return (
     <div className={homeLayout === 'detail-centered' ? 'home-layout home-layout--detail-centered' : 'home-layout'}>
       <aside className="home-sidebar">
@@ -493,7 +628,7 @@ export default function Home() {
           </select>
         </div>
 
-        <div className="home-reading-panels">
+        <div ref={readingPanelsRef} className="home-reading-panels" style={readingPanelsStyle}>
         <div ref={listScrollRef} className="article-list-scroll">
           {loading ? (
             <p className="loading">加载中...</p>
@@ -517,7 +652,7 @@ export default function Home() {
         </div>
 
         {selectedListItem && (
-          <div className="article-detail-dock">
+          <div className={`article-detail-dock${resizeAxis ? ` article-detail-dock--resizing-${resizeAxis}` : ''}`}>
             <div className="article-detail-header">
               <a
                 className="article-detail-title"
@@ -600,6 +735,40 @@ export default function Home() {
                 )
               ) : null}
             </div>
+            {canResizeDetail && (
+              <>
+                <div
+                  role="separator"
+                  aria-label="调整详情宽度"
+                  aria-orientation="vertical"
+                  aria-valuemin={40}
+                  aria-valuemax={75}
+                  aria-valuenow={articleDetailSize.widthPercent}
+                  tabIndex={0}
+                  className="article-detail-resize-handle article-detail-resize-handle--width"
+                  onPointerDown={(event) => beginDetailResize('width', event)}
+                  onPointerMove={resizeDetail}
+                  onPointerUp={finishDetailResize}
+                  onPointerCancel={finishDetailResize}
+                  onKeyDown={(event) => adjustDetailSizeByKeyboard('width', event)}
+                />
+                <div
+                  role="separator"
+                  aria-label="调整详情高度"
+                  aria-orientation="horizontal"
+                  aria-valuemin={DETAIL_MIN_HEIGHT}
+                  aria-valuemax={getDetailMaxHeight()}
+                  aria-valuenow={articleDetailSize.height}
+                  tabIndex={0}
+                  className="article-detail-resize-handle article-detail-resize-handle--height"
+                  onPointerDown={(event) => beginDetailResize('height', event)}
+                  onPointerMove={resizeDetail}
+                  onPointerUp={finishDetailResize}
+                  onPointerCancel={finishDetailResize}
+                  onKeyDown={(event) => adjustDetailSizeByKeyboard('height', event)}
+                />
+              </>
+            )}
           </div>
         )}
         </div>

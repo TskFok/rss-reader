@@ -3508,9 +3508,83 @@ html[data-ui-style="eink"] .ui-style-floating-wrap {
 
 .home-layout--detail-centered .article-detail-dock {
   order: 1;
-  flex: 1.6 1 0;
+  flex: 0 0 var(--article-detail-width, 62%);
   min-width: 0;
-  height: auto;
+  height: var(--article-detail-height, 520px);
+  position: relative;
+}
+
+.article-detail-resize-handle {
+  position: absolute;
+  z-index: 1;
+  touch-action: none;
+}
+
+.article-detail-resize-handle--width {
+  top: 18px;
+  right: -7px;
+  bottom: 18px;
+  width: 14px;
+  cursor: col-resize;
+}
+
+.article-detail-resize-handle--height {
+  right: 18px;
+  bottom: -7px;
+  left: 18px;
+  height: 14px;
+  cursor: row-resize;
+}
+
+.article-detail-resize-handle::after {
+  position: absolute;
+  content: '';
+  border-radius: 999px;
+  background: transparent;
+  transition: background 0.15s ease;
+}
+
+.article-detail-resize-handle--width::after {
+  top: 50%;
+  left: 5px;
+  width: 3px;
+  height: 48px;
+  transform: translateY(-50%);
+}
+
+.article-detail-resize-handle--height::after {
+  top: 5px;
+  left: 50%;
+  width: 48px;
+  height: 3px;
+  transform: translateX(-50%);
+}
+
+.article-detail-resize-handle:hover::after,
+.article-detail-resize-handle:focus-visible::after,
+.article-detail-dock--resizing-width .article-detail-resize-handle--width::after,
+.article-detail-dock--resizing-height .article-detail-resize-handle--height::after {
+  background: var(--nice-admin-primary);
+}
+
+.article-detail-resize-handle:focus-visible {
+  outline: none;
+}
+
+.article-detail-resize-handle:focus-visible::after {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--nice-admin-primary) 28%, transparent);
+}
+
+body.article-detail-resizing {
+  user-select: none;
+}
+
+@media (max-width: 860px) {
+  .home-layout--detail-centered .article-detail-dock {
+    order: initial;
+    flex: 0 1 auto;
+    height: 50vh;
+  }
 }
 
 .article-detail-scroll {

@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, MemoryRouter, RouterProvider } from 'react-router-dom';
 import { ThemeProvider } from '../contexts/ThemeContext';
@@ -262,6 +262,110 @@ test('详情居中布局将文章列表与详情面板放入同一阅读区域',
     expect(panels).toContainElement(container.querySelector('.article-detail-dock'));
     expect(panels).toContainElement(container.querySelector('.article-list-scroll'));
   });
+});
+
+test('默认布局打开文章时不显示详情尺寸拖拽手柄', async () => {
+  const user = userEvent.setup();
+  mockLocalStorage();
+  const router = renderHomeAt('/');
+  render(<RouterProvider router={router} />);
+
+  await user.click(await screen.findByRole('button', { name: /长文/ }));
+
+  expect(screen.queryByRole('separator', { name: '调整详情宽度' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('separator', { name: '调整详情高度' })).not.toBeInTheDocument();
+});
+
+test('详情居中布局拖拽宽度手柄后保存详情尺寸', async () => {
+  const user = userEvent.setup();
+  mockLocalStorage();
+  const router = renderHomeAt('/');
+  const { container } = render(<RouterProvider router={router} />);
+
+  await user.selectOptions(await screen.findByRole('combobox', { name: '阅读布局' }), 'detail-centered');
+  await user.click(await screen.findByRole('button', { name: /长文/ }));
+
+  const panels = container.querySelector('.home-reading-panels') as HTMLDivElement;
+  vi.spyOn(panels, 'getBoundingClientRect').mockReturnValue({
+    left: 100,
+    top: 80,
+    width: 1000,
+    height: 700,
+  } as DOMRect);
+  const widthHandle = screen.getByRole('separator', { name: '调整详情宽度' });
+
+  fireEvent.pointerDown(widthHandle, { pointerId: 1, clientX: 650 });
+  fireEvent.pointerMove(widthHandle, { pointerId: 1, clientX: 800 });
+  fireEvent.pointerUp(widthHandle, { pointerId: 1 });
+
+  expect(panels.style.getPropertyValue('--article-detail-width')).toBe('70%');
+  expect(JSON.parse(window.localStorage.getItem('article.detail.size')!)).toMatchObject({ widthPercent: 70 });
+});
+
+test('详情居中布局拖拽高度手柄后保存详情尺寸', async () => {
+  const user = userEvent.setup();
+  mockLocalStorage();
+  const router = renderHomeAt('/');
+  const { container } = render(<RouterProvider router={router} />);
+
+  await user.selectOptions(await screen.findByRole('combobox', { name: '阅读布局' }), 'detail-centered');
+  await user.click(await screen.findByRole('button', { name: /长文/ }));
+
+  const panels = container.querySelector('.home-reading-panels') as HTMLDivElement;
+  vi.spyOn(panels, 'getBoundingClientRect').mockReturnValue({
+    left: 100,
+    top: 80,
+    width: 1000,
+    height: 700,
+  } as DOMRect);
+  const heightHandle = screen.getByRole('separator', { name: '调整详情高度' });
+
+  fireEvent.pointerDown(heightHandle, { pointerId: 1, clientY: 520 });
+  fireEvent.pointerMove(heightHandle, { pointerId: 1, clientY: 520 });
+  fireEvent.pointerUp(heightHandle, { pointerId: 1 });
+
+  expect(panels.style.getPropertyValue('--article-detail-height')).toBe('440px');
+  expect(JSON.parse(window.localStorage.getItem('article.detail.size')!)).toMatchObject({ height: 440 });
+});
+
+test('详情尺寸手柄可通过键盘微调并保存', async () => {
+  const user = userEvent.setup();
+  mockLocalStorage();
+  const router = renderHomeAt('/');
+  const { container } = render(<RouterProvider router={router} />);
+
+  await user.selectOptions(await screen.findByRole('combobox', { name: '阅读布局' }), 'detail-centered');
+  await user.click(await screen.findByRole('button', { name: /长文/ }));
+
+  const widthHandle = screen.getByRole('separator', { name: '调整详情宽度' });
+  widthHandle.focus();
+  fireEvent.keyDown(widthHandle, { key: 'ArrowRight' });
+
+  const panels = container.querySelector('.home-reading-panels') as HTMLDivElement;
+  expect(panels.style.getPropertyValue('--article-detail-width')).toBe('64%');
+  expect(JSON.parse(window.localStorage.getItem('article.detail.size')!)).toMatchObject({ widthPercent: 64 });
+});
+
+test('详情居中布局在窗口缩小时限制详情高度', async () => {
+  const originalInnerHeight = Object.getOwnPropertyDescriptor(window, 'innerHeight');
+  Object.defineProperty(window, 'innerHeight', { configurable: true, value: 1000 });
+  mockLocalStorage();
+  window.localStorage.setItem('home.layout', 'detail-centered');
+  window.localStorage.setItem('article.detail.size', JSON.stringify({ widthPercent: 65, height: 900 }));
+  const router = renderHomeAt('/');
+  const { container } = render(<RouterProvider router={router} />);
+
+  await screen.findByRole('combobox', { name: '阅读布局' });
+  const panels = container.querySelector('.home-reading-panels') as HTMLDivElement;
+  expect(panels.style.getPropertyValue('--article-detail-height')).toBe('820px');
+
+  act(() => {
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 700 });
+    window.dispatchEvent(new Event('resize'));
+  });
+
+  expect(panels.style.getPropertyValue('--article-detail-height')).toBe('520px');
+  if (originalInnerHeight) Object.defineProperty(window, 'innerHeight', originalInnerHeight);
 });
 
 test('阅读页选中订阅时可以立即刷新当前订阅', async () => {
