@@ -183,6 +183,16 @@ func TestFeedService_Update_WithProxy(t *testing.T) {
 	updated2, err := svc.Update(1, feed.ID, UpdateFeedRequest{UpdateIntervalMinutes: 120, ProxyID: &proxy.ID, ExpireDays: &expire30})
 	require.NoError(t, err)
 	assert.Equal(t, 30, updated2.ExpireDays)
+
+	// 前端提交 proxy_id=null 时，必须清空已保存的代理关联。
+	updated3, err := svc.Update(1, feed.ID, UpdateFeedRequest{UpdateIntervalMinutes: 120, ProxyID: nil})
+	require.NoError(t, err)
+	assert.Nil(t, updated3.ProxyID)
+	assert.Nil(t, updated3.Proxy)
+
+	var stored models.Feed
+	require.NoError(t, db.First(&stored, feed.ID).Error)
+	assert.Nil(t, stored.ProxyID)
 }
 
 func TestFeedService_Update_Category(t *testing.T) {

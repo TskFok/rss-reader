@@ -181,7 +181,7 @@ type UpdateFeedRequest struct {
 	URL                   *string `json:"url" binding:"omitempty,url"` // nil 表示不修改
 	CategoryID            *uint   `json:"category_id"`                 // nil 表示不修改
 	UpdateIntervalMinutes int     `json:"update_interval_minutes" binding:"required,min=5,max=10080"`
-	ProxyID               *uint   `json:"proxy_id"`
+	ProxyID               *uint   `json:"proxy_id"`    // nil 或 0 表示无代理
 	ExpireDays            *int    `json:"expire_days"` // 0=永不过期，nil 表示不修改
 	AIModelID             *uint   `json:"ai_model_id"` // nil 不修改；0 清空
 	AIClassifyEnabled     *bool   `json:"ai_classify_enabled"`
@@ -259,7 +259,9 @@ func (s *FeedService) Update(userID uint, id uint, req UpdateFeedRequest) (*mode
 			updates["url"] = nextURL
 		}
 	}
-	if req.ProxyID != nil {
+	if req.ProxyID == nil || *req.ProxyID == 0 {
+		updates["proxy_id"] = nil
+	} else {
 		updates["proxy_id"] = *req.ProxyID
 	}
 	if req.ExpireDays != nil {
@@ -281,11 +283,8 @@ func (s *FeedService) Update(userID uint, id uint, req UpdateFeedRequest) (*mode
 	if req.AITargetLanguage != nil {
 		updates["ai_target_language"] = strings.TrimSpace(*req.AITargetLanguage)
 	}
-	if err := s.db.Model(feed).Updates(updates).Error; err != nil {
+	if err := s.db.Model(&models.Feed{}).Where("id = ? AND user_id = ?", feed.ID, userID).Updates(updates).Error; err != nil {
 		return nil, err
-	}
-	if req.ProxyID == nil {
-		_ = s.db.Model(feed).Update("proxy_id", nil)
 	}
 	if req.CategoryID != nil {
 		var catVal interface{} = nil
