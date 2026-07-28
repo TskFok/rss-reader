@@ -3547,18 +3547,25 @@ html[data-ui-style="eink"] .ui-style-floating-wrap {
 }
 
 .article-detail-ai-trigger {
-  padding: 6px 12px;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: inline-grid;
+  place-items: center;
   border: 1px solid var(--nice-admin-primary);
   border-radius: 8px;
   background: transparent;
   color: var(--nice-admin-primary);
   cursor: pointer;
-  font-size: 0.8rem;
-  white-space: nowrap;
 }
 
 .article-detail-ai-trigger:hover {
   background: color-mix(in srgb, var(--nice-admin-primary) 12%, transparent);
+}
+
+.article-detail-ai-trigger svg {
+  width: 16px;
+  height: 16px;
 }
 
 .article-detail-original-webpage-trigger {

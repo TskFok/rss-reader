@@ -574,9 +574,11 @@ test('点击查看原始网页后替换首页详情正文，并可返回正文',
   });
 
   const originalWebpageTrigger = screen.getByRole('button', { name: '查看原始网页' });
-  const manualAiTrigger = screen.getByRole('button', { name: '手动 AI' });
+  const manualAiTrigger = screen.getByRole('button', { name: '手动 AI 分类与翻译' });
   expect(originalWebpageTrigger).toHaveClass('article-detail-original-webpage-trigger');
   expect(originalWebpageTrigger.querySelector('svg')).toBeInTheDocument();
+  expect(manualAiTrigger).toHaveAttribute('title', '手动 AI 分类与翻译');
+  expect(manualAiTrigger.querySelector('svg')).toBeInTheDocument();
   expect(originalWebpageTrigger.compareDocumentPosition(manualAiTrigger)).toBe(
     Node.DOCUMENT_POSITION_FOLLOWING
   );

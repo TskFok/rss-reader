@@ -335,9 +335,14 @@ export default function ArticleManualAI({
         type="button"
         className="article-detail-ai-trigger"
         onClick={() => setDrawerOpen(true)}
+        aria-label="手动 AI 分类与翻译"
         title="手动 AI 分类与翻译"
       >
-        手动 AI
+        <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="m15 4 1.3 3.7L20 9l-3.7 1.3L15 14l-1.3-3.7L10 9l3.7-1.3L15 4Z" />
+          <path d="m4 20 9-9" />
+          <path d="m6 15 1 1M9 18l1 1" />
+        </svg>
       </button>
       {drawer}
     </>
