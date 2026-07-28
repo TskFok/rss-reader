@@ -3937,6 +3937,18 @@ html[data-ui-style="eink"] .ui-style-floating-wrap {
   border-radius: 12px;
 }
 
+.article-original-webpage-frame {
+  display: block;
+  width: 100%;
+  min-height: 560px;
+  border: 0;
+  border-radius: 12px;
+}
+
+.article-original-webpage-fallback {
+  margin: 12px 0 0;
+}
+
 .pagination {
   display: flex;
   align-items: center;
