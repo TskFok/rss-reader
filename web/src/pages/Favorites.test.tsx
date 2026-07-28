@@ -124,4 +124,10 @@ test('收藏页切换文章时不会保留上一条的原始网页视图', async
   });
   expect(screen.queryByTitle('原始网页')).not.toBeInTheDocument();
   expect(screen.getByRole('button', { name: '查看原始网页' })).toBeInTheDocument();
+
+  const closeButton = screen.getByRole('button', { name: '关闭' });
+  expect(closeButton).toHaveAttribute('title', '关闭');
+  expect(closeButton.querySelector('svg')).toBeInTheDocument();
+  await user.click(closeButton);
+  expect(document.querySelector('.article-detail-dock')).not.toBeInTheDocument();
 });

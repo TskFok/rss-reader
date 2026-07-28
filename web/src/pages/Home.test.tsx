@@ -594,6 +594,12 @@ test('点击查看原始网页后替换首页详情正文，并可返回正文',
 
   await user.click(screen.getByRole('button', { name: '返回正文' }));
   expect(document.querySelector('.article-detail-content')?.innerHTML).toContain('行');
+
+  const closeButton = screen.getByRole('button', { name: '关闭' });
+  expect(closeButton).toHaveAttribute('title', '关闭');
+  expect(closeButton.querySelector('svg')).toBeInTheDocument();
+  await user.click(closeButton);
+  expect(document.querySelector('.article-detail-dock')).not.toBeInTheDocument();
 });
 
 test('语言切换选项不依赖列表项 content_translated', async () => {

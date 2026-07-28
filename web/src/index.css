@@ -3714,18 +3714,26 @@ html[data-ui-style="eink"] .ui-style-floating-wrap {
 }
 
 .article-detail-close {
-  padding: 6px 12px;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: inline-grid;
+  place-items: center;
   border: 1px solid var(--nice-admin-input-border);
   border-radius: 8px;
   background: transparent;
   color: var(--nice-admin-text-muted);
   cursor: pointer;
-  font-size: 0.85rem;
 }
 
 .article-detail-close:hover {
   background: var(--nice-admin-hover-bg);
   color: var(--nice-admin-text);
+}
+
+.article-detail-close svg {
+  width: 16px;
+  height: 16px;
 }
 
 .article-detail-meta {

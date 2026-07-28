@@ -286,8 +286,16 @@ export default function Favorites() {
                 >
                   ★
                 </button>
-                <button type="button" className="article-detail-close" onClick={() => selectArticle(null)}>
-                  关闭
+                <button
+                  type="button"
+                  className="article-detail-close"
+                  onClick={() => selectArticle(null)}
+                  aria-label="关闭"
+                  title="关闭"
+                >
+                  <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="m6 6 12 12M18 6 6 18" />
+                  </svg>
                 </button>
               </div>
             </div>
