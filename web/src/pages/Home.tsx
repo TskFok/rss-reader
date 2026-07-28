@@ -5,6 +5,7 @@ import type { ArticleListItem, Feed, FeedCategory } from '../api/client';
 import ArticleList from '../components/ArticleList';
 import ArticleManualAI from '../components/ArticleManualAI';
 import ArticleDetailContent from '../components/ArticleDetailContent';
+import ArticleOriginalWebpage from '../components/ArticleOriginalWebpage';
 import { useArticleDetail } from '../hooks/useArticleDetail';
 import { ensureAiModelsLoaded } from '../hooks/useAiModels';
 import { nextIndex } from '../utils/arrowNav';
@@ -67,6 +68,7 @@ export default function Home() {
   const [articleDisplayLang, setArticleDisplayLang] = useState<ArticleDisplayLang>(() =>
     getStoredArticleLang()
   );
+  const [showOriginalWebpage, setShowOriginalWebpage] = useState(false);
   const [homeLayout, setHomeLayout] = useState<HomeLayout>(() => getStoredHomeLayout());
   const sidebarLoadedRef = useRef(false);
   const syncedReadIdRef = useRef<number | null>(null);
@@ -166,6 +168,10 @@ export default function Home() {
     if (!el || !selectedListItem) return;
     el.scrollTop = 0;
   }, [selectedListItem?.id]);
+
+  useEffect(() => {
+    setShowOriginalWebpage(false);
+  }, [selectedId, selectedDetail?.id]);
 
   const toggleCategoryCollapsed = useCallback((categoryId: number) => {
     setCollapsedCategories((prev) => {
@@ -523,6 +529,15 @@ export default function Home() {
               </a>
               <div className="article-detail-actions">
                 {selectedDetail && (
+                  <button
+                    type="button"
+                    className="article-detail-ai-trigger"
+                    onClick={() => setShowOriginalWebpage((value) => !value)}
+                  >
+                    {showOriginalWebpage ? '返回正文' : '查看原始网页'}
+                  </button>
+                )}
+                {selectedDetail && (
                   <ArticleManualAI
                     article={selectedDetail}
                     onTranslateStart={() => {
@@ -572,7 +587,11 @@ export default function Home() {
               ) : detailLoading ? (
                 <p className="loading article-detail-skeleton">加载正文中...</p>
               ) : selectedDetail ? (
-                <ArticleDetailContent article={selectedDetail} displayLang={articleDisplayLang} />
+                showOriginalWebpage ? (
+                  <ArticleOriginalWebpage url={selectedDetail.link} />
+                ) : (
+                  <ArticleDetailContent article={selectedDetail} displayLang={articleDisplayLang} />
+                )
               ) : null}
             </div>
           </div>

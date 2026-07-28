@@ -554,6 +554,40 @@ test('列表无正文时通过详情接口渲染正文', async () => {
   });
 });
 
+test('点击查看原始网页后替换首页详情正文，并可返回正文', async () => {
+  const user = userEvent.setup();
+  mockLocalStorage();
+
+  render(
+    <MemoryRouter initialEntries={['/']}>
+      <ThemeProvider>
+        <ToastProvider>
+          <Home />
+        </ToastProvider>
+      </ThemeProvider>
+    </MemoryRouter>
+  );
+
+  await user.click(await screen.findByRole('button', { name: /长文/ }));
+  await waitFor(() => {
+    expect(document.querySelector('.article-detail-content')?.innerHTML).toContain('行');
+  });
+
+  const originalWebpageTrigger = screen.getByRole('button', { name: '查看原始网页' });
+  const manualAiTrigger = screen.getByRole('button', { name: '手动 AI' });
+  expect(originalWebpageTrigger.compareDocumentPosition(manualAiTrigger)).toBe(
+    Node.DOCUMENT_POSITION_FOLLOWING
+  );
+
+  await user.click(originalWebpageTrigger);
+  expect(screen.getByTitle('原始网页')).toHaveAttribute('src', 'http://example.com/p/101');
+  expect(document.querySelector('.article-detail-content')).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: '返回正文' })).toBeInTheDocument();
+
+  await user.click(screen.getByRole('button', { name: '返回正文' }));
+  expect(document.querySelector('.article-detail-content')?.innerHTML).toContain('行');
+});
+
 test('语言切换选项不依赖列表项 content_translated', async () => {
   vi.mocked(articlesApi.list).mockResolvedValueOnce({
     data: {
