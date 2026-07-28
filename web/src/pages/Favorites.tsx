@@ -4,6 +4,7 @@ import type { ArticleListItem } from '../api/client';
 import ArticleList from '../components/ArticleList';
 import ArticleManualAI from '../components/ArticleManualAI';
 import ArticleDetailContent from '../components/ArticleDetailContent';
+import ArticleOriginalWebpage from '../components/ArticleOriginalWebpage';
 import { useArticleDetail } from '../hooks/useArticleDetail';
 import { ensureAiModelsLoaded } from '../hooks/useAiModels';
 import { nextIndex } from '../utils/arrowNav';
@@ -38,6 +39,7 @@ export default function Favorites() {
   const [articleDisplayLang, setArticleDisplayLang] = useState<ArticleDisplayLang>(() =>
     getStoredArticleLang()
   );
+  const [showOriginalWebpage, setShowOriginalWebpage] = useState(false);
   const listScrollRef = useRef<HTMLDivElement>(null);
   const syncedReadIdRef = useRef<number | null>(null);
 
@@ -97,6 +99,10 @@ export default function Favorites() {
     );
     patchListItem(selectedDetail.id, { read: true });
   }, [selectedDetail, patchListItem]);
+
+  useEffect(() => {
+    setShowOriginalWebpage(false);
+  }, [selectedId, selectedDetail?.id]);
 
   const toggleFavorite = async (id: number) => {
     try {
@@ -249,6 +255,15 @@ export default function Favorites() {
               </a>
               <div className="article-detail-actions">
                 {selectedDetail && (
+                  <button
+                    type="button"
+                    className="article-detail-ai-trigger"
+                    onClick={() => setShowOriginalWebpage((value) => !value)}
+                  >
+                    {showOriginalWebpage ? '返回正文' : '查看原始网页'}
+                  </button>
+                )}
+                {selectedDetail && (
                   <ArticleManualAI
                     article={selectedDetail}
                     onTranslateStart={() => {
@@ -297,7 +312,11 @@ export default function Favorites() {
             ) : detailLoading ? (
               <p className="loading article-detail-skeleton">加载正文中...</p>
             ) : selectedDetail ? (
-              <ArticleDetailContent article={selectedDetail} displayLang={articleDisplayLang} />
+              showOriginalWebpage ? (
+                <ArticleOriginalWebpage url={selectedDetail.link} />
+              ) : (
+                <ArticleDetailContent article={selectedDetail} displayLang={articleDisplayLang} />
+              )
             ) : null}
           </div>
         )}
