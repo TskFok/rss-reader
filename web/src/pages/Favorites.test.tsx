@@ -103,12 +103,18 @@ test('收藏页切换文章时不会保留上一条的原始网页视图', async
   await screen.findByText('第一篇正文');
   const originalWebpageTrigger = screen.getByRole('button', { name: '查看原始网页' });
   const manualAiTrigger = screen.getByRole('button', { name: '手动 AI' });
+  expect(originalWebpageTrigger).toHaveClass('article-detail-original-webpage-trigger');
+  expect(originalWebpageTrigger.querySelector('svg')).toBeInTheDocument();
   expect(originalWebpageTrigger.compareDocumentPosition(manualAiTrigger)).toBe(
     Node.DOCUMENT_POSITION_FOLLOWING
   );
 
   await user.click(originalWebpageTrigger);
   expect(screen.getByTitle('原始网页')).toHaveAttribute('src', 'http://example.com/p/101');
+  expect(screen.getByRole('button', { name: '返回正文' })).toHaveClass(
+    'article-detail-original-webpage-trigger'
+  );
+  expect(screen.getByRole('button', { name: '返回正文' }).querySelector('svg')).toBeInTheDocument();
 
   await user.click(screen.getByRole('button', { name: /另一篇/ }));
   await waitFor(() => {

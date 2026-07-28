@@ -6,6 +6,7 @@ import ArticleList from '../components/ArticleList';
 import ArticleManualAI from '../components/ArticleManualAI';
 import ArticleDetailContent from '../components/ArticleDetailContent';
 import ArticleOriginalWebpage from '../components/ArticleOriginalWebpage';
+import ArticleOriginalWebpageButton from '../components/ArticleOriginalWebpageButton';
 import { useArticleDetail } from '../hooks/useArticleDetail';
 import { ensureAiModelsLoaded } from '../hooks/useAiModels';
 import { nextIndex } from '../utils/arrowNav';
@@ -529,13 +530,10 @@ export default function Home() {
               </a>
               <div className="article-detail-actions">
                 {selectedDetail && (
-                  <button
-                    type="button"
-                    className="article-detail-ai-trigger"
+                  <ArticleOriginalWebpageButton
+                    showOriginalWebpage={showOriginalWebpage}
                     onClick={() => setShowOriginalWebpage((value) => !value)}
-                  >
-                    {showOriginalWebpage ? '返回正文' : '查看原始网页'}
-                  </button>
+                  />
                 )}
                 {selectedDetail && (
                   <ArticleManualAI
