@@ -3561,6 +3561,28 @@ html[data-ui-style="eink"] .ui-style-floating-wrap {
   background: color-mix(in srgb, var(--nice-admin-primary) 12%, transparent);
 }
 
+.article-detail-original-webpage-trigger {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid var(--nice-admin-primary);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--nice-admin-primary);
+  cursor: pointer;
+}
+
+.article-detail-original-webpage-trigger:hover {
+  background: color-mix(in srgb, var(--nice-admin-primary) 12%, transparent);
+}
+
+.article-detail-original-webpage-trigger svg {
+  width: 16px;
+  height: 16px;
+}
+
 /* 手动 AI 右侧抽屉 */
 .article-ai-drawer-root {
   position: fixed;
