@@ -4,7 +4,7 @@ export default function ArticleOriginalWebpage({ url }: { url: string }) {
       <iframe
         className="article-original-webpage-frame"
         src={url}
-        title="原始网页"
+        aria-label="原始网页"
         loading="lazy"
         referrerPolicy="strict-origin-when-cross-origin"
       />

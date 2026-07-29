@@ -688,7 +688,10 @@ test('点击查看原始网页后替换首页详情正文，并可返回正文',
   );
 
   await user.click(originalWebpageTrigger);
-  expect(screen.getByTitle('原始网页')).toHaveAttribute('src', 'http://example.com/p/101');
+  expect(screen.getByLabelText('原始网页', { selector: 'iframe' })).toHaveAttribute(
+    'src',
+    'http://example.com/p/101'
+  );
   expect(document.querySelector('.article-detail-content')).not.toBeInTheDocument();
   expect(screen.getByRole('button', { name: '返回正文' })).toBeInTheDocument();
   expect(screen.getByRole('button', { name: '返回正文' })).toHaveClass(
