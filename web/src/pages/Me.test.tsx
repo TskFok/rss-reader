@@ -1,9 +1,30 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { AuthProvider } from '../contexts/AuthContext';
 import { ThemeProvider } from '../contexts/ThemeContext';
+import { ToastProvider } from '../contexts/ToastContext';
+import { userSettingsApi } from '../api/client';
 import Me from './Me';
+
+vi.mock('../api/client', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../api/client')>();
+  return {
+    ...actual,
+    userSettingsApi: {
+      ...actual.userSettingsApi,
+      get: vi.fn().mockResolvedValue({
+        data: {
+          feishu_notify_type: '',
+          feishu_bot_webhook: '',
+          feishu_id: '',
+          password_login_enabled: true,
+        },
+      }),
+      update: vi.fn().mockResolvedValue({ data: { message: '保存成功' } }),
+    },
+  };
+});
 
 function setupLocalStorage() {
   const store = new Map<string, string>();
@@ -19,22 +40,24 @@ function setupLocalStorage() {
   };
 }
 
-function renderMe() {
+function renderMe(isSuperAdmin = false) {
   setupLocalStorage();
   localStorage.setItem('token', 'token');
   localStorage.setItem(
     'user',
-    JSON.stringify({ id: 1, username: 'alice', status: 'active', is_super_admin: false, created_at: '' })
+    JSON.stringify({ id: 1, username: 'alice', status: 'active', is_super_admin: isSuperAdmin, created_at: '' })
   );
 
   render(
     <MemoryRouter initialEntries={['/me']}>
       <ThemeProvider>
         <AuthProvider>
-          <Routes>
-            <Route path="/me" element={<Me />} />
-            <Route path="/login" element={<div>登录页</div>} />
-          </Routes>
+          <ToastProvider>
+            <Routes>
+              <Route path="/me" element={<Me />} />
+              <Route path="/login" element={<div>登录页</div>} />
+            </Routes>
+          </ToastProvider>
         </AuthProvider>
       </ThemeProvider>
     </MemoryRouter>
@@ -54,7 +77,27 @@ test('我的页面承载原顶部右侧的个人与偏好操作', async () => {
   await user.click(themeButton);
   expect(document.documentElement.dataset.theme).toBe('dark');
 
+  expect(screen.queryByRole('heading', { name: '账号密码登录' })).not.toBeInTheDocument();
+
   await user.click(screen.getByRole('button', { name: '退出' }));
   expect(screen.getByText('登录页')).toBeInTheDocument();
   expect(localStorage.getItem('token')).toBeNull();
+});
+
+test('超级管理员可确认关闭账号密码登录', async () => {
+  const user = userEvent.setup();
+  vi.mocked(userSettingsApi.update).mockClear();
+  renderMe(true);
+
+  const toggle = await screen.findByRole('button', { name: '已开启' });
+  await user.click(toggle);
+  expect(screen.getByRole('dialog')).toBeInTheDocument();
+  expect(screen.getByText(/同时关闭注册/)).toBeInTheDocument();
+  expect(screen.getByText(/不会检查飞书/)).toBeInTheDocument();
+
+  await user.click(screen.getByRole('button', { name: '确认关闭' }));
+  await waitFor(() => {
+    expect(userSettingsApi.update).toHaveBeenCalledWith({ password_login_enabled: false });
+  });
+  expect(await screen.findByRole('button', { name: '已关闭' })).toBeInTheDocument();
 });

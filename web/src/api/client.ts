@@ -202,6 +202,8 @@ export const authApi = {
     client.post<{ token: string; user: User }>('/auth/login', { username, password }),
   getFeishuLoginUrl: () =>
     client.get<{ url: string; goto: string }>('/auth/feishu/login-url'),
+  getLoginOptions: () =>
+    client.get<{ password_login_enabled: boolean }>('/auth/login-options'),
 };
 
 export interface FeedAIOptions {
@@ -584,6 +586,7 @@ export interface UserSettings {
   feishu_notify_type: string;
   feishu_bot_webhook: string;
   feishu_id: string;
+  password_login_enabled?: boolean;
 }
 
 export const userSettingsApi = {
