@@ -56,6 +56,7 @@ func main() {
 	errorLogSvc := services.NewErrorLogService(db)
 	adminSvc := services.NewAdminService(db)
 	userSettingSvc := services.NewUserSettingService(db)
+	appSettingSvc := services.NewAppSettingService(db)
 	articleHandler := handlers.NewArticleHandler(articleSvc, articleAI)
 	summaryHistoryHandler := handlers.NewSummaryHistoryHandler(summaryHistorySvc, articleSvc, aiModelSvc, summaryTemplateSvc)
 	summaryTemplateHandler := handlers.NewSummaryTemplateHandler(summaryTemplateSvc)
@@ -88,8 +89,10 @@ func main() {
 
 	api := r.Group("/api")
 	{
-		api.POST("/auth/register", handlers.NewAuthHandler(authSvc).Register)
-		api.POST("/auth/login", handlers.NewAuthHandler(authSvc).Login)
+		authHandler := handlers.NewAuthHandler(authSvc, appSettingSvc)
+		api.POST("/auth/register", authHandler.Register)
+		api.POST("/auth/login", authHandler.Login)
+		api.GET("/auth/login-options", authHandler.LoginOptions)
 		api.GET("/auth/feishu/login-url", feishuHandler.LoginURL)
 		api.GET("/auth/feishu/login", feishuHandler.LoginRedirect)
 		api.GET("/auth/feishu/callback", feishuHandler.Callback)
