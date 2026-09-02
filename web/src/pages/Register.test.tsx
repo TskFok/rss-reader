@@ -1,9 +1,21 @@
 import { render, screen } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { ThemeProvider } from '../contexts/ThemeContext';
+import { authApi } from '../api/client';
 import Register from './Register';
 
-test('注册页使用玻璃态场景容器并展示表单', () => {
+vi.mock('../api/client', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../api/client')>();
+  return {
+    ...actual,
+    authApi: {
+      ...actual.authApi,
+      getLoginOptions: vi.fn().mockResolvedValue({ data: { password_login_enabled: true } }),
+    },
+  };
+});
+
+test('注册页使用玻璃态场景容器并展示表单', async () => {
   const { container } = render(
     <MemoryRouter initialEntries={['/register']}>
       <ThemeProvider>
@@ -14,6 +26,25 @@ test('注册页使用玻璃态场景容器并展示表单', () => {
 
   expect(container.querySelector('.auth-scene')).not.toBeNull();
   expect(container.querySelector('.auth-page')).not.toBeNull();
-  expect(screen.getByRole('heading', { name: '注册' })).toBeInTheDocument();
+  expect(await screen.findByRole('heading', { name: '注册' })).toBeInTheDocument();
   expect(screen.getByRole('button', { name: '注册' })).toBeInTheDocument();
+});
+
+test('关闭账号注册后跳转登录页', async () => {
+  vi.mocked(authApi.getLoginOptions).mockResolvedValueOnce({
+    data: { password_login_enabled: false },
+  } as Awaited<ReturnType<typeof authApi.getLoginOptions>>);
+
+  render(
+    <MemoryRouter initialEntries={['/register']}>
+      <ThemeProvider>
+        <Routes>
+          <Route path="/register" element={<Register />} />
+          <Route path="/login" element={<div>登录页</div>} />
+        </Routes>
+      </ThemeProvider>
+    </MemoryRouter>
+  );
+
+  expect(await screen.findByText('登录页')).toBeInTheDocument();
 });

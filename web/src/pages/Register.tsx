@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { authApi } from '../api/client';
 import UiStyleControl from '../components/UiStyleControl';
@@ -9,6 +9,19 @@ export default function Register() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    authApi
+      .getLoginOptions()
+      .then(({ data }) => {
+        if (data.password_login_enabled === false) {
+          navigate('/login', { replace: true, state: { message: '已关闭账号注册，请使用飞书登录' } });
+        }
+      })
+      .catch(() => {
+        // 拉取失败视为开启，继续展示注册表单
+      });
+  }, [navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

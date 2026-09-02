@@ -32,6 +32,7 @@ export default function Login() {
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [mode, setMode] = useState<'password' | 'feishu'>('password');
+  const [passwordLoginEnabled, setPasswordLoginEnabled] = useState(true);
   const [feishuGoto, setFeishuGoto] = useState<string | null>(null);
   const navigate = useNavigate();
   const location = useLocation();
@@ -47,6 +48,20 @@ export default function Login() {
     const msg = (location.state as { message?: string })?.message;
     if (msg) setMessage(msg);
   }, [location, navigate]);
+
+  useEffect(() => {
+    authApi
+      .getLoginOptions()
+      .then(({ data }) => {
+        if (data.password_login_enabled === false) {
+          setPasswordLoginEnabled(false);
+          setMode('feishu');
+        }
+      })
+      .catch(() => {
+        // 拉取失败视为开启，保持默认账号密码入口
+      });
+  }, []);
 
   // 选择飞书登录时自动获取并展示二维码
   useEffect(() => {
@@ -183,13 +198,15 @@ export default function Login() {
       <div className="auth-page">
         <h1>RSS 阅读器</h1>
         <div className="login-tabs">
-          <button
-            type="button"
-            className={mode === 'password' ? 'active' : ''}
-            onClick={() => setMode('password')}
-          >
-            账号密码登录
-          </button>
+          {passwordLoginEnabled && (
+            <button
+              type="button"
+              className={mode === 'password' ? 'active' : ''}
+              onClick={() => setMode('password')}
+            >
+              账号密码登录
+            </button>
+          )}
           <button
             type="button"
             className={mode === 'feishu' ? 'active' : ''}
@@ -244,9 +261,11 @@ export default function Login() {
             )}
           </div>
         )}
-        <p>
-          还没有账号？ <Link to="/register">注册</Link>
-        </p>
+        {passwordLoginEnabled && (
+          <p>
+            还没有账号？ <Link to="/register">注册</Link>
+          </p>
+        )}
       </div>
     </div>
   );
