@@ -14,11 +14,13 @@ export default function Me() {
   const toast = useToast();
 
   const [passwordLoginEnabled, setPasswordLoginEnabled] = useState(true);
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!user?.is_super_admin) return;
+    setSettingsLoaded(false);
     userSettingsApi
       .get()
       .then(({ data }) => {
@@ -28,6 +30,9 @@ export default function Me() {
       })
       .catch(() => {
         toast.showToast({ message: '加载账号密码登录设置失败', variant: 'error' });
+      })
+      .finally(() => {
+        setSettingsLoaded(true);
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.is_super_admin]);
@@ -104,9 +109,9 @@ export default function Me() {
                 type="button"
                 className="nice-admin-header-theme"
                 onClick={handleTogglePasswordLogin}
-                disabled={saving}
+                disabled={saving || !settingsLoaded}
               >
-                {passwordLoginEnabled ? '已开启' : '已关闭'}
+                {!settingsLoaded ? '加载中' : passwordLoginEnabled ? '已开启' : '已关闭'}
               </button>
             </div>
           )}

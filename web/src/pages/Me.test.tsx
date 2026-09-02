@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { AuthProvider } from '../contexts/AuthContext';
@@ -82,6 +82,44 @@ test('我的页面承载原顶部右侧的个人与偏好操作', async () => {
   await user.click(screen.getByRole('button', { name: '退出' }));
   expect(screen.getByText('登录页')).toBeInTheDocument();
   expect(localStorage.getItem('token')).toBeNull();
+});
+
+test('超级管理员开关在设置加载完成前显示加载态，不闪错误状态', async () => {
+  let resolveGet: (value: {
+    data: {
+      feishu_notify_type: string;
+      feishu_bot_webhook: string;
+      feishu_id: string;
+      password_login_enabled: boolean;
+    };
+  }) => void = () => {};
+  vi.mocked(userSettingsApi.get).mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        resolveGet = resolve;
+      })
+  );
+
+  renderMe(true);
+
+  const toggle = screen.getByRole('button', { name: '加载中' });
+  expect(toggle).toBeDisabled();
+  expect(screen.queryByRole('button', { name: '已开启' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: '已关闭' })).not.toBeInTheDocument();
+
+  await act(async () => {
+    resolveGet({
+      data: {
+        feishu_notify_type: '',
+        feishu_bot_webhook: '',
+        feishu_id: '',
+        password_login_enabled: false,
+      },
+    });
+  });
+
+  expect(await screen.findByRole('button', { name: '已关闭' })).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: '加载中' })).not.toBeInTheDocument();
 });
 
 test('超级管理员可确认关闭账号密码登录', async () => {

@@ -8,6 +8,7 @@
 
 - 用户注册、用户名密码登录和 JWT 鉴权
 - 飞书 OAuth 登录，支持 Web 回调和 JSON code 换票接口
+- 超级管理员可在「我的」页关闭全站账号密码登录与注册；若飞书未配好导致无法登录，执行 `UPDATE app_settings SET password_login_enabled = 1 WHERE id = 1;` 即可恢复
 - 新用户默认锁定，超级管理员可解锁用户
 - 首个注册用户或 `super_admin.username` 指定用户会成为超级管理员
 - 多用户数据隔离：订阅、分类、代理、AI 模型、文章状态和总结记录均按用户归属隔离
