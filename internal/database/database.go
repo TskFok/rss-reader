@@ -36,6 +36,7 @@ func Init(dsn string) (*gorm.DB, error) {
 		&models.AISummarySchedule{},
 		&models.AISummaryTemplate{},
 		&models.ErrorLog{},
+		&models.AppSetting{},
 	); err != nil {
 		return nil, err
 	}
