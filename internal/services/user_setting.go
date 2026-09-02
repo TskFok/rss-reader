@@ -58,6 +58,15 @@ func (s *UserSettingService) GetFeishuNotifyConfigForSend(userID uint) (*FeishuN
 	return s.GetFeishuNotifyConfig(userID)
 }
 
+// IsSuperAdmin 判断用户是否为超级管理员
+func (s *UserSettingService) IsSuperAdmin(userID uint) (bool, error) {
+	var user models.User
+	if err := s.db.Select("is_super_admin").First(&user, userID).Error; err != nil {
+		return false, err
+	}
+	return user.IsSuperAdmin, nil
+}
+
 // GetFeishuBotWebhook 获取当前用户的飞书机器人 Webhook（兼容旧逻辑）
 func (s *UserSettingService) GetFeishuBotWebhook(userID uint) (string, error) {
 	cfg, err := s.GetFeishuNotifyConfig(userID)

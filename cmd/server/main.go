@@ -153,7 +153,7 @@ func main() {
 			auth.GET("/error-logs", handlers.NewErrorLogHandler(errorLogSvc).List)
 			auth.DELETE("/error-logs/:id", handlers.NewErrorLogHandler(errorLogSvc).Delete)
 
-			userSettingHandler := handlers.NewUserSettingHandler(userSettingSvc, feishuBotSvc)
+			userSettingHandler := handlers.NewUserSettingHandler(userSettingSvc, feishuBotSvc, appSettingSvc)
 			auth.GET("/users/me/settings", userSettingHandler.GetSettings)
 			auth.PUT("/users/me/settings", userSettingHandler.UpdateSettings)
 			auth.POST("/users/me/feishu-bot/test", userSettingHandler.TestFeishuBot)

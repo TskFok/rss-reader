@@ -12,27 +12,31 @@ import (
 type UserSettingHandler struct {
 	userSettingSvc *services.UserSettingService
 	feishuBot      services.FeishuBotClient
+	appSettingSvc  *services.AppSettingService
 }
 
 // NewUserSettingHandler 创建用户设置处理器
-func NewUserSettingHandler(userSettingSvc *services.UserSettingService, feishuBot services.FeishuBotClient) *UserSettingHandler {
+func NewUserSettingHandler(userSettingSvc *services.UserSettingService, feishuBot services.FeishuBotClient, appSettingSvc *services.AppSettingService) *UserSettingHandler {
 	return &UserSettingHandler{
 		userSettingSvc: userSettingSvc,
 		feishuBot:      feishuBot,
+		appSettingSvc:  appSettingSvc,
 	}
 }
 
 // GetSettingsResponse 获取设置响应
 type GetSettingsResponse struct {
-	FeishuNotifyType string `json:"feishu_notify_type"`
-	FeishuBotWebhook string `json:"feishu_bot_webhook"`
-	FeishuID         string `json:"feishu_id"` // 用户绑定的飞书 open_id，API 模式接收者
+	FeishuNotifyType     string `json:"feishu_notify_type"`
+	FeishuBotWebhook     string `json:"feishu_bot_webhook"`
+	FeishuID             string `json:"feishu_id"` // 用户绑定的飞书 open_id，API 模式接收者
+	PasswordLoginEnabled bool   `json:"password_login_enabled"`
 }
 
 // UpdateSettingsRequest 更新设置请求
 type UpdateSettingsRequest struct {
-	FeishuNotifyType *string `json:"feishu_notify_type"`
-	FeishuBotWebhook *string `json:"feishu_bot_webhook"`
+	FeishuNotifyType     *string `json:"feishu_notify_type"`
+	FeishuBotWebhook     *string `json:"feishu_bot_webhook"`
+	PasswordLoginEnabled *bool   `json:"password_login_enabled"`
 }
 
 // GetSettings 获取当前用户设置
@@ -44,10 +48,16 @@ func (h *UserSettingHandler) GetSettings(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取设置失败"})
 		return
 	}
+	passwordLoginEnabled, err := h.appSettingSvc.GetPasswordLoginEnabled()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取设置失败"})
+		return
+	}
 	c.JSON(http.StatusOK, GetSettingsResponse{
-		FeishuNotifyType: cfg.NotifyType,
-		FeishuBotWebhook: cfg.Webhook,
-		FeishuID:         cfg.FeishuID,
+		FeishuNotifyType:     cfg.NotifyType,
+		FeishuBotWebhook:     cfg.Webhook,
+		FeishuID:             cfg.FeishuID,
+		PasswordLoginEnabled: passwordLoginEnabled,
 	})
 }
 
@@ -59,6 +69,21 @@ func (h *UserSettingHandler) UpdateSettings(c *gin.Context) {
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误: " + err.Error()})
 		return
+	}
+	if req.PasswordLoginEnabled != nil {
+		isAdmin, err := h.userSettingSvc.IsSuperAdmin(userID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "更新设置失败"})
+			return
+		}
+		if !isAdmin {
+			c.JSON(http.StatusForbidden, gin.H{"error": "需要超级管理员权限"})
+			return
+		}
+		if err := h.appSettingSvc.SetPasswordLoginEnabled(*req.PasswordLoginEnabled); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "更新设置失败"})
+			return
+		}
 	}
 	cfg, err := h.userSettingSvc.GetFeishuNotifyConfig(userID)
 	if err != nil {
