@@ -55,11 +55,15 @@ test('获取登录选项失败时按失败开放策略继续展示注册表单',
   render(
     <MemoryRouter initialEntries={['/register']}>
       <ThemeProvider>
-        <Register />
+        <Routes>
+          <Route path="/register" element={<Register />} />
+          <Route path="/login" element={<div>登录页</div>} />
+        </Routes>
       </ThemeProvider>
     </MemoryRouter>
   );
 
   expect(await screen.findByRole('heading', { name: '注册' })).toBeInTheDocument();
   expect(screen.getByRole('button', { name: '注册' })).toBeInTheDocument();
+  expect(screen.queryByText('登录页')).not.toBeInTheDocument();
 });
