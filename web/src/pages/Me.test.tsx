@@ -101,3 +101,61 @@ test('超级管理员可确认关闭账号密码登录', async () => {
   });
   expect(await screen.findByRole('button', { name: '已关闭' })).toBeInTheDocument();
 });
+
+test('超级管理员点击已关闭时直接开启，无需确认', async () => {
+  const user = userEvent.setup();
+  vi.mocked(userSettingsApi.update).mockClear();
+  vi.mocked(userSettingsApi.get).mockResolvedValueOnce({
+    data: {
+      feishu_notify_type: '',
+      feishu_bot_webhook: '',
+      feishu_id: '',
+      password_login_enabled: false,
+    },
+  });
+  renderMe(true);
+
+  const toggle = await screen.findByRole('button', { name: '已关闭' });
+  await user.click(toggle);
+
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  await waitFor(() => {
+    expect(userSettingsApi.update).toHaveBeenCalledWith({ password_login_enabled: true });
+  });
+  expect(await screen.findByRole('button', { name: '已开启' })).toBeInTheDocument();
+});
+
+test('保存失败时保持原开关状态并提示错误', async () => {
+  const user = userEvent.setup();
+  vi.mocked(userSettingsApi.update).mockClear();
+  vi.mocked(userSettingsApi.update).mockRejectedValueOnce(new Error('network error'));
+  renderMe(true);
+
+  const toggle = await screen.findByRole('button', { name: '已开启' });
+  await user.click(toggle);
+  await user.click(screen.getByRole('button', { name: '确认关闭' }));
+
+  await waitFor(() => {
+    expect(userSettingsApi.update).toHaveBeenCalledWith({ password_login_enabled: false });
+  });
+
+  const errorToast = await screen.findByText('保存失败，请重试');
+  expect(errorToast).toHaveClass('toast-error');
+  expect(screen.getByRole('button', { name: '已开启' })).toBeInTheDocument();
+});
+
+test('取消关闭确认框会关闭弹窗且不调用保存接口', async () => {
+  const user = userEvent.setup();
+  vi.mocked(userSettingsApi.update).mockClear();
+  renderMe(true);
+
+  const toggle = await screen.findByRole('button', { name: '已开启' });
+  await user.click(toggle);
+  expect(screen.getByRole('dialog')).toBeInTheDocument();
+
+  await user.click(screen.getByRole('button', { name: '取消' }));
+
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  expect(userSettingsApi.update).not.toHaveBeenCalled();
+  expect(screen.getByRole('button', { name: '已开启' })).toBeInTheDocument();
+});
