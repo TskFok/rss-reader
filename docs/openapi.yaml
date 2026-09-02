@@ -23,6 +23,20 @@ tags:
     description: AI 总结历史
 
 paths:
+  /auth/login-options:
+    get:
+      tags: [auth]
+      summary: 查询是否允许账号密码登录（公开）
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  password_login_enabled:
+                    type: boolean
+
   /auth/login:
     post:
       tags: [auth]
@@ -50,11 +64,27 @@ paths:
         '401':
           $ref: '#/components/responses/Error'
         '403':
-          description: 账号被锁定
+          description: 账号被锁定，或站点已关闭账号密码登录
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorBody'
+
+  /auth/register:
+    post:
+      tags: [auth]
+      summary: 用户名密码注册
+      responses:
+        '201':
+          description: 注册成功，等待管理员解锁
+        '403':
+          description: 站点已关闭账号注册
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '409':
+          $ref: '#/components/responses/Error'
 
   /auth/feishu/login-url:
     get:
@@ -501,6 +531,43 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorBody'
+
+  /users/me/settings:
+    get:
+      tags: [auth]
+      summary: 当前用户设置
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  feishu_notify_type: { type: string }
+                  feishu_bot_webhook: { type: string }
+                  feishu_id: { type: string }
+                  password_login_enabled: { type: boolean }
+    put:
+      tags: [auth]
+      summary: 更新当前用户设置
+      description: |
+        `password_login_enabled` 仅超级管理员可写；普通用户提交该字段返回 403「需要超级管理员权限」，且不会更新其它字段。
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                feishu_notify_type: { type: string }
+                feishu_bot_webhook: { type: string }
+                password_login_enabled: { type: boolean }
+      responses:
+        '200':
+          description: 保存成功
+        '403':
+          description: 普通用户试图修改 password_login_enabled
 
   /summary-histories:
     get:
