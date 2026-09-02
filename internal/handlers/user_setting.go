@@ -85,6 +85,10 @@ func (h *UserSettingHandler) UpdateSettings(c *gin.Context) {
 			return
 		}
 	}
+	if req.FeishuNotifyType == nil && req.FeishuBotWebhook == nil {
+		c.JSON(http.StatusOK, gin.H{"message": "保存成功"})
+		return
+	}
 	cfg, err := h.userSettingSvc.GetFeishuNotifyConfig(userID)
 	if err != nil {
 		cfg = &services.FeishuNotifyConfig{}

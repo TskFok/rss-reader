@@ -145,9 +145,49 @@ func TestUserSettingHandler_UpdatePasswordLogin_SuperAdmin(t *testing.T) {
 	getReq := httptest.NewRequest(http.MethodGet, "/users/me/settings", nil)
 	getW := httptest.NewRecorder()
 	r.ServeHTTP(getW, getReq)
+	assert.Equal(t, http.StatusOK, getW.Code)
 	var resp GetSettingsResponse
 	require.NoError(t, json.Unmarshal(getW.Body.Bytes(), &resp))
 	assert.False(t, resp.PasswordLoginEnabled)
+}
+
+func TestUserSettingHandler_UpdatePasswordLogin_PreservesFeishuConfig(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open("file:updadminfeishu?mode=memory&cache=shared"), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(&models.User{}, &models.AppSetting{}))
+	webhook := "https://open.feishu.cn/open-apis/bot/v2/hook/existing"
+	u := models.User{
+		Username:         "admin",
+		PasswordHash:     "h",
+		Status:           models.UserStatusActive,
+		IsSuperAdmin:     true,
+		FeishuBotWebhook: webhook,
+		FeishuNotifyType: "webhook",
+	}
+	require.NoError(t, db.Create(&u).Error)
+	r := setupUserSettingHandlers(t, db, u.ID)
+
+	enabled := false
+	body, _ := json.Marshal(UpdateSettingsRequest{PasswordLoginEnabled: &enabled})
+	req := httptest.NewRequest(http.MethodPut, "/users/me/settings", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var user models.User
+	require.NoError(t, db.First(&user, u.ID).Error)
+	assert.Equal(t, webhook, user.FeishuBotWebhook)
+	assert.Equal(t, "webhook", user.FeishuNotifyType)
+
+	getReq := httptest.NewRequest(http.MethodGet, "/users/me/settings", nil)
+	getW := httptest.NewRecorder()
+	r.ServeHTTP(getW, getReq)
+	assert.Equal(t, http.StatusOK, getW.Code)
+	var resp GetSettingsResponse
+	require.NoError(t, json.Unmarshal(getW.Body.Bytes(), &resp))
+	assert.False(t, resp.PasswordLoginEnabled)
+	assert.Equal(t, webhook, resp.FeishuBotWebhook)
 }
 
 func TestUserSettingHandler_UpdatePasswordLogin_Forbidden(t *testing.T) {
