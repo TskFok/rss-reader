@@ -80,3 +80,31 @@ test('关闭账号密码登录后只保留飞书登录', async () => {
   expect(screen.getByRole('button', { name: '飞书登录' })).toBeInTheDocument();
   expect(screen.queryByText('还没有账号？')).not.toBeInTheDocument();
 });
+
+test('获取登录选项失败时按失败开放策略保留账号密码登录', async () => {
+  vi.mocked(authApi.getLoginOptions).mockRejectedValueOnce(new Error('network error'));
+
+  const store = new Map<string, string>();
+  // @ts-expect-error test polyfill
+  globalThis.localStorage = {
+    getItem: (k: string) => (store.has(k) ? store.get(k)! : null),
+    setItem: (k: string, v: string) => {
+      store.set(k, String(v));
+    },
+    removeItem: (k: string) => {
+      store.delete(k);
+    },
+  };
+
+  render(
+    <MemoryRouter initialEntries={['/login']}>
+      <ThemeProvider>
+        <AuthProvider>
+          <Login />
+        </AuthProvider>
+      </ThemeProvider>
+    </MemoryRouter>
+  );
+
+  expect(await screen.findByRole('button', { name: '账号密码登录' })).toBeInTheDocument();
+});

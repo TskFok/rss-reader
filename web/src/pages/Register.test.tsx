@@ -48,3 +48,18 @@ test('关闭账号注册后跳转登录页', async () => {
 
   expect(await screen.findByText('登录页')).toBeInTheDocument();
 });
+
+test('获取登录选项失败时按失败开放策略继续展示注册表单', async () => {
+  vi.mocked(authApi.getLoginOptions).mockRejectedValueOnce(new Error('network error'));
+
+  render(
+    <MemoryRouter initialEntries={['/register']}>
+      <ThemeProvider>
+        <Register />
+      </ThemeProvider>
+    </MemoryRouter>
+  );
+
+  expect(await screen.findByRole('heading', { name: '注册' })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: '注册' })).toBeInTheDocument();
+});
